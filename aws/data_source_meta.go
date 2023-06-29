@@ -13,7 +13,7 @@ func GetS3MetaData() ds.MetaData {
 	objectPermissions := getPermissionsForResourceType(allPermissions, "object")
 
 	return ds.MetaData{
-		Type:              "aws-s3",
+		Type:              "aws-account",
 		SupportedFeatures: []string{""},
 		DataObjectTypes: []*ds.DataObjectType{
 			{

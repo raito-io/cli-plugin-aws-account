@@ -28,7 +28,7 @@ func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context) (*is
 	logger.Debug("Returning meta data for AWS identity store")
 
 	return &is.MetaData{
-		Type: "aws-s3",
+		Type: "aws-account",
 	}, nil
 }
 
