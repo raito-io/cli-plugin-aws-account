@@ -1,0 +1,114 @@
+[
+  {
+    "ARN": "arn:aws:iam::123456:user/d_hayden",
+    "ExternalId": "AIDAREJTYHH3IL6IIVWFT",
+    "Name": "d_hayden",
+    "Email": "d_hayden",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/atkinson_a",
+    "ExternalId": "AIDAREJTYHH3GDXGCEPEA",
+    "Name": "atkinson_a",
+    "Email": "atkinson_a",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/jobs_de",
+    "ExternalId": "AIDAREJTYHH3C34GBONEY",
+    "Name": "jobs_de",
+    "Email": "jobs_de",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/g_sandoval",
+    "ExternalId": "AIDAREJTYHH3COUUAQ6U2",
+    "Name": "g_sandoval",
+    "Email": "g_sandoval",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/kiss_k",
+    "ExternalId": "AIDAREJTYHH3GJ6GQEHGS",
+    "Name": "kiss_k",
+    "Email": "kiss_k",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/keith_c",
+    "ExternalId": "AIDAREJTYHH3NZ3OHFVCE",
+    "Name": "keith_c",
+    "Email": "keith_c",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/macwilliam_j",
+    "ExternalId": "AIDAREJTYHH3AKRFSW3HV",
+    "Name": "macwilliam_j",
+    "Email": "macwilliam_j",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/henriksson_v",
+    "ExternalId": "AIDAREJTYHH3ONXRYFF2C",
+    "Name": "henriksson_v",
+    "Email": "henriksson_v",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/stork_m",
+    "ExternalId": "AIDAREJTYHH3KAQSWOH4V",
+    "Name": "stork_m",
+    "Email": "stork_m",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/m_carissa",
+    "ExternalId": "AIDAREJTYHH3ALDEXYYAW",
+    "Name": "m_carissa",
+    "Email": "m_carissa",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/n_nguyen",
+    "ExternalId": "AIDAREJTYHH3MV5EBBZIR",
+    "Name": "n_nguyen",
+    "Email": "n_nguyen",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/sakamoto_w",
+    "ExternalId": "AIDAREJTYHH3FPSP3UPPY",
+    "Name": "sakamoto_w",
+    "Email": "sakamoto_w",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/scranton_j",
+    "ExternalId": "AIDAREJTYHH3DAD76HWV6",
+    "Name": "scranton_j",
+    "Email": "scranton_j",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/stein_v",
+    "ExternalId": "AIDAREJTYHH3CDRHKT2DC",
+    "Name": "stein_v",
+    "Email": "stein_v",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/stevenson_d",
+    "ExternalId": "AIDAREJTYHH3K5W32W5MQ",
+    "Name": "stevenson_d",
+    "Email": "stevenson_d",
+    "Tags": {}
+  },
+  {
+    "ARN": "arn:aws:iam::123456:user/stewart_b",
+    "ExternalId": "AIDAREJTYHH3GC72MVU6R",
+    "Name": "stewart_b",
+    "Email": "stewart_b",
+    "Tags": {}
+  }
+]

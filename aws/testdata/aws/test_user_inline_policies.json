@@ -1,0 +1,38 @@
+[
+  {
+    "ARN": "",
+    "Name": "sales-report",
+    "Id": "",
+    "Description": "inline policy",
+    "AttachmentCount": 0,
+    "PolicyType": "aws_inline_user",
+    "InlineParent": "atkinson_a",
+    "AssumeRolePolicyDocument": null,
+    "PolicyDocument": "{\"Version\":\"2012-10-17\",\"Statement\":[{\"Action\":\"s3:GetObject\",\"Resource\":\"arn:aws:s3:::raito-operational-data/derived/humanresources_overview.parquet\",\"Effect\":\"Allow\"}]}",
+    "PolicyParsed": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "s3:GetObject"
+          ],
+          "Resource": [
+            "arn:aws:s3:::raito-operational-data/derived/humanresources_overview.parquet"
+          ]
+        }
+      ]
+    },
+    "Tags": null,
+    "GroupBindings": null,
+    "UserBindings": [
+      {
+        "Type": "user",
+        "ResourceId": "",
+        "ResourceName": "atkinson_a",
+        "PolicyName": ""
+      }
+    ],
+    "RoleBindings": null
+  }
+]

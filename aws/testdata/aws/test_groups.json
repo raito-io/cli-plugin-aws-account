@@ -1,0 +1,79 @@
+[
+  {
+    "ARN": "arn:aws:iam::123456:group/data_analyst",
+    "ExternalId": "AGPAREJTYHH3EGGPGNMTI",
+    "Name": "data_analyst",
+    "Members": [
+      "AIDAREJTYHH3CDRHKT2DC",
+      "AIDAREJTYHH3GDXGCEPEA",
+      "AIDAREJTYHH3KAQSWOH4V"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/data_engineer",
+    "ExternalId": "AGPAREJTYHH3NWRT6DI57",
+    "Name": "data_engineer",
+    "Members": [
+      "AIDAREJTYHH3C34GBONEY",
+      "AIDAREJTYHH3GC72MVU6R"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/finance",
+    "ExternalId": "AGPAREJTYHH3NLLLISUTE",
+    "Name": "finance",
+    "Members": [
+      "AIDAREJTYHH3FPSP3UPPY"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/human_resources",
+    "ExternalId": "AGPAREJTYHH3I3BDRZ6ZI",
+    "Name": "human_resources",
+    "Members": [
+      "AIDAREJTYHH3AKRFSW3HV",
+      "AIDAREJTYHH3ALDEXYYAW",
+      "AIDAREJTYHH3DAD76HWV6",
+      "AIDAREJTYHH3GC72MVU6R",
+      "AIDAREJTYHH3K5W32W5MQ",
+      "AIDAREJTYHH3NZ3OHFVCE"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/marketing",
+    "ExternalId": "AGPAREJTYHH3KT43FNZPA",
+    "Name": "marketing",
+    "Members": [
+      "AIDAREJTYHH3FPSP3UPPY"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/sales",
+    "ExternalId": "AGPAREJTYHH3FP27ABCXI",
+    "Name": "sales",
+    "Members": [
+      "AIDAREJTYHH3CDRHKT2DC",
+      "AIDAREJTYHH3COUUAQ6U2",
+      "AIDAREJTYHH3GJ6GQEHGS",
+      "AIDAREJTYHH3IL6IIVWFT",
+      "AIDAREJTYHH3ONXRYFF2C"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/sales_analysis",
+    "ExternalId": "AGPAREJTYHH3INIT5Z77X",
+    "Name": "sales_analysis",
+    "Members": [
+      "AIDAREJTYHH3ALDEXYYAW"
+    ]
+  },
+  {
+    "ARN": "arn:aws:iam::123456:group/sales_ext",
+    "ExternalId": "AGPAREJTYHH3BFIFRVA5W",
+    "Name": "sales_ext",
+    "Members": [
+      "AIDAREJTYHH3COUUAQ6U2",
+      "AIDAREJTYHH3IL6IIVWFT"
+    ]
+  }
+]

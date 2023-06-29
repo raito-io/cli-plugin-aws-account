@@ -1,0 +1,38 @@
+[
+  {
+    "ARN": "",
+    "Name": "sns",
+    "Id": "",
+    "Description": "inline policy",
+    "AttachmentCount": 0,
+    "PolicyType": "aws_inline_role",
+    "InlineParent": "aws-controltower-ForwardSnsNotificationRole",
+    "AssumeRolePolicyDocument": null,
+    "PolicyDocument": "{\"Statement\":[{\"Action\":[\"sns:publish\"],\"Resource\":\"arn:aws:sns:*:879480425638:aws-controltower-AggregateSecurityNotifications\",\"Effect\":\"Allow\"}]}",
+    "PolicyParsed": {
+      "Version": "",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Action": [
+            "sns:publish"
+          ],
+          "Resource": [
+            "arn:aws:sns:*:879480425638:aws-controltower-AggregateSecurityNotifications"
+          ]
+        }
+      ]
+    },
+    "Tags": null,
+    "GroupBindings": null,
+    "UserBindings": null,
+    "RoleBindings": [
+      {
+        "Type": "role",
+        "ResourceId": "",
+        "ResourceName": "aws-controltower-ForwardSnsNotificationRole",
+        "PolicyName": ""
+      }
+    ]
+  }
+]

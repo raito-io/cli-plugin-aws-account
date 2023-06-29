@@ -1,0 +1,215 @@
+{
+  "lastCalculated": -62135596800,
+  "accessProviders": [
+    {
+      "id": "hscc5dWlngnlj4nLrCExQ",
+      "name": "TestFileProvider",
+      "description": "Permission to see all files",
+      "namingHint": "TestFileProvider",
+      "type": "aws_managed_policy",
+      "access": [
+        {
+          "id": "hscc5dWlngnlj4nLrCExQ",
+          "actualName": null,
+          "what": [
+            {
+              "dataObject": {
+                "fullName": "raito-operational-data",
+                "type": "bucket"
+              },
+              "permissions": [
+                "ListBucket"
+              ]
+            }
+          ]
+        }
+      ],
+      "action": "grant",
+      "who": {
+        "users": [
+          "jobs_de",
+          "stewart_b"
+        ],
+        "groups": [
+          "data_engineer",
+          "data_analyst"
+        ],
+        "inheritFrom": [
+          "ID:HJnqD-fTNCr7Kc7SR_frx"
+        ],
+        "usersInGroups": [
+          "atkinson_a",
+          "jobs_de",
+          "stein_v",
+          "stewart_b",
+          "stork_m"
+        ],
+        "usersInherited": [
+          "atkinson_a",
+          "jobs_de",
+          "stewart_b"
+        ]
+      },
+      "deletedWho": null,
+      "delete": false,
+      "whoLocked": false,
+      "whatLocked": false,
+      "actualName": null,
+      "what": [
+        {
+          "dataObject": {
+            "fullName": "raito-operational-data",
+            "type": "bucket"
+          },
+          "permissions": [
+            "ListBucket"
+          ]
+        }
+      ],
+      "deleteWhat": []
+    },
+    {
+      "id": "rhjb-6ShfpcdbM6zjOTYV",
+      "name": "TestProvider",
+      "description": "General AP for everyone to use",
+      "namingHint": "TestProvider",
+      "type": "aws_managed_policy",
+      "access": [
+        {
+          "id": "rhjb-6ShfpcdbM6zjOTYV",
+          "actualName": null,
+          "what": [
+            {
+              "dataObject": {
+                "fullName": "raito-operational-data",
+                "type": "bucket"
+              },
+              "permissions": [
+                "GetBucketLocation"
+              ]
+            }
+          ]
+        }
+      ],
+      "action": "grant",
+      "who": {
+        "users": [],
+        "groups": [
+          "marketing",
+          "human_resources",
+          "finance",
+          "sales"
+        ],
+        "inheritFrom": [
+          "ID:hscc5dWlngnlj4nLrCExQ"
+        ],
+        "usersInGroups": [
+          "d_hayden",
+          "g_sandoval",
+          "henriksson_v",
+          "keith_c",
+          "kiss_k",
+          "m_carissa",
+          "macwilliam_j",
+          "sakamoto_w",
+          "scranton_j",
+          "stein_v",
+          "stevenson_d",
+          "stewart_b"
+        ],
+        "usersInherited": [
+          "atkinson_a",
+          "jobs_de",
+          "stein_v",
+          "stewart_b",
+          "stork_m"
+        ]
+      },
+      "deletedWho": null,
+      "delete": false,
+      "whoLocked": false,
+      "whatLocked": false,
+      "actualName": null,
+      "what": [
+        {
+          "dataObject": {
+            "fullName": "raito-operational-data",
+            "type": "bucket"
+          },
+          "permissions": [
+            "GetBucketLocation"
+          ]
+        }
+      ],
+      "deleteWhat": []
+    },
+    {
+      "id": "HJnqD-fTNCr7Kc7SR_frx",
+      "name": "RoleDataAnalyst",
+      "description": "data analyst AWS role",
+      "namingHint": "RoleDataAnalyst",
+      "type": "aws_role",
+      "access": [
+        {
+          "id": "HJnqD-fTNCr7Kc7SR_frx",
+          "actualName": null,
+          "what": []
+        }
+      ],
+      "action": "grant",
+      "who": {
+        "users": [
+          "atkinson_a"
+        ],
+        "groups": [],
+        "inheritFrom": [
+          "ID:v-DZLITXKPwELs5N8r058"
+        ],
+        "usersInGroups": [],
+        "usersInherited": [
+          "jobs_de",
+          "stewart_b"
+        ]
+      },
+      "deletedWho": null,
+      "delete": false,
+      "whoLocked": false,
+      "whatLocked": false,
+      "actualName": null,
+      "what": [],
+      "deleteWhat": []
+    },
+    {
+      "id": "v-DZLITXKPwELs5N8r058",
+      "name": "RoleDataEngineer",
+      "description": "data engineering AWS role",
+      "namingHint": "RoleDataEngineer",
+      "type": "aws_role",
+      "access": [
+        {
+          "id": "v-DZLITXKPwELs5N8r058",
+          "actualName": null,
+          "what": []
+        }
+      ],
+      "action": "grant",
+      "who": {
+        "users": [
+          "jobs_de",
+          "stewart_b"
+        ],
+        "groups": [],
+        "inheritFrom": [],
+        "usersInGroups": [],
+        "usersInherited": []
+      },
+      "deletedWho": null,
+      "delete": false,
+      "whoLocked": false,
+      "whatLocked": false,
+      "actualName": null,
+      "what": [],
+      "deleteWhat": []
+    }
+  ]
+}
