@@ -17,4 +17,8 @@ const (
 	RolePrefix    = "role/"
 	InlinePrefix  = "inline/"
 	ManagedPrefix = "managed/"
+
+	TagSource = "aws-s3"
+
+	S3PermissionPrefix = "s3"
 )

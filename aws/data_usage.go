@@ -147,7 +147,7 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 					break
 				}
 
-				permission := *record.EventName
+				permission := fmt.Sprintf("%s:%s", S3PermissionPrefix, *record.EventName)
 
 				if resource.Type != nil && resource.Arn != nil && strings.EqualFold(*resource.Type, "AWS::S3::Object") {
 					object := convertArnToFullname(*resource.Arn)

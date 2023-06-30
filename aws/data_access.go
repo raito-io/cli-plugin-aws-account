@@ -142,9 +142,11 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 		userBindings := []string{}
 		roleBindings := []string{}
 
-		creatorTag := findTagValue(policy.Tags, "creator")
-		if creatorTag != nil && strings.EqualFold(*creatorTag, "raito") {
-			logger.Info(fmt.Sprintf("%s is raito policy, skipping import", policy.Name))
+		for _, tag := range policy.Tags {
+			if tag.Key == "creator" && tag.Value == "raito" {
+				// TODO, shouldn't we return here (see log message)?
+				logger.Info(fmt.Sprintf("%s is raito policy, skipping import", policy.Name))
+			}
 		}
 
 		for _, groupBinding := range policy.GroupBindings {

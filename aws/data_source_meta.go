@@ -1,6 +1,7 @@
 package aws
 
 import (
+	"fmt"
 	"strings"
 
 	ds "github.com/raito-io/cli/base/data_source"
@@ -41,6 +42,15 @@ func GetS3MetaData() ds.MetaData {
 				Children:    []string{},
 			},
 		},
+		UsageMetaInfo: &ds.UsageMetaInput{
+			DefaultLevel: ds.File,
+			Levels: []*ds.UsageMetaInputDetail{
+				{
+					Name:            ds.File,
+					DataObjectTypes: []string{ds.File},
+				},
+			},
+		},
 	}
 }
 
@@ -54,14 +64,23 @@ func getPermissionsForResourceType(input []ActionMetadata, resourceType string) 
 	accessLevelMap["read"] = ds.ReadGlobalPermission().StringValues()
 	accessLevelMap["list"] = ds.ReadGlobalPermission().StringValues()
 
+	usageLevelMap := map[string][]string{}
+	usageLevelMap["write"] = []string{ds.Write}
+	usageLevelMap["permissions management"] = []string{ds.Admin}
+	usageLevelMap["tagging"] = []string{ds.Admin}
+	usageLevelMap["read"] = []string{ds.Read}
+	usageLevelMap["list"] = []string{ds.Read}
+	// Actions don't need to be defined, as the permissions correspond to Actions (e.g. GetObject)
+
 	for _, actionMetadata := range input {
 		if strings.HasPrefix(actionMetadata.ResourceTypes, strings.ToLower(resourceType)) ||
 			strings.EqualFold(actionMetadata.ResourceTypes, resourceType) {
 			result = append(result, &ds.DataObjectTypePermission{
-				Permission:        actionMetadata.Action,
-				Description:       actionMetadata.Description,
-				GlobalPermissions: accessLevelMap[strings.ToLower(actionMetadata.AccessLevel)]},
-			)
+				Permission:             fmt.Sprintf("%s:%s", S3PermissionPrefix, actionMetadata.Action),
+				Description:            actionMetadata.Description,
+				GlobalPermissions:      accessLevelMap[strings.ToLower(actionMetadata.AccessLevel)],
+				UsageGlobalPermissions: usageLevelMap[strings.ToLower(actionMetadata.AccessLevel)],
+			})
 		}
 	}
 

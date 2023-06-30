@@ -36,13 +36,11 @@ func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy) (
 		actions := statement.Action
 		resources := statement.Resource
 
+		// TODO: decide how we deal with wildcards in resource names
+		// TODO: hard to check the data object type during AP sync.
+		// so trying to import every object as all the data object types.
+		// see how this can be improved
 		for _, resource := range resources {
-			if (strings.Contains(resource, "*") && !strings.EqualFold(resource, "*")) || strings.Contains(resource, "?") {
-				continue
-			}
-
-			// TODO: hard to check the data object type during AP sync.
-			// see how this can be improved
 			whatItems = append(whatItems, sync_from_target.WhatItem{
 				DataObject: &data_source.DataObjectReference{
 					FullName: convertArnToFullname(resource),
@@ -51,7 +49,8 @@ func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy) (
 				Permissions: actions,
 			}, sync_from_target.WhatItem{
 				DataObject: &data_source.DataObjectReference{
-					FullName: convertArnToFullname(resource),
+					// Raito doesn't need wildcard to interpret access on a folder: bucket/folder/* => bucket/folder
+					FullName: removeEndingWildcards(convertArnToFullname(resource)),
 					Type:     data_source.Folder,
 				},
 				Permissions: actions,

@@ -26,7 +26,7 @@ func getTags(input []types.Tag) []*tag.Tag {
 			tags = append(tags, &tag.Tag{
 				Key:    *t.Key,
 				Value:  *t.Value,
-				Source: "AWS",
+				Source: TagSource,
 			})
 		}
 	}
@@ -36,22 +36,17 @@ func getTags(input []types.Tag) []*tag.Tag {
 
 func getEmailAddressFromTags(tags []*tag.Tag, result string) string {
 	for _, t := range tags {
-		if strings.Contains(t.Key, "email") {
+		if t == nil {
+			continue
+		}
+
+		k := t.Key
+		if strings.Contains(k, "email") {
 			return t.Value
 		}
 	}
 
 	return result
-}
-
-func findTagValue(tags []*tag.Tag, key string) *string {
-	for _, t := range tags {
-		if t.Key == key {
-			return &t.Value
-		}
-	}
-
-	return nil
 }
 
 func convertArnToFullname(arn string) string {
@@ -66,6 +61,14 @@ func convertArnToFullname(arn string) string {
 func convertFullnameToArn(fullName string, service string) string {
 	// arn:aws:s3:::testing-app-server-shared-data-usage-eu-central-1-012457373382/demo/SnowflakeDataSource/*
 	return fmt.Sprintf("arn:aws:%s:::%s", service, fullName)
+}
+
+func removeEndingWildcards(name string) string {
+	if strings.HasSuffix(name, "/*") && len(name) > 2 {
+		name = name[:len(name)-2]
+	}
+
+	return name
 }
 
 func getTrustPolicyArn(user string, configMap *config.ConfigMap) string {

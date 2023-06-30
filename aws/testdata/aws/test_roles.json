@@ -5,7 +5,7 @@
     "Id": "AROAREJTYHH3PART7LEXY",
     "Description": "Provides full access to AWS services and resources",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Federated%22%3A%22arn%3Aaws%3Aiam%3A%3A077954824694%3Asaml-provider%2FAWSSSO_7846010e50d1e8ab_DO_NOT_DELETE%22%7D%2C%22Action%22%3A%5B%22sts%3AAssumeRoleWithSAML%22%2C%22sts%3ATagSession%22%5D%2C%22Condition%22%3A%7B%22StringEquals%22%3A%7B%22SAML%3Aaud%22%3A%22https%3A%2F%2Fsignin.aws.amazon.com%2Fsaml%22%7D%7D%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": "2023-04-17T07:21:30Z"
   },
   {
@@ -14,7 +14,7 @@
     "Id": "AROAREJTYHH3LAGRTFVCP",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22config.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": "2023-04-17T11:24:31Z"
   },
   {
@@ -23,9 +23,9 @@
     "Id": "AROAREJTYHH3POX6PAI6F",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%22arn%3Aaws%3Aiam%3A%3A077954824694%3Auser%2Fstewart_b%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {
-      "email": "DATA_ENGINEER_SYNC@RAITO.IO"
-    },
+    "Tags": [
+      {"key": "email", "value": "DATA_ENGINEER_SYNC@RAITO.IO", "source": "aws-s3"}
+    ],
     "LastUsedDate": null
   },
   {
@@ -34,7 +34,7 @@
     "Id": "AROAREJTYHH3M4NFRHY6W",
     "Description": "Access for the AWS Trusted Advisor Service to help reduce cost, increase performance, and improve security of your AWS environment.",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22trustedadvisor.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -43,7 +43,7 @@
     "Id": "AROAREJTYHH3DIFCZMVMG",
     "Description": "Service-linked role used by AWS SSO to manage AWS resources, including IAM roles, policies and SAML IdP on your behalf.",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22sso.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": "2023-04-06T08:45:50Z"
   },
   {
@@ -52,7 +52,7 @@
     "Id": "AROAREJTYHH3EIEQL5EEX",
     "Description": "Service-linked role used by AWS Organizations to enable integration of other AWS services with Organizations.",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22organizations.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": "2023-04-06T08:22:57Z"
   },
   {
@@ -61,7 +61,7 @@
     "Id": "AROAREJTYHH3DZ7ZRJG67",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22lambda.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -70,7 +70,7 @@
     "Id": "AROAREJTYHH3J3FILT62K",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22cloudtrail.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": "2023-04-06T08:25:56Z"
   },
   {
@@ -79,7 +79,7 @@
     "Id": "AROAREJTYHH3HTCJQQ6JV",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%22arn%3Aaws%3Aiam%3A%3A879480425638%3Arole%2Faws-controltower-AuditReadOnlyRole%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -88,7 +88,7 @@
     "Id": "AROAREJTYHH3LURDGXYQS",
     "Description": "This policy grants permissions to view resources and basic metadata across all AWS services",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Federated%22%3A%22arn%3Aaws%3Aiam%3A%3A077954824694%3Asaml-provider%2FAWSSSO_7846010e50d1e8ab_DO_NOT_DELETE%22%7D%2C%22Action%22%3A%5B%22sts%3AAssumeRoleWithSAML%22%2C%22sts%3ATagSession%22%5D%2C%22Condition%22%3A%7B%22StringEquals%22%3A%7B%22SAML%3Aaud%22%3A%22https%3A%2F%2Fsignin.aws.amazon.com%2Fsaml%22%7D%7D%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -97,7 +97,7 @@
     "Id": "AROAREJTYHH3HWNRUFERH",
     "Description": "Provides full access to AWS Organizations",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Federated%22%3A%22arn%3Aaws%3Aiam%3A%3A077954824694%3Asaml-provider%2FAWSSSO_7846010e50d1e8ab_DO_NOT_DELETE%22%7D%2C%22Action%22%3A%5B%22sts%3AAssumeRoleWithSAML%22%2C%22sts%3ATagSession%22%5D%2C%22Condition%22%3A%7B%22StringEquals%22%3A%7B%22SAML%3Aaud%22%3A%22https%3A%2F%2Fsignin.aws.amazon.com%2Fsaml%22%7D%7D%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -106,9 +106,9 @@
     "Id": "AROAREJTYHH3FLIZ6GCRE",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%5B%22arn%3Aaws%3Aiam%3A%3A077954824694%3Auser%2Fstewart_b%22%2C%22arn%3Aaws%3Aiam%3A%3A077954824694%3Auser%2Fjobs_de%22%5D%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {
-      "email": "DATA_ENGINEER@RAITO.IO"
-    },
+    "Tags": [
+      {"key": "email", "value": "DATA_ENGINEER@RAITO.IO", "source": "aws-s3"}
+    ],
     "LastUsedDate": null
   },
   {
@@ -117,7 +117,7 @@
     "Id": "AROAREJTYHH3JKHLUZHIP",
     "Description": "Enables resource access for AWS to provide billing, administrative and support services",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22support.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -126,7 +126,7 @@
     "Id": "AROAREJTYHH3DTRI5OM2P",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%22arn%3Aaws%3Aiam%3A%3A879480425638%3Arole%2Faws-controltower-AuditAdministratorRole%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -135,7 +135,7 @@
     "Id": "AROAREJTYHH3DA3RHQFQI",
     "Description": "Provides full access to AWS services and resources, but does not allow management of Users and groups",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Federated%22%3A%22arn%3Aaws%3Aiam%3A%3A077954824694%3Asaml-provider%2FAWSSSO_7846010e50d1e8ab_DO_NOT_DELETE%22%7D%2C%22Action%22%3A%5B%22sts%3AAssumeRoleWithSAML%22%2C%22sts%3ATagSession%22%5D%2C%22Condition%22%3A%7B%22StringEquals%22%3A%7B%22SAML%3Aaud%22%3A%22https%3A%2F%2Fsignin.aws.amazon.com%2Fsaml%22%7D%7D%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -144,7 +144,7 @@
     "Id": "AROAREJTYHH3ENKPXVTLQ",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22Service%22%3A%22config.amazonaws.com%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": null
   },
   {
@@ -153,7 +153,7 @@
     "Id": "AROAREJTYHH3GFQFFA2VL",
     "Description": "",
     "AssumeRolePolicyDocument": "%7B%22Version%22%3A%222012-10-17%22%2C%22Statement%22%3A%5B%7B%22Effect%22%3A%22Allow%22%2C%22Principal%22%3A%7B%22AWS%22%3A%22arn%3Aaws%3Aiam%3A%3A919453192836%3Aroot%22%7D%2C%22Action%22%3A%22sts%3AAssumeRole%22%7D%5D%7D",
-    "Tags": {},
+    "Tags": [],
     "LastUsedDate": "2023-04-06T08:29:54Z"
   }
 ]

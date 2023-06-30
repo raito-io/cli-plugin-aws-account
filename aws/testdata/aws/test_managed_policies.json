@@ -24,7 +24,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": [
       {
@@ -67,7 +67,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": [
       {
@@ -186,7 +186,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -463,7 +463,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -619,7 +619,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -2285,7 +2285,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -2327,7 +2327,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": [
       {
@@ -2397,7 +2397,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -4963,7 +4963,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -5079,7 +5079,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -5117,7 +5117,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -6249,7 +6249,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -6309,7 +6309,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -6373,7 +6373,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -6425,7 +6425,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
@@ -7557,7 +7557,7 @@
         }
       ]
     },
-    "Tags": {},
+    "Tags": [],
     "GroupBindings": null,
     "UserBindings": null,
     "RoleBindings": [
