@@ -2,8 +2,9 @@ package aws
 
 import (
 	"fmt"
-	"github.com/raito-io/cli/base/tag"
 	"strings"
+
+	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/hashicorp/go-hclog"

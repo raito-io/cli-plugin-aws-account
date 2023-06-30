@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/raito-io/cli/base/tag"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"

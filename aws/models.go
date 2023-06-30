@@ -1,8 +1,9 @@
 package aws
 
 import (
-	"github.com/raito-io/cli/base/tag"
 	"time"
+
+	"github.com/raito-io/cli/base/tag"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
