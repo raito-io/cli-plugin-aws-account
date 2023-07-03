@@ -38,6 +38,7 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
 * To be implemented: wildcards for permissions
 * To be implemented: wildcards for resources
 * Access-as-code
+* Groups in APs
 
 Not planned for now
 * Denies as Action in policies

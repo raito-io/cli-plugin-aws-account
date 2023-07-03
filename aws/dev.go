@@ -34,8 +34,13 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 			continue
 		}
 
+		if apInput.PolicyType == Role {
+			result = append(result, apInput)
+			continue
+		}
+
 		if devMode && strings.HasPrefix(apInput.ApInput.NamingHint, ManagedPrefix) && !strings.Contains(apInput.ApInput.Name, "Administrator") &&
-			!strings.Contains(apInput.ApInput.Name, "AmazonS3ReadOnlyAccess") && !strings.Contains(apInput.ApInput.Name, "S3Policy") {
+			!strings.Contains(apInput.ApInput.Name, "S3") {
 			continue
 		}
 

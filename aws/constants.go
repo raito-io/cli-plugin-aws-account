@@ -5,7 +5,11 @@ const (
 
 	AwsProfile = "aws-profile"
 
+	AwsRegion = "aws-region"
+
 	AwsOrganizationProfile = "aws-organization-profile"
+
+	AwsOrganizationRegion = "aws-organization-region"
 
 	AwsS3EmulateFolderStructure = "aws-s3-emulate-folder-structure"
 	AwsS3MaxFolderDepth         = "aws-s3-max-folder-depth"

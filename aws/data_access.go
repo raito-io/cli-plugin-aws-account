@@ -81,6 +81,12 @@ func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, access
 	filteredListWithChildren := addChildren(filteredList, apImportList)
 	// only re-add inline role policies, for roles that are going to be imported
 	filteredListWithChildrenAndInlineRolePolicies := addRoleInlinePolicies(filteredListWithChildren, apImportList)
+
+	err = newRoleEnricher(ctx, configMap).enrich(filteredListWithChildrenAndInlineRolePolicies)
+	if err != nil {
+		return err
+	}
+
 	err = accessProviderHandler.AddAccessProviders(getProperFormatForImport(filteredListWithChildrenAndInlineRolePolicies)...)
 
 	return err
@@ -113,7 +119,7 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 				NamingHint: roleName,
 				Type:       aws.String(string(Role)),
 				Action:     sync_from_target.Grant,
-				Policy:     "todo",
+				Policy:     "",
 				Who: &sync_from_target.WhoItem{
 					// Groups:          groupBindings,
 					Users: userNames,
@@ -191,7 +197,7 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 			}})
 	}
 
-	logger.Info("Get all in-line policies")
+	logger.Info("Get all inline policies")
 
 	inlinePolicies, err := a.GetAllInlinePolicies(ctx, configMap, repo, roles)
 	if err != nil {
@@ -229,11 +235,16 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 			return nil, err
 		}
 
+		fullName := *policy.InlineParent + "/" + policy.Name
+		logger.Info(fmt.Sprintf("Adding inline policy %q from parent %q with external id %q", policy.Name, *policy.InlineParent, fullName))
+
 		apImportList = append(apImportList, AccessProviderInputExtended{
 			InlineParent: policy.InlineParent,
 			PolicyType:   policy.PolicyType,
 			ApInput: &sync_from_target.AccessProvider{
-				Name:       policy.Name,
+				// As internal policies don't have an ID we use the policy ARN
+				ExternalId: fullName,
+				Name:       fullName,
 				Type:       aws.String("policy_inline"),
 				NamingHint: inlinePolicyName,
 				ActualName: inlinePolicyName,
@@ -252,7 +263,7 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 }
 
 func (a *AccessSyncer) GetAllInlinePolicies(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository, roles []RoleEntity) ([]PolicyEntity, error) {
-	logger.Info("Get in-line policies from groups")
+	logger.Info("Get inline policies from groups")
 	groups, err := repo.GetGroups(ctx, configMap, false)
 
 	if err != nil {
@@ -269,7 +280,7 @@ func (a *AccessSyncer) GetAllInlinePolicies(ctx context.Context, configMap *conf
 		return nil, err
 	}
 
-	logger.Info("Get in-line policies from users")
+	logger.Info("Get inline policies from users")
 
 	users, err := repo.GetUsers(ctx, configMap, false)
 	if err != nil {
@@ -291,7 +302,7 @@ func (a *AccessSyncer) GetAllInlinePolicies(ctx context.Context, configMap *conf
 		logger.Info(fmt.Sprintf("Tags for inline policy %s: %v", inlinePolicy.Name, inlinePolicy.Tags))
 	}
 
-	logger.Info("Get in-line policies from roles")
+	logger.Info("Get inline policies from roles")
 
 	if len(roles) == 0 {
 		roles, err = repo.GetRoles(ctx, configMap)
@@ -359,11 +370,11 @@ func isInlinePolicy(policy AccessProviderInputExtended) bool {
 func addChildren(filteredList, fullList []AccessProviderInputExtended) []AccessProviderInputExtended {
 	result := []AccessProviderInputExtended{}
 
-	fullMap := map[string]AccessProviderInputExtended{}
+	rolesMap := map[string]AccessProviderInputExtended{}
 
 	for ind := range fullList {
 		if fullList[ind].ApInput != nil && strings.HasPrefix(fullList[ind].ApInput.NamingHint, RolePrefix) {
-			fullMap[fullList[ind].ApInput.Name] = fullList[ind]
+			rolesMap[fullList[ind].ApInput.Name] = fullList[ind]
 		}
 	}
 
@@ -378,16 +389,18 @@ func addChildren(filteredList, fullList []AccessProviderInputExtended) []AccessP
 	for ind := range filteredList {
 		result = append(result, filteredList[ind])
 
-		if filteredList[ind].ApInput.Who == nil || filteredList[ind].ApInput.Who.AccessProviders == nil || len(filteredList[ind].ApInput.Who.AccessProviders) == 0 {
+		ap := filteredList[ind].ApInput
+
+		if ap.Who == nil || len(ap.Who.AccessProviders) == 0 {
 			continue
 		}
 
-		for _, descendant := range filteredList[ind].ApInput.Who.AccessProviders {
+		for _, descendant := range ap.Who.AccessProviders {
 			if _, found := filteredMap[descendant]; found {
 				continue
 			}
 
-			result = append(result, fullMap[descendant])
+			result = append(result, rolesMap[descendant])
 			filteredMap[descendant] = true
 		}
 	}

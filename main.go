@@ -31,7 +31,9 @@ func main() {
 				Parameters: []*plugin.ParameterInfo{
 					{Name: aws.AwsAccountId, Description: "The AWS account ID", Mandatory: true},
 					{Name: aws.AwsProfile, Description: "The AWS SDK profile to use for connecting to the AWS account to synchronize. When not specified, the default profile is used (or what is defined in the AWS_PROFILE environment variable).", Mandatory: false},
-					{Name: aws.AwsOrganizationProfile, Description: "The AWS SDK profile to use for fetching permission sets. This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.", Mandatory: false},
+					{Name: aws.AwsRegion, Description: "The AWS region to use for connecting to the AWS account to synchronize. When not specified, the default region as found by the AWS SDK is used.", Mandatory: false},
+					{Name: aws.AwsOrganizationProfile, Description: "The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.", Mandatory: false},
+					{Name: aws.AwsOrganizationRegion, Description: fmt.Sprintf("The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and %s parameter is defined, the default region for the profile will be used", aws.AwsOrganizationProfile), Mandatory: false},
 					{Name: aws.AwsS3EmulateFolderStructure, Description: "Emulate a folder structure for S3 objects, just like in the AWS UI", Mandatory: false},
 					{Name: aws.AwsS3MaxFolderDepth, Description: fmt.Sprintf("If %s is set to true, fetch all objects up to a certain folder depth.", aws.AwsS3EmulateFolderStructure), Mandatory: false},
 				},

@@ -25,7 +25,7 @@ const (
 )
 
 func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap *config.ConfigMap, withAttachedEntities bool) ([]PolicyEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -176,7 +176,7 @@ func (repo *AwsIamRepository) GetPolicyArn(policyName string, configMap *config.
 }
 
 func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -231,7 +231,7 @@ func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statem
 }
 
 func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -316,7 +316,7 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, configMap
 }
 
 func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -377,7 +377,7 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, configMap
 }
 
 func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -397,7 +397,7 @@ func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, con
 }
 
 func (repo *AwsIamRepository) AttachGroupToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -417,7 +417,7 @@ func (repo *AwsIamRepository) AttachGroupToManagedPolicy(ctx context.Context, co
 }
 
 func (repo *AwsIamRepository) AttachRoleToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -437,7 +437,7 @@ func (repo *AwsIamRepository) AttachRoleToManagedPolicy(ctx context.Context, con
 }
 
 func (repo *AwsIamRepository) DetachUserFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -457,7 +457,7 @@ func (repo *AwsIamRepository) DetachUserFromManagedPolicy(ctx context.Context, c
 }
 
 func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -477,7 +477,7 @@ func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, 
 }
 
 func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -497,7 +497,7 @@ func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, c
 }
 
 func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -533,7 +533,7 @@ func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, configMap 
 }
 
 func (repo *AwsIamRepository) DeleteInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -591,7 +591,7 @@ func (repo *AwsIamRepository) GetAttachedEntity(ap sync_to_target.AccessProvider
 }
 
 func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) ([]PolicyEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}

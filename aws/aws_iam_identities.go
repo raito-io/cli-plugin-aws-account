@@ -20,7 +20,7 @@ import (
 )
 
 func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]UserEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -85,7 +85,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.Co
 }
 
 func (repo *AwsIamRepository) GetGroups(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]GroupEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -144,7 +144,7 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context, configMap *config.C
 }
 
 func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.ConfigMap) ([]RoleEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}
@@ -236,7 +236,7 @@ func (repo *AwsIamRepository) CreateRole(ctx context.Context, configMap *config.
 		return nil
 	}
 
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -266,7 +266,7 @@ func (repo *AwsIamRepository) CreateRole(ctx context.Context, configMap *config.
 }
 
 func (repo *AwsIamRepository) DeleteRole(ctx context.Context, configMap *config.ConfigMap, name string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -282,7 +282,7 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, configMap *config.
 }
 
 func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap, nil)
+	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return err
 	}
