@@ -3,12 +3,13 @@ package aws
 import (
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/raito-io/cli/base/util/config"
-	"strings"
 )
 
 const ReservedSSOPrefix = "AWSReservedSSO_"
@@ -82,6 +83,9 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 	logger.Info("Fetching permission sets from organization")
 
 	permissionSets, err := e.fetchPermissionSets()
+	if err != nil {
+		return fmt.Errorf("failed to fetch permission sets: %s", err.Error())
+	}
 
 	logger.Info(fmt.Sprintf("Found permission sets: %v", permissionSets))
 
@@ -96,7 +100,6 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 			logger.Info(fmt.Sprintf("Handling SSO Role %s: %s", ap.ApInput.Name, permissionSet))
 
 			if assignees, f := permissionSets[permissionSet]; f {
-
 				for _, assignee := range assignees {
 					if assignee.User != nil {
 						ap.ApInput.Who.Users = append(ap.ApInput.Who.Users, *assignee.User)
@@ -212,7 +215,9 @@ func (e *roleEnricher) fetchPermissionSets() (map[string][]Assignee, error) {
 
 	ret := make(map[string][]Assignee)
 
-	for _, instance := range e.instanceArns {
+	for i := range e.instanceArns {
+		instance := e.instanceArns[i]
+
 		logger.Info(fmt.Sprintf("Fetching permission sets for SSO instance %s", instance))
 
 		moreObjectsAvailable := true
@@ -273,7 +278,6 @@ func (e *roleEnricher) fetchPermissionSetAssignees(client *ssoadmin.Client, inst
 			} else {
 				logger.Warn(fmt.Sprintf("unable to find user with id %q", principal))
 			}
-
 		} else if aa.PrincipalType == types.PrincipalTypeGroup {
 			if group, f := e.groupMap[principal]; f {
 				ret = append(ret, Assignee{Group: &group})
