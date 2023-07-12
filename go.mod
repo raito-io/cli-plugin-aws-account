@@ -2,8 +2,6 @@ module github.com/raito-io/cli-plugin-aws-account
 
 go 1.20
 
-replace github.com/raito-io/cli => ../cli
-
 require (
 	github.com/aws/aws-sdk-go-v2 v1.18.1
 	github.com/aws/aws-sdk-go-v2/config v1.18.25
@@ -15,7 +13,7 @@ require (
 	github.com/gammazero/workerpool v1.1.3
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/n4ch04/aws-policy v1.0.1
-	github.com/raito-io/cli v0.43.1
+	github.com/raito-io/cli v0.44.0
 	github.com/raito-io/golang-set v0.0.4
 	github.com/stretchr/testify v1.8.3
 	github.com/vektra/mockery/v2 v2.27.1
