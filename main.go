@@ -36,6 +36,8 @@ func main() {
 					{Name: aws.AwsOrganizationRegion, Description: fmt.Sprintf("The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and %s parameter is defined, the default region for the profile will be used", aws.AwsOrganizationProfile), Mandatory: false},
 					{Name: aws.AwsS3EmulateFolderStructure, Description: "Emulate a folder structure for S3 objects, just like in the AWS UI", Mandatory: false},
 					{Name: aws.AwsS3MaxFolderDepth, Description: fmt.Sprintf("If %s is set to true, fetch all objects up to a certain folder depth.", aws.AwsS3EmulateFolderStructure), Mandatory: false},
+					{Name: aws.AwsS3IncludeBuckets, Description: "Optional comma-separated list of buckets to include. If specified, only these buckets will be handled. Wildcards (*) can be used.", Mandatory: false},
+					{Name: aws.AwsS3ExcludeBuckets, Description: "Optional comma-separated list of buckets to exclude. If specified, these buckets will not be handled. Wildcard (*) can be used. Excludes have preference over includes.", Mandatory: false},
 				},
 			},
 		})

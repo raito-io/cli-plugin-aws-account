@@ -69,8 +69,6 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 		return fmt.Errorf("failed to fetch users: %s", err.Error())
 	}
 
-	logger.Info(fmt.Sprintf("Users: %+v", e.userMap))
-
 	logger.Info("Fetching groups from organization")
 
 	err = e.fetchGroupMap()
@@ -78,16 +76,12 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 		return fmt.Errorf("failed to fetch groups: %s", err.Error())
 	}
 
-	logger.Info(fmt.Sprintf("Groups: %+v", e.groupMap))
-
 	logger.Info("Fetching permission sets from organization")
 
 	permissionSets, err := e.fetchPermissionSets()
 	if err != nil {
 		return fmt.Errorf("failed to fetch permission sets: %s", err.Error())
 	}
-
-	logger.Info(fmt.Sprintf("Found permission sets: %v", permissionSets))
 
 	for i := range aps {
 		ap := aps[i]
@@ -98,6 +92,17 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 			}
 
 			logger.Info(fmt.Sprintf("Handling SSO Role %s: %s", ap.ApInput.Name, permissionSet))
+
+			// Changing the (display) name of the role to the permission set name. Leaving actualName and others to the original as they are used to match on.
+			ap.ApInput.Name = permissionSet
+
+			ap.ApInput.Type = aws.String(string(SSORole))
+			ap.ApInput.WhatLocked = aws.Bool(true)
+			ap.ApInput.WhatLockedReason = aws.String("This policy is managed by AWS")
+			ap.ApInput.NameLocked = aws.Bool(true)
+			ap.ApInput.NameLockedReason = aws.String("This policy is managed by AWS")
+			ap.ApInput.DeleteLocked = aws.Bool(true)
+			ap.ApInput.DeleteLockedReason = aws.String("This policy is managed by AWS")
 
 			if assignees, f := permissionSets[permissionSet]; f {
 				for _, assignee := range assignees {
@@ -237,8 +242,6 @@ func (e *roleEnricher) fetchPermissionSets() (map[string][]Assignee, error) {
 			nextToken = response.NextToken
 
 			for _, permissionSet := range response.PermissionSets {
-				logger.Info(fmt.Sprintf("Permission set: %s", permissionSet))
-
 				psName, err := e.fetchPermissionSetName(client, instance, permissionSet)
 				if err != nil {
 					return nil, fmt.Errorf("error while fetching permission set details for %q: %s", permissionSet, err.Error())

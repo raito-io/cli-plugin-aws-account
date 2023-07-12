@@ -28,11 +28,12 @@ type UserEntity struct {
 type PolicyType string
 
 const (
-	Managed     PolicyType = "aws_managed_policy"
-	Role        PolicyType = "aws_role"
-	InlineUser  PolicyType = "aws_inline_user"
-	InlineRole  PolicyType = "aws_inline_role"
-	InlineGroup PolicyType = "aws_inline_group"
+	Role              PolicyType = "aws_role"
+	SSORole           PolicyType = "aws_sso_role"
+	ManagedPolicy     PolicyType = "aws_managed_policy"
+	InlinePolicyUser  PolicyType = "aws_inline_policy_user"
+	InlinePolicyRole  PolicyType = "aws_inline_policy_role"
+	InlinePolicyGroup PolicyType = "aws_inline_policy_group"
 )
 
 type AccessProviderInputExtended struct {

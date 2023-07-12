@@ -2,6 +2,8 @@ package aws
 
 import (
 	"fmt"
+	"github.com/raito-io/cli/base/util/config"
+	"strconv"
 	"strings"
 
 	awspolicy "github.com/n4ch04/aws-policy"
@@ -16,11 +18,15 @@ const (
 	TypeRole   string = "role"
 )
 
-func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy) ([]sync_from_target.WhatItem, error) {
+func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool, error) {
+	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
+
 	if policy == nil {
 		logger.Warn(fmt.Sprintf("Policy document for %s is empty", policyName))
-		return nil, nil
+		return nil, true, nil
 	}
+
+	incomplete := false
 
 	policyStatements := policy.Statements
 	var whatItems []sync_from_target.WhatItem
@@ -30,41 +36,96 @@ func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy) (
 
 		effect := statement.Effect
 		if strings.EqualFold(effect, "deny") {
+			logger.Warn(fmt.Sprintf("Policy document for %s has deny statement. Ignoring", policyName))
 			continue
 		}
 
 		actions := statement.Action
 		resources := statement.Resource
 
-		// TODO: decide how we deal with wildcards in resource names
-		// TODO: hard to check the data object type during AP sync.
 		// so trying to import every object as all the data object types.
 		// see how this can be improved
+
 		for _, resource := range resources {
-			whatItems = append(whatItems, sync_from_target.WhatItem{
-				DataObject: &data_source.DataObjectReference{
-					FullName: convertArnToFullname(resource),
-					Type:     data_source.File,
-				},
-				Permissions: actions,
-			}, sync_from_target.WhatItem{
-				DataObject: &data_source.DataObjectReference{
-					// Raito doesn't need wildcard to interpret access on a folder: bucket/folder/* => bucket/folder
-					FullName: removeEndingWildcards(convertArnToFullname(resource)),
-					Type:     data_source.Folder,
-				},
-				Permissions: actions,
-			}, sync_from_target.WhatItem{
-				DataObject: &data_source.DataObjectReference{
-					FullName: convertArnToFullname(resource),
-					Type:     data_source.Bucket,
-				},
-				Permissions: actions,
-			})
+			incompleteResource := false
+
+			if strings.HasPrefix(resource, "arn:aws:s3:") {
+				fullName := removeEndingWildcards(convertArnToFullname(resource))
+
+				isBucket := !strings.Contains(fullName, "/")
+				var resourceActions []string
+				if isBucket {
+					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket)
+				} else {
+					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder)
+				}
+
+				whatItems = append(whatItems, sync_from_target.WhatItem{
+					DataObject: &data_source.DataObjectReference{
+						// We don't specify the type as we are not sure about it, but the fullName should be sufficient
+						FullName: fullName,
+					},
+					Permissions: resourceActions,
+				})
+			} else if resource == "*" {
+				var resourceActions []string
+
+				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource)
+
+				whatItems = append(whatItems, sync_from_target.WhatItem{
+					DataObject: &data_source.DataObjectReference{
+						FullName: awsAccount,
+						Type:     data_source.Datasource,
+					},
+					Permissions: resourceActions,
+				})
+			}
+
+			if !incomplete && incompleteResource {
+				incomplete = true
+			}
 		}
 	}
 
-	return whatItems, nil
+	return whatItems, incomplete, nil
+}
+
+// mapResourceActions maps the permissions given to the ones we know for the given resource type.
+// It returns the mapped actions, together with a boolean indicating whether any actions were skipped (true) or not (false).
+func mapResourceActions(actions []string, resourceType string) ([]string, bool) {
+	mappedActions := make([]string, 0, len(actions))
+
+	dot := GetDataObjectType(resourceType)
+	dotPermissions := dot.GetPermissions()
+	incomplete := false
+
+	for _, action := range actions {
+		for _, permission := range dotPermissions {
+			perm := permission.Permission
+
+			if action == perm {
+				// Exact match with a permission from the data object type
+				mappedActions = append(mappedActions, perm)
+			} else if action == "*" {
+				// For wildcard actions, just add all permission from the data object type. Mark as incomplete as go from wildcard to explicit permissions
+				incomplete = true
+				mappedActions = append(mappedActions, perm)
+			} else if strings.HasSuffix(action, "*") {
+				// Action ending in a wildcard, so only add the permissions that have the right prefix + mark incomplete
+				incomplete = true
+				if strings.HasPrefix(perm, action[:len(action)-1]) {
+					mappedActions = append(mappedActions, perm)
+				}
+			} else {
+				// Unknown permission, so we ignore and mark as incomplete
+				incomplete = true
+			}
+		}
+	}
+
+	logger.Debug(fmt.Sprintf("Mapping actions %+v for resource type %q to (incomplete %t): %+v", actions, resourceType, incomplete, mappedActions))
+
+	return mappedActions, incomplete
 }
 
 func getApNames(exportedAps []*importer.AccessProvider, aps ...string) []string {

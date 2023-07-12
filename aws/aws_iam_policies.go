@@ -4,9 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gammazero/workerpool"
 	"net/url"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -45,25 +45,25 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 			return nil, err
 		}
 
-		wg := new(sync.WaitGroup)
-		for _, policyFromList := range resp.Policies {
-			wg.Add(1)
+		// TODO make number of workers configurable
+		workerPool := workerpool.New(5)
 
-			go func(policyFromList types.Policy, wg *sync.WaitGroup) {
-				defer wg.Done()
+		for i := range resp.Policies {
+			policy := resp.Policies[i]
 
+			workerPool.Submit(func() {
 				// TODO, dev, remove
-				if discardPolicy(policyFromList) {
+				if discardPolicy(policy) {
 					return
 				}
 
 				input := iam.GetPolicyInput{
-					PolicyArn: policyFromList.Arn,
+					PolicyArn: policy.Arn,
 				}
 
 				policyRespRaw, err := client.GetPolicy(ctx, &input)
 				if err != nil {
-					logger.Warn(fmt.Sprintf("Error getting policy details for %s", *policyFromList.Arn))
+					logger.Warn(fmt.Sprintf("Error getting policy details for %s", *policy.Arn))
 					return
 				}
 				policy := policyRespRaw.Policy
@@ -76,7 +76,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 
 				policyVersionResp, err := client.GetPolicyVersion(ctx, &policyVersionInput)
 				if err != nil {
-					logger.Warn(fmt.Sprintf("Error getting policy document for %s", *policyFromList.Arn))
+					logger.Warn(fmt.Sprintf("Error getting policy document for %s", *policy.Arn))
 					return
 				}
 
@@ -103,10 +103,10 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 				}
 
 				result = append(result, raitoPolicy)
-			}(policyFromList, wg)
+			})
 		}
 
-		wg.Wait()
+		workerPool.StopWait()
 
 		if !resp.IsTruncated {
 			break
@@ -616,13 +616,15 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 		}
 	}
 
-	wg := new(sync.WaitGroup)
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
 
-	for _, policyBinding := range bindings {
-		wg.Add(1)
+	for i := range bindings {
+		policyBinding := bindings[i]
 
-		go func(policyName, entityName string, wg *sync.WaitGroup) {
-			defer wg.Done()
+		workerPool.Submit(func() {
+			entityName := policyBinding.ResourceName
+			policyName := policyBinding.PolicyName
 
 			unparsedPolicyDocument, err := repo.getEntityPolicy(ctx, client, entityType, entityName, policyName)
 			if err != nil {
@@ -642,15 +644,15 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 			var userPolicyBinding, groupPolicyBinding, rolePolicyBinding []PolicyBinding
 
 			if entityType == UserResourceType {
-				policyType = InlineUser
+				policyType = InlinePolicyUser
 
 				userPolicyBinding = append(userPolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
 			} else if entityType == GroupResourceType {
-				policyType = InlineGroup
+				policyType = InlinePolicyGroup
 
 				groupPolicyBinding = append(groupPolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
 			} else if entityType == RoleResourceType {
-				policyType = InlineRole
+				policyType = InlinePolicyRole
 
 				rolePolicyBinding = append(rolePolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
 			}
@@ -666,10 +668,10 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 				GroupBindings:  groupPolicyBinding,
 				RoleBindings:   rolePolicyBinding,
 			})
-		}(policyBinding.PolicyName, policyBinding.ResourceName, wg)
+		})
 	}
 
-	wg.Wait()
+	workerPool.StopWait()
 
 	return result, nil
 }
@@ -680,14 +682,13 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	entityType := UserResourceType
 
-	wg := new(sync.WaitGroup)
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
 
-	for _, entityName := range entityNames {
-		wg.Add(1)
+	for i := range entityNames {
+		entityName := entityNames[i]
 
-		go func(entityName string, wg *sync.WaitGroup) {
-			defer wg.Done()
-
+		workerPool.Submit(func() {
 			for {
 				userPolicyInput := iam.ListUserPoliciesInput{
 					UserName: &entityName,
@@ -712,10 +713,10 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 				}
 				marker = resp.Marker
 			}
-		}(entityName, wg)
+		})
 	}
 
-	wg.Wait()
+	workerPool.StopWait()
 
 	return policyBindings, nil
 }
@@ -726,14 +727,13 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 
 	entityType := GroupResourceType
 
-	wg := new(sync.WaitGroup)
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
 
-	for _, entityName := range entityNames {
-		wg.Add(1)
+	for i := range entityNames {
+		entityName := entityNames[i]
 
-		go func(entityName string, wg *sync.WaitGroup) {
-			defer wg.Done()
-
+		workerPool.Submit(func() {
 			for {
 				groupPolicyInput := iam.ListGroupPoliciesInput{
 					GroupName: &entityName,
@@ -759,10 +759,10 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 				}
 				marker = resp.Marker
 			}
-		}(entityName, wg)
+		})
 	}
 
-	wg.Wait()
+	workerPool.StopWait()
 
 	return policyBindings, nil
 }
@@ -773,13 +773,13 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 
 	entityType := RoleResourceType
 
-	wg := new(sync.WaitGroup)
-	for _, entityName := range entityNames {
-		wg.Add(1)
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
 
-		go func(entityName string, wg *sync.WaitGroup) {
-			defer wg.Done()
+	for i := range entityNames {
+		entityName := entityNames[i]
 
+		workerPool.Submit(func() {
 			for {
 				rolePolicyInput := iam.ListRolePoliciesInput{
 					RoleName: &entityName,
@@ -804,10 +804,10 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 				}
 				marker = resp.Marker
 			}
-		}(entityName, wg)
+		})
 	}
 
-	wg.Wait()
+	workerPool.StopWait()
 
 	return policyBindings, nil
 }

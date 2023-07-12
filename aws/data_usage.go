@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gammazero/workerpool"
 	"io"
 	"regexp"
 	"strings"
@@ -89,14 +90,15 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	logger.Info(fmt.Sprintf("%d files to process", len(usageFiles)))
 
 	fileChan := make(chan string)
-	wg := new(sync.WaitGroup)
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
 	fileLock := new(sync.Mutex)
 	numWorkers := 16
 
 	for t := 0; t < numWorkers; t++ {
-		wg.Add(1)
-
-		go readAndParseUsageLog(ctx, bucket, fileChan, repo, dataUsageFileHandler, wg, fileLock)
+		workerPool.Submit(func() {
+			readAndParseUsageLog(ctx, bucket, fileChan, repo, dataUsageFileHandler, fileLock)
+		})
 	}
 
 	for _, usageFile := range usageFiles {
@@ -104,14 +106,13 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	}
 
 	close(fileChan)
-	wg.Wait()
+	workerPool.StopWait()
 
 	return nil
 }
 
 func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan string, repo dataUsageRepository,
-	dataUsageFileHandler wrappers.DataUsageStatementHandler, wg *sync.WaitGroup, fileLock *sync.Mutex) {
-	defer wg.Done()
+	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex) {
 	logger.Info("Starting worker")
 
 	for fileKey := range fileChan {

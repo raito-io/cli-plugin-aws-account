@@ -3,58 +3,170 @@ package aws
 import (
 	"fmt"
 	"strings"
+	"sync"
 
 	ds "github.com/raito-io/cli/base/data_source"
 )
 
-func GetS3MetaData() ds.MetaData {
-	allPermissions := getActionMetadataFromDocs()
-	globalPermissions := getPermissionsForResourceType(allPermissions, "")
-	bucketPermissions := getPermissionsForResourceType(allPermissions, "bucket")
-	objectPermissions := getPermissionsForResourceType(allPermissions, "object")
+var metaData *ds.MetaData
+var mu sync.Mutex
 
-	return ds.MetaData{
-		Type:              "aws-account",
-		SupportedFeatures: []string{""},
-		DataObjectTypes: []*ds.DataObjectType{
-			{
-				Name:        ds.Datasource,
-				Type:        ds.Datasource,
-				Permissions: globalPermissions,
-				Children:    []string{ds.Bucket},
-			},
-			{
-				Name:        ds.Bucket,
-				Type:        ds.Bucket,
-				Permissions: bucketPermissions,
-				Children:    []string{ds.Folder, ds.File},
-			},
-			{
-				Name:        ds.Folder,
-				Type:        ds.Folder,
-				Permissions: objectPermissions,
-				Children:    []string{ds.Folder, ds.File},
-			},
-			{
-				Name:        ds.File,
-				Type:        ds.File,
-				Permissions: objectPermissions,
-				Children:    []string{},
-			},
-		},
-		UsageMetaInfo: &ds.UsageMetaInput{
-			DefaultLevel: ds.File,
-			Levels: []*ds.UsageMetaInputDetail{
-				{
-					Name:            ds.File,
-					DataObjectTypes: []string{ds.File},
-				},
-			},
-		},
+func GetDataObjectType(name string) *ds.DataObjectType {
+	md := GetS3MetaData()
+
+	for _, dot := range md.DataObjectTypes {
+		if dot.Name == name {
+			return dot
+		}
 	}
+
+	return nil
 }
 
-func getPermissionsForResourceType(input []ActionMetadata, resourceType string) []*ds.DataObjectTypePermission {
+func GetS3MetaData() *ds.MetaData {
+	mu.Lock()
+	defer mu.Unlock()
+
+	if metaData == nil {
+		allPermissions := getActionMetadataFromDocs()
+		globalPermissions := getPermissionsForResourceType(allPermissions, []string{""})
+		bucketPermissions := getPermissionsForResourceType(allPermissions, []string{"", "bucket"})
+		objectPermissions := getPermissionsForResourceType(allPermissions, []string{"", "bucket", "object"})
+
+		metaData = &ds.MetaData{
+			Type:              "aws-account",
+			SupportedFeatures: []string{""},
+			DataObjectTypes: []*ds.DataObjectType{
+				{
+					Name:        ds.Datasource,
+					Type:        ds.Datasource,
+					Permissions: globalPermissions,
+					Children:    []string{ds.Bucket},
+				},
+				{
+					Name:        ds.Bucket,
+					Type:        ds.Bucket,
+					Permissions: bucketPermissions,
+					Children:    []string{ds.Folder, ds.File},
+				},
+				{
+					Name:        ds.Folder,
+					Type:        ds.Folder,
+					Permissions: objectPermissions,
+					Children:    []string{ds.Folder, ds.File},
+				},
+				{
+					Name:        ds.File,
+					Type:        ds.File,
+					Permissions: objectPermissions,
+					Children:    []string{},
+				},
+			},
+			UsageMetaInfo: &ds.UsageMetaInput{
+				DefaultLevel: ds.File,
+				Levels: []*ds.UsageMetaInputDetail{
+					{
+						Name:            ds.File,
+						DataObjectTypes: []string{ds.File},
+					},
+				},
+			},
+			AccessProviderTypes: []*ds.AccessProviderType{
+				{
+					Type:              string(Role),
+					Label:             "AWS Role",
+					Icon:              "",
+					IsNamedEntity:     true,
+					CanBeCreated:      true,
+					CanBeAssumed:      true,
+					CanAssumeMultiple: false,
+					ContainsWhat:      false,
+					ContainsWho:       true,
+					WhoInputTypes:     []string{"User", "Group", "AccessProvider:role"},
+				},
+				{
+					Type:                    string(SSORole),
+					Label:                   "AWS SSO Role",
+					Icon:                    "",
+					IsNamedEntity:           true,
+					CanBeCreated:            true,
+					CanBeAssumed:            true,
+					CanAssumeMultiple:       false,
+					ContainsWhat:            false,
+					ContainsWho:             true,
+					WhoInputTypes:           []string{"User", "Group", "AccessProvider:role"},
+					IdentityStoreTypeForWho: "aws-organization",
+				},
+				{
+					Type:              string(ManagedPolicy),
+					Label:             "AWS Policy",
+					Icon:              "",
+					IsNamedEntity:     true,
+					CanBeCreated:      true,
+					CanBeAssumed:      false,
+					CanAssumeMultiple: false,
+					ContainsWhat:      true,
+					ContainsWho:       true,
+					WhoInputTypes:     []string{"User", "Group", "AccessProvider:" + string(Role)},
+				},
+				{
+					Type:              string(InlinePolicyUser),
+					Label:             "AWS Inline User Policy",
+					Icon:              "",
+					IsNamedEntity:     true,
+					CanBeCreated:      false,
+					CanBeAssumed:      false,
+					CanAssumeMultiple: false,
+					ContainsWhat:      true,
+					ContainsWho:       true,
+					WhoInputTypes:     []string{"User"},
+				},
+				{
+					Type:              string(InlinePolicyGroup),
+					Label:             "AWS Inline Group Policy",
+					Icon:              "",
+					IsNamedEntity:     true,
+					CanBeCreated:      false,
+					CanBeAssumed:      false,
+					CanAssumeMultiple: false,
+					ContainsWhat:      true,
+					ContainsWho:       true,
+					WhoInputTypes:     []string{"Group"},
+				},
+				{
+					Type:              string(InlinePolicyRole),
+					Label:             "AWS Inline Role Policy",
+					Icon:              "",
+					IsNamedEntity:     true,
+					CanBeCreated:      false,
+					CanBeAssumed:      false,
+					CanAssumeMultiple: false,
+					ContainsWhat:      true,
+					ContainsWho:       true,
+					WhoInputTypes:     []string{"AccessProvider:" + string(Role)},
+				},
+
+				/*
+					Type                    string   `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
+						Label                   string   `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
+						Icon                    string   `protobuf:"bytes,3,opt,name=icon,proto3" json:"icon,omitempty"`
+						IsNamedEntity           bool     `protobuf:"varint,4,opt,name=isNamedEntity,proto3" json:"isNamedEntity,omitempty"`
+						CanBeCreated            bool     `protobuf:"varint,5,opt,name=canBeCreated,proto3" json:"canBeCreated,omitempty"`
+						CanBeAssumed            bool     `protobuf:"varint,6,opt,name=canBeAssumed,proto3" json:"canBeAssumed,omitempty"`
+						CanAssumeMultiple       bool     `protobuf:"varint,7,opt,name=canAssumeMultiple,proto3" json:"canAssumeMultiple,omitempty"`
+						ContainsWhat            bool     `protobuf:"varint,8,opt,name=containsWhat,proto3" json:"containsWhat,omitempty"`
+						ContainsWho             bool     `protobuf:"varint,9,opt,name=containsWho,proto3" json:"containsWho,omitempty"`
+						WhoInputTypes           []string `protobuf:"bytes,10,rep,name=whoInputTypes,proto3" json:"whoInputTypes,omitempty"`
+						IdentityStoreTypeForWho string
+				*/
+			},
+		}
+	}
+
+	return metaData
+}
+
+func getPermissionsForResourceType(input []ActionMetadata, resourceTypes []string) []*ds.DataObjectTypePermission {
 	result := []*ds.DataObjectTypePermission{}
 
 	accessLevelMap := map[string][]string{}
@@ -73,8 +185,7 @@ func getPermissionsForResourceType(input []ActionMetadata, resourceType string) 
 	// Actions don't need to be defined, as the permissions correspond to Actions (e.g. GetObject)
 
 	for _, actionMetadata := range input {
-		if strings.HasPrefix(actionMetadata.ResourceTypes, strings.ToLower(resourceType)) ||
-			strings.EqualFold(actionMetadata.ResourceTypes, resourceType) {
+		if isPermissionForResourceTypes(actionMetadata, resourceTypes) {
 			result = append(result, &ds.DataObjectTypePermission{
 				Permission:             fmt.Sprintf("%s:%s", S3PermissionPrefix, actionMetadata.Action),
 				Description:            actionMetadata.Description,
@@ -85,6 +196,17 @@ func getPermissionsForResourceType(input []ActionMetadata, resourceType string) 
 	}
 
 	return result
+}
+
+func isPermissionForResourceTypes(actionMetaData ActionMetadata, resourceTypes []string) bool {
+	for _, resourceType := range resourceTypes {
+		if strings.HasPrefix(actionMetaData.ResourceTypes, strings.ToLower(resourceType)) ||
+			strings.EqualFold(actionMetaData.ResourceTypes, resourceType) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func getActionMetadataFromDocs() []ActionMetadata {

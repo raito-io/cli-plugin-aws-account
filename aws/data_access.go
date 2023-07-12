@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"github.com/aws/smithy-go/ptr"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -40,7 +41,6 @@ type dataAccessRepository interface {
 	DeleteInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string) error
 	UpdateInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
 	GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error)
-	// CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy) ([]sync_from_target.WhatItem, error)
 	GetPolicyArn(policyName string, configMap *config.ConfigMap) string
 	// processApInheritance(inheritanceMap map[string]set.Set[string], policyMap map[string]string, roleMap map[string]string,
 	// 	newBindings *map[string]set.Set[PolicyBinding], existingBindings map[string]set.Set[PolicyBinding]) error
@@ -144,6 +144,8 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 	for ind := range policies {
 		policy := policies[ind]
 
+		isAWSManaged := strings.HasPrefix(policy.ARN, "arn:aws:iam::aws:")
+
 		groupBindings := []string{}
 		userBindings := []string{}
 		roleBindings := []string{}
@@ -174,27 +176,39 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 
 		var localErr error
 
-		whatItems, localErr := CreateWhatFromPolicyDocument(policy.Name, policy.PolicyParsed)
+		whatItems, incomplete, localErr := CreateWhatFromPolicyDocument(policy.Name, policy.PolicyParsed, configMap)
 		if localErr != nil {
 			return nil, localErr
 		}
 
+		apInput := sync_from_target.AccessProvider{
+			ExternalId: policy.Id,
+			Name:       policy.Name,
+			ActualName: policy.Name,
+			Type:       aws.String(string(ManagedPolicy)),
+			NamingHint: fmt.Sprintf("%s%s", ManagedPrefix, policy.Name),
+			Action:     sync_from_target.Grant,
+			Policy:     "",
+			Who: &sync_from_target.WhoItem{
+				Groups:          groupBindings,
+				Users:           userBindings,
+				AccessProviders: roleBindings,
+			},
+			What:       whatItems,
+			Incomplete: ptr.Bool(incomplete),
+		}
+
+		if isAWSManaged {
+			apInput.WhatLocked = aws.Bool(true)
+			apInput.WhatLockedReason = aws.String("This policy is managed by AWS")
+			apInput.NameLocked = aws.Bool(true)
+			apInput.NameLockedReason = aws.String("This policy is managed by AWS")
+			apInput.DeleteLocked = aws.Bool(true)
+			apInput.DeleteLockedReason = aws.String("This policy is managed by AWS")
+		}
+
 		apImportList = append(apImportList, AccessProviderInputExtended{
-			ApInput: &sync_from_target.AccessProvider{
-				ExternalId: policy.Id,
-				Name:       policy.Name,
-				ActualName: policy.Name,
-				Type:       aws.String("policy_managed"),
-				NamingHint: fmt.Sprintf("%s%s", ManagedPrefix, policy.Name),
-				Action:     sync_from_target.Grant,
-				Policy:     "",
-				Who: &sync_from_target.WhoItem{
-					Groups:          groupBindings,
-					Users:           userBindings,
-					AccessProviders: roleBindings,
-				},
-				What: whatItems,
-			}})
+			ApInput: &apInput})
 	}
 
 	logger.Info("Get all inline policies")
@@ -229,7 +243,7 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 			inlinePolicyName = fmt.Sprintf("/inline/role/%s/%s", binding.ResourceName, policy.Name)
 		}
 
-		whatItems, err := CreateWhatFromPolicyDocument(inlinePolicyName, policy.PolicyParsed)
+		whatItems, incomplete, err := CreateWhatFromPolicyDocument(inlinePolicyName, policy.PolicyParsed, configMap)
 		if err != nil {
 			logger.Error(fmt.Sprintf("error calculating access from policy document: %s", err.Error()))
 			return nil, err
@@ -245,7 +259,7 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 				// As internal policies don't have an ID we use the policy ARN
 				ExternalId: fullName,
 				Name:       fullName,
-				Type:       aws.String("policy_inline"),
+				Type:       aws.String(string(policy.PolicyType)),
 				NamingHint: inlinePolicyName,
 				ActualName: inlinePolicyName,
 				Action:     sync_from_target.Grant,
@@ -255,7 +269,8 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 					Users:           userNames,
 					AccessProviders: roleNames,
 				},
-				What: whatItems,
+				What:       whatItems,
+				Incomplete: ptr.Bool(incomplete),
 			}})
 	}
 
@@ -348,7 +363,7 @@ func addRoleInlinePolicies(filteredList, fullList []AccessProviderInputExtended)
 
 	for _, ap := range filteredList {
 		if ap.PolicyType == Role {
-			logger.Info(fmt.Sprintf("Checking inline policy for role '%s'", ap.ApInput.Name))
+			logger.Debug(fmt.Sprintf("Checking inline policy for role '%s'", ap.ApInput.Name))
 
 			if _, found := inlineParentMap[ap.ApInput.Name]; found {
 				filteredList = append(filteredList, *inlineParentMap[ap.ApInput.Name])
@@ -360,7 +375,7 @@ func addRoleInlinePolicies(filteredList, fullList []AccessProviderInputExtended)
 }
 
 func isInlinePolicy(policy AccessProviderInputExtended) bool {
-	if policy.PolicyType == InlineUser || policy.PolicyType == InlineGroup || policy.PolicyType == InlineRole {
+	if policy.PolicyType == InlinePolicyUser || policy.PolicyType == InlinePolicyGroup || policy.PolicyType == InlinePolicyRole {
 		return true
 	}
 

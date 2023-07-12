@@ -4,8 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/gammazero/workerpool"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/raito-io/cli/base/tag"
@@ -42,13 +42,13 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.Co
 		moreObjectsAvailable = response.IsTruncated
 		marker = response.Marker
 
-		wg := new(sync.WaitGroup)
-		for _, userFromList := range response.Users {
-			wg.Add(1)
+		// TODO make number of workers configurable
+		workerPool := workerpool.New(5)
 
-			go func(user types.User, wg *sync.WaitGroup) {
-				defer wg.Done()
+		for i := range response.Users {
+			user := response.Users[i]
 
+			workerPool.Submit(func() {
 				emailAddress := *user.UserName
 				var tags []*tag.Tag
 
@@ -73,10 +73,10 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.Co
 					Email:      emailAddress,
 					Tags:       tags,
 				})
-			}(userFromList, wg)
+			})
 		}
 
-		wg.Wait()
+		workerPool.StopWait()
 	}
 
 	logger.Info(fmt.Sprintf("A total of %d users has been found", len(result)))
@@ -162,17 +162,18 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 			return nil, err
 		}
 
-		wg := new(sync.WaitGroup)
-		for _, roleFromList := range resp.Roles {
-			wg.Add(1)
+		// TODO make number of workers configurable
+		workerPool := workerpool.New(5)
 
-			go func(roleFromList types.Role, wg *sync.WaitGroup) {
-				defer wg.Done()
+		for i := range resp.Roles {
+			role := resp.Roles[i]
+
+			workerPool.Submit(func() {
 				var Arn, Id, Name, Description string
 				var roleLastUsed *time.Time
 
 				roleInput := iam.GetRoleInput{
-					RoleName: roleFromList.RoleName,
+					RoleName: role.RoleName,
 				}
 
 				roleDetailsRaw, err := client.GetRole(ctx, &roleInput)
@@ -212,10 +213,10 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 					Tags:                     tags,
 					LastUsedDate:             roleLastUsed,
 				})
-			}(roleFromList, wg)
+			})
 		}
 
-		wg.Wait()
+		workerPool.StopWait()
 
 		if !resp.IsTruncated {
 			break

@@ -39,6 +39,9 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
 * To be implemented: wildcards for resources
 * Access-as-code
 * Groups in APs
+* Configurable concurrency
+* Support for other AWS partitions (e.g. china and gov-cloud) (typically not working in arn matching)
+* To improve: Error handling (for concurrent jobs)
 
 Not planned for now
 * Denies as Action in policies

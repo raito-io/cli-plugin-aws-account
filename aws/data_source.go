@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"fmt"
+	"github.com/gammazero/workerpool"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -33,6 +35,94 @@ func (s *DataSourceSyncer) provideRepo() dataSourceRepository {
 	}
 }
 
+func getRegExList(input string) ([]*regexp.Regexp, error) {
+	input = strings.TrimSpace(input)
+
+	if len(input) == 0 {
+		return []*regexp.Regexp{}, nil
+	}
+
+	inputSlice := strings.Split(input, ",")
+
+	ret := make([]*regexp.Regexp, 0, len(inputSlice))
+
+	for _, item := range inputSlice {
+		if len(item) == 0 {
+			continue
+		}
+
+		if strings.Contains(item, "*") {
+			item = strings.ReplaceAll(item, "*", ".*")
+		}
+
+		item = "^" + item + "$"
+
+		re, err := regexp.Compile(item)
+		if err != nil {
+			return nil, fmt.Errorf("unable to parse regular expression %s: %s", item, err.Error())
+		}
+
+		ret = append(ret, re)
+	}
+
+	return ret, nil
+}
+
+func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3Entity, error) {
+	logger.Debug(fmt.Sprintf("Input buckets: %+v", buckets))
+
+	included, err := getRegExList(configMap.GetString(AwsS3IncludeBuckets))
+	if err != nil {
+		return nil, err
+	}
+
+	excluded, err := getRegExList(configMap.GetString(AwsS3ExcludeBuckets))
+	if err != nil {
+		return nil, err
+	}
+
+	if len(included) == 0 && len(excluded) == 0 {
+		logger.Debug("No buckets to include or exclude, so using all buckets.")
+		return buckets, nil
+	}
+
+	filteredBuckets := make([]AwsS3Entity, 0, len(buckets))
+
+	for i := range buckets {
+		bucket := buckets[i]
+
+		include := true
+
+		if len(included) > 0 {
+			include = false
+
+			for _, includedBucket := range included {
+				if includedBucket.MatchString(bucket.Key) {
+					logger.Debug(fmt.Sprintf("Including bucket %s", bucket.Key))
+					include = true
+					break
+				}
+			}
+		}
+
+		if include && len(excluded) > 0 {
+			for _, excludedBucket := range excluded {
+				if excludedBucket.MatchString(bucket.Key) {
+					logger.Debug(fmt.Sprintf("Excluding bucket %s", bucket.Key))
+					include = false
+					break
+				}
+			}
+		}
+
+		if include {
+			filteredBuckets = append(filteredBuckets, bucket)
+		}
+	}
+
+	return filteredBuckets, nil
+}
+
 func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap) error {
 	s.configMap = configMap
 
@@ -50,19 +140,27 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 		return err
 	}
 
+	buckets, err = filterBuckets(configMap, buckets)
+	if err != nil {
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Found %d buckets to handle: %+v", len(buckets), buckets))
+
 	err = s.addS3Entities(buckets, dataSourceHandler, configMap, nil)
 	if err != nil {
 		return err
 	}
 
 	// handle files
-	wg := new(sync.WaitGroup)
-	for _, bucket := range buckets {
-		wg.Add(1)
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
 
-		go func(ctx context.Context, configMap *config.ConfigMap, bucketName string, wg *sync.WaitGroup) {
-			defer wg.Done()
+	for i := range buckets {
+		bucket := buckets[i]
 
+		workerPool.Submit(func() {
+			bucketName := bucket.Key
 			files, err := s.provideRepo().ListFiles(ctx, bucketName, nil)
 			if err != nil {
 				return
@@ -72,10 +170,10 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 			if err != nil {
 				return
 			}
-		}(ctx, configMap, bucket.Key, wg)
+		})
 	}
 
-	wg.Wait()
+	workerPool.StopWait()
 
 	return nil
 }
@@ -83,9 +181,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context) (*ds.MetaData, error) {
 	logger.Debug("Returning meta data for AWS S3 data source")
 
-	metadata := GetS3MetaData()
-
-	return &metadata, nil
+	return GetS3MetaData(), nil
 }
 
 func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {

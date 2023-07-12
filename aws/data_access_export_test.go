@@ -85,7 +85,7 @@ func TestSyncAccessProviderToTarget_CreatedNewManagedPolicy(t *testing.T) {
 				Name:        "Test Access Provider",
 				Description: "something",
 				NamingHint:  "test_access_provider",
-				Type:        aws.String(string(Managed)),
+				Type:        aws.String(string(ManagedPolicy)),
 
 				Action: sync_to_target.Grant,
 
@@ -158,7 +158,7 @@ func TestSyncAccessProviderToTarget_DeleteManagedPolicy(t *testing.T) {
 				Description: "something",
 				Delete:      true,
 				NamingHint:  "SalesReadS3Policy",
-				Type:        aws.String(string(Managed)),
+				Type:        aws.String(string(ManagedPolicy)),
 
 				Action: sync_to_target.Grant,
 
@@ -230,7 +230,7 @@ func TestSyncAccessProviderToTarget_DeleteNonExistingManagedPolicy(t *testing.T)
 				Description: "something",
 				Delete:      true,
 				NamingHint:  "SalesReadS3Policydkdkdkdkd",
-				Type:        aws.String(string(Managed)),
+				Type:        aws.String(string(ManagedPolicy)),
 
 				Action: sync_to_target.Grant,
 
@@ -394,7 +394,7 @@ func TestSyncAccessProviderToTarget_InternalizedInlinePolicyBecomesManagedPolicy
 				Name:        "Test Access Provider",
 				Description: "something",
 				NamingHint:  "test_access_provider",
-				Type:        aws.String(string(InlineUser)),
+				Type:        aws.String(string(InlinePolicyUser)),
 
 				Action: sync_to_target.Grant,
 

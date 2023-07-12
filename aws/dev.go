@@ -30,7 +30,7 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 
 	for _, apInput := range importList {
 		// inline role policies will only be included if the parent role is actually imported
-		if apInput.PolicyType == InlineRole {
+		if apInput.PolicyType == InlinePolicyRole {
 			continue
 		}
 
