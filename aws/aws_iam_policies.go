@@ -4,10 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gammazero/workerpool"
 	"net/url"
 	"strings"
 	"time"
+
+	"github.com/gammazero/workerpool"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -721,7 +722,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 	return policyBindings, nil
 }
 
-func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam,dupl // TODO no errors are indeed returned, find a way to do this
+func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam
 	var marker *string
 	var policyBindings []PolicyBinding
 
@@ -767,7 +768,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 	return policyBindings, nil
 }
 
-func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam,dupl // TODO no errors are indeed returned, find a way to do this
+func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam // TODO no errors are indeed returned, find a way to do this
 	var marker *string
 	var policyBindings []PolicyBinding
 

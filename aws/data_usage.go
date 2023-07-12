@@ -5,12 +5,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gammazero/workerpool"
 	"io"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/gammazero/workerpool"
 
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/data_usage"

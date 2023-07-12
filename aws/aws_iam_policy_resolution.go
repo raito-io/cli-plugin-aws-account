@@ -2,9 +2,10 @@ package aws
 
 import (
 	"fmt"
-	"github.com/raito-io/cli/base/util/config"
 	"strconv"
 	"strings"
+
+	"github.com/raito-io/cli/base/util/config"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
@@ -54,6 +55,7 @@ func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy, c
 
 				isBucket := !strings.Contains(fullName, "/")
 				var resourceActions []string
+
 				if isBucket {
 					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket)
 				} else {

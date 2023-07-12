@@ -4,9 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/gammazero/workerpool"
 	"strings"
 	"time"
+
+	"github.com/gammazero/workerpool"
 
 	"github.com/raito-io/cli/base/tag"
 

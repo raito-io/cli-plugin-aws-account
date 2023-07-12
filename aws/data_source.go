@@ -3,11 +3,12 @@ package aws
 import (
 	"context"
 	"fmt"
-	"github.com/gammazero/workerpool"
 	"regexp"
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/gammazero/workerpool"
 
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers"
@@ -38,7 +39,7 @@ func (s *DataSourceSyncer) provideRepo() dataSourceRepository {
 func getRegExList(input string) ([]*regexp.Regexp, error) {
 	input = strings.TrimSpace(input)
 
-	if len(input) == 0 {
+	if input == "" {
 		return []*regexp.Regexp{}, nil
 	}
 
@@ -47,7 +48,7 @@ func getRegExList(input string) ([]*regexp.Regexp, error) {
 	ret := make([]*regexp.Regexp, 0, len(inputSlice))
 
 	for _, item := range inputSlice {
-		if len(item) == 0 {
+		if item == "" {
 			continue
 		}
 
@@ -100,6 +101,7 @@ func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3E
 				if includedBucket.MatchString(bucket.Key) {
 					logger.Debug(fmt.Sprintf("Including bucket %s", bucket.Key))
 					include = true
+
 					break
 				}
 			}
@@ -110,6 +112,7 @@ func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3E
 				if excludedBucket.MatchString(bucket.Key) {
 					logger.Debug(fmt.Sprintf("Excluding bucket %s", bucket.Key))
 					include = false
+
 					break
 				}
 			}
