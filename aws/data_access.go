@@ -546,7 +546,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				action = CreateAction
 			}
 			(*apMap)[name] = action
-		} else if strings.Contains(*ap.Type, "policy") { // roles can't have a What, so not needed
+		} else if strings.Contains(*ap.Type, "managed_policy") { // roles can't have a What, so not needed
 			managedPoliciesToModify = append(managedPoliciesToModify, AccessWithWho{
 				Name: name,
 				What: ap.What,
@@ -562,7 +562,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				action = UpdateAction
 			}
 			(*apMap)[name] = action
-		} else if strings.Contains(*ap.Type, "inline") {
+		} else if strings.Contains(*ap.Type, "inline_policy") {
 			var localErr error
 
 			// always convert an internal inline policy to a managed policy
