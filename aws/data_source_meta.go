@@ -82,7 +82,7 @@ func GetS3MetaData() *ds.MetaData {
 					CanAssumeMultiple: false,
 					ContainsWhat:      false,
 					ContainsWho:       true,
-					WhoInputTypes:     []string{"User", "Group", "AccessProvider:role"},
+					WhoInputTypes:     []string{"User", "Group"},
 				},
 				{
 					Type:                    string(SSORole),
@@ -94,7 +94,7 @@ func GetS3MetaData() *ds.MetaData {
 					CanAssumeMultiple:       false,
 					ContainsWhat:            false,
 					ContainsWho:             true,
-					WhoInputTypes:           []string{"User", "Group", "AccessProvider:role"},
+					WhoInputTypes:           []string{"User", "Group"},
 					IdentityStoreTypeForWho: "aws-organization",
 				},
 				{
@@ -107,7 +107,7 @@ func GetS3MetaData() *ds.MetaData {
 					CanAssumeMultiple: false,
 					ContainsWhat:      true,
 					ContainsWho:       true,
-					WhoInputTypes:     []string{"User", "Group", "AccessProvider:" + string(Role)},
+					WhoInputTypes:     []string{"User", "Group", "AccessProvider:" + string(Role), "AccessProvider:" + string(SSORole)},
 				},
 				{
 					Type:              string(InlinePolicyUser),
@@ -145,20 +145,6 @@ func GetS3MetaData() *ds.MetaData {
 					ContainsWho:       true,
 					WhoInputTypes:     []string{"AccessProvider:" + string(Role)},
 				},
-
-				/*
-					Type                    string   `protobuf:"bytes,1,opt,name=type,proto3" json:"type,omitempty"`
-						Label                   string   `protobuf:"bytes,2,opt,name=label,proto3" json:"label,omitempty"`
-						Icon                    string   `protobuf:"bytes,3,opt,name=icon,proto3" json:"icon,omitempty"`
-						IsNamedEntity           bool     `protobuf:"varint,4,opt,name=isNamedEntity,proto3" json:"isNamedEntity,omitempty"`
-						CanBeCreated            bool     `protobuf:"varint,5,opt,name=canBeCreated,proto3" json:"canBeCreated,omitempty"`
-						CanBeAssumed            bool     `protobuf:"varint,6,opt,name=canBeAssumed,proto3" json:"canBeAssumed,omitempty"`
-						CanAssumeMultiple       bool     `protobuf:"varint,7,opt,name=canAssumeMultiple,proto3" json:"canAssumeMultiple,omitempty"`
-						ContainsWhat            bool     `protobuf:"varint,8,opt,name=containsWhat,proto3" json:"containsWhat,omitempty"`
-						ContainsWho             bool     `protobuf:"varint,9,opt,name=containsWho,proto3" json:"containsWho,omitempty"`
-						WhoInputTypes           []string `protobuf:"bytes,10,rep,name=whoInputTypes,proto3" json:"whoInputTypes,omitempty"`
-						IdentityStoreTypeForWho string
-				*/
 			},
 		}
 	}

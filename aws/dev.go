@@ -16,13 +16,6 @@ func useBucket(bucket types.Bucket) bool {
 	return true
 }
 
-func getPolicyName(ap importer.AccessProvider) string {
-	name := ap.NamingHint
-	name = strings.ReplaceAll(name, " ", "_")
-
-	return name
-}
-
 func filterApImportList(importList []AccessProviderInputExtended) []AccessProviderInputExtended {
 	result := []AccessProviderInputExtended{}
 
@@ -72,33 +65,33 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 }
 
 func printDebugAp(ap importer.AccessProvider) {
-	logger.Info(fmt.Sprintf("=================  ap name: %v =================  ", ap.Name))
+	logger.Debug(fmt.Sprintf("=================  ap name: %v =================  ", ap.Name))
 
 	if ap.ActualName != nil {
-		logger.Info(fmt.Sprintf("=================  ap actual name: %v =================  ", *ap.ActualName))
+		logger.Debug(fmt.Sprintf("=================  ap actual name: %v =================  ", *ap.ActualName))
 	}
 
-	logger.Info(fmt.Sprintf("=================  ap naming hint: %v =================  ", ap.NamingHint))
-	logger.Info(fmt.Sprintf("=================  ap ID: %v =================  ", ap.Id))
+	logger.Debug(fmt.Sprintf("=================  ap naming hint: %v =================  ", ap.NamingHint))
+	logger.Debug(fmt.Sprintf("=================  ap ID: %v =================  ", ap.Id))
 
 	if ap.Who.Users != nil {
-		logger.Info(fmt.Sprintf("AP %s users: %s", ap.Name, ap.Who.Users))
+		logger.Debug(fmt.Sprintf("AP %s users: %s", ap.Name, ap.Who.Users))
 	}
 
 	if ap.Who.Groups != nil {
-		logger.Info(fmt.Sprintf("AP %s groups: %s", ap.Name, ap.Who.Groups))
+		logger.Debug(fmt.Sprintf("AP %s groups: %s", ap.Name, ap.Who.Groups))
 	}
 
 	if ap.Who.InheritFrom != nil {
-		logger.Info(fmt.Sprintf("AP %s inherit from: %s", ap.Name, ap.Who.InheritFrom))
+		logger.Debug(fmt.Sprintf("AP %s inherit from: %s", ap.Name, ap.Who.InheritFrom))
 	}
 
 	if ap.Who.UsersInGroups != nil {
-		logger.Info(fmt.Sprintf("AP %s users in groups: %s", ap.Name, ap.Who.UsersInGroups))
+		logger.Debug(fmt.Sprintf("AP %s users in groups: %s", ap.Name, ap.Who.UsersInGroups))
 	}
 
 	if ap.Who.UsersInherited != nil {
-		logger.Info(fmt.Sprintf("AP %s users inherited: %s", ap.Name, ap.Who.UsersInherited))
+		logger.Debug(fmt.Sprintf("AP %s users inherited: %s", ap.Name, ap.Who.UsersInherited))
 	}
 }
 

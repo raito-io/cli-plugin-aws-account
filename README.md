@@ -33,10 +33,10 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
 
 <!-- below, TODO -->
 
-## Unsupported features
+## To Do
 
-* To be implemented: wildcards for permissions
-* To be implemented: wildcards for resources
+* Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
+* Change the way we model access providers (see Miro board)
 * Access-as-code
 * Groups in APs
 * Configurable concurrency
