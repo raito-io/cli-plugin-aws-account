@@ -30,7 +30,6 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 
 	policyStatements := policy.Statements
 	whatMap := make(map[string]set.Set[string])
-	var whatItems []sync_from_target.WhatItem
 
 	for ind := range policyStatements {
 		statement := policyStatements[ind]
@@ -84,6 +83,8 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 		}
 	}
 
+	whatItems := make([]sync_from_target.WhatItem, 0, len(whatMap))
+
 	for fullName, permissionSet := range whatMap {
 		// We don't specify the type as we are not sure about it, but the fullName should be sufficient
 		doType := ""
@@ -136,8 +137,6 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 			}
 		}
 	}
-
-	//logger.Debug(fmt.Sprintf("Mapping actions %+v for resource type %q to (incomplete %t): %+v", actions, resourceType, incomplete, mappedActions))
 
 	return mappedActions, incomplete
 }

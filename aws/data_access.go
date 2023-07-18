@@ -90,6 +90,7 @@ func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, access
 
 func filterApImportList(importList []AccessProviderInputExtended) []AccessProviderInputExtended {
 	toKeep := map[string]struct{}{}
+
 	logger.Debug("Start filtering for relevant access providers")
 
 	for _, apInput := range importList {
@@ -138,6 +139,7 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 	}
 
 	result := make([]AccessProviderInputExtended, 0, len(toKeep))
+
 	for _, apInput := range importList {
 		if _, ok := toKeep[apInput.ApInput.ActualName]; ok {
 			result = append(result, apInput)
@@ -363,7 +365,6 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 	}
 
 	for role, policies := range rolePolicies {
-
 		var roleAp *sync_from_target.AccessProvider
 
 		for _, ap := range aps {
@@ -468,6 +469,7 @@ func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_
 			logger.Warn(fmt.Sprintf("Access provider input with type %q is nil", ap.PolicyType))
 			continue
 		}
+
 		result = append(result, ap.ApInput)
 	}
 
