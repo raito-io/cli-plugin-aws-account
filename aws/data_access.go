@@ -231,6 +231,11 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 
 		whatItems, incomplete := createWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, configMap)
 
+		policyDocument := ""
+		if policy.PolicyDocument != nil {
+			policyDocument = *policy.PolicyDocument
+		}
+
 		apInput := sync_from_target.AccessProvider{
 			ExternalId: policy.Id,
 			Name:       policy.Name,
@@ -238,7 +243,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 			Type:       aws.String(string(Policy)),
 			NamingHint: fmt.Sprintf("%s%s", ManagedPrefix, policy.Name),
 			Action:     sync_from_target.Grant,
-			Policy:     "",
+			Policy:     policyDocument,
 			Who: &sync_from_target.WhoItem{
 				Groups:          groupBindings,
 				Users:           userBindings,

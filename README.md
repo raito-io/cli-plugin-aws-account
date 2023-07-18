@@ -35,6 +35,7 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
 
 ## To Do
 
+* Pretty print policy document JSONs
 * Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
 * Change the way we model access providers (see Miro board)
 * Access-as-code

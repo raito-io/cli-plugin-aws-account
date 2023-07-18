@@ -29,6 +29,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 	incomplete := false
 
 	policyStatements := policy.Statements
+	whatMap := make(map[string]set.Set[string])
 	var whatItems []sync_from_target.WhatItem
 
 	for ind := range policyStatements {
@@ -51,43 +52,53 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 		for _, resource := range resources {
 			incompleteResource := false
 
+			var resourceActions []string
+			var fullName string
+
 			if strings.HasPrefix(resource, "arn:aws:s3:") {
-				fullName := removeEndingWildcards(convertArnToFullname(resource))
+				fullName = removeEndingWildcards(convertArnToFullname(resource))
 
 				isBucket := !strings.Contains(fullName, "/")
-				var resourceActions []string
 
 				if isBucket {
 					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket)
 				} else {
 					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder)
 				}
-
-				whatItems = append(whatItems, sync_from_target.WhatItem{
-					DataObject: &data_source.DataObjectReference{
-						// We don't specify the type as we are not sure about it, but the fullName should be sufficient
-						FullName: fullName,
-					},
-					Permissions: resourceActions,
-				})
 			} else if resource == "*" {
-				var resourceActions []string
-
+				fullName = awsAccount
 				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource)
-
-				whatItems = append(whatItems, sync_from_target.WhatItem{
-					DataObject: &data_source.DataObjectReference{
-						FullName: awsAccount,
-						Type:     data_source.Datasource,
-					},
-					Permissions: resourceActions,
-				})
 			}
+
+			permissionSet := whatMap[fullName]
+			if permissionSet == nil {
+				permissionSet = set.NewSet[string]()
+				whatMap[fullName] = permissionSet
+			}
+
+			permissionSet.Add(resourceActions...)
 
 			if !incomplete && incompleteResource {
 				incomplete = true
 			}
 		}
+	}
+
+	for fullName, permissionSet := range whatMap {
+		// We don't specify the type as we are not sure about it, but the fullName should be sufficient
+		doType := ""
+
+		if fullName == awsAccount {
+			doType = data_source.Datasource
+		}
+
+		whatItems = append(whatItems, sync_from_target.WhatItem{
+			DataObject: &data_source.DataObjectReference{
+				FullName: fullName,
+				Type:     doType,
+			},
+			Permissions: permissionSet.Slice(),
+		})
 	}
 
 	return whatItems, incomplete
