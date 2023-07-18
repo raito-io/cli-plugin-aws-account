@@ -19,13 +19,12 @@ const (
 	TypeRole   string = "role"
 )
 
-func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool, error) {
-	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
-
+func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
 	if policy == nil {
-		logger.Warn(fmt.Sprintf("Policy document for %s is empty", policyName))
-		return nil, true, nil
+		return nil, false
 	}
+
+	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
 
 	incomplete := false
 
@@ -37,7 +36,9 @@ func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy, c
 
 		effect := statement.Effect
 		if strings.EqualFold(effect, "deny") {
-			logger.Warn(fmt.Sprintf("Policy document for %s has deny statement. Ignoring", policyName))
+			logger.Warn(fmt.Sprintf("Policy document for %q has deny statement. Ignoring", policyName))
+			incomplete = true
+
 			continue
 		}
 
@@ -89,7 +90,7 @@ func CreateWhatFromPolicyDocument(policyName string, policy *awspolicy.Policy, c
 		}
 	}
 
-	return whatItems, incomplete, nil
+	return whatItems, incomplete
 }
 
 // mapResourceActions maps the permissions given to the ones we know for the given resource type.
@@ -125,7 +126,7 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 		}
 	}
 
-	logger.Debug(fmt.Sprintf("Mapping actions %+v for resource type %q to (incomplete %t): %+v", actions, resourceType, incomplete, mappedActions))
+	//logger.Debug(fmt.Sprintf("Mapping actions %+v for resource type %q to (incomplete %t): %+v", actions, resourceType, incomplete, mappedActions))
 
 	return mappedActions, incomplete
 }

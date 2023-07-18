@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gammazero/workerpool"
@@ -591,13 +592,13 @@ func (repo *AwsIamRepository) GetAttachedEntity(ap sync_to_target.AccessProvider
 	return resourceName, resourceType, nil
 }
 
-func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) ([]PolicyEntity, error) {
+func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
 	client, err := repo.GetIamClient(ctx, configMap)
 	if err != nil {
 		return nil, err
 	}
 
-	var result []PolicyEntity
+	result := make(map[string][]PolicyEntity)
 	var bindings []PolicyBinding
 
 	if strings.EqualFold(entityType, UserResourceType) {
@@ -620,6 +621,8 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 	// TODO make number of workers configurable
 	workerPool := workerpool.New(5)
 
+	var mut sync.Mutex
+
 	for i := range bindings {
 		policyBinding := bindings[i]
 
@@ -641,29 +644,26 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 				return
 			}
 
-			var policyType PolicyType
 			var userPolicyBinding, groupPolicyBinding, rolePolicyBinding []PolicyBinding
 
 			if entityType == UserResourceType {
-				policyType = InlinePolicyUser
-
 				userPolicyBinding = append(userPolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
 			} else if entityType == GroupResourceType {
-				policyType = InlinePolicyGroup
-
 				groupPolicyBinding = append(groupPolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
 			} else if entityType == RoleResourceType {
-				policyType = InlinePolicyRole
-
 				rolePolicyBinding = append(rolePolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
 			}
 
-			result = append(result, PolicyEntity{
+			// Lock to add to map safely
+			mut.Lock()
+			defer mut.Unlock()
+
+			result[entityName] = append(result[entityName], PolicyEntity{
 				Name:           policyName,
 				Description:    "inline policy",
 				PolicyDocument: policyReadable,
 				PolicyParsed:   policy,
-				PolicyType:     policyType,
+				PolicyType:     Policy,
 				InlineParent:   &entityName,
 				UserBindings:   userPolicyBinding,
 				GroupBindings:  groupPolicyBinding,

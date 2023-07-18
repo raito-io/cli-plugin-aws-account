@@ -28,19 +28,15 @@ type UserEntity struct {
 type PolicyType string
 
 const (
-	Role              PolicyType = "aws_role"
-	SSORole           PolicyType = "aws_sso_role"
-	ManagedPolicy     PolicyType = "aws_managed_policy"
-	InlinePolicyUser  PolicyType = "aws_inline_policy_user"
-	InlinePolicyRole  PolicyType = "aws_inline_policy_role"
-	InlinePolicyGroup PolicyType = "aws_inline_policy_group"
+	Role    PolicyType = "aws_role"
+	SSORole PolicyType = "aws_sso_role"
+	Policy  PolicyType = "aws_policy"
 )
 
 type AccessProviderInputExtended struct {
 	ApInput      *sync_from_target.AccessProvider
 	LastUsedDate *time.Time
 	PolicyType   PolicyType
-	InlineParent *string
 }
 
 type RoleEntity struct {

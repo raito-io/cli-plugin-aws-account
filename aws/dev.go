@@ -16,54 +16,6 @@ func useBucket(bucket types.Bucket) bool {
 	return true
 }
 
-func filterApImportList(importList []AccessProviderInputExtended) []AccessProviderInputExtended {
-	result := []AccessProviderInputExtended{}
-
-	devMode := true
-
-	for _, apInput := range importList {
-		// inline role policies will only be included if the parent role is actually imported
-		if apInput.PolicyType == InlinePolicyRole {
-			continue
-		}
-
-		if apInput.PolicyType == Role {
-			result = append(result, apInput)
-			continue
-		}
-
-		if devMode && strings.HasPrefix(apInput.ApInput.NamingHint, ManagedPrefix) && !strings.Contains(apInput.ApInput.Name, "Administrator") &&
-			!strings.Contains(apInput.ApInput.Name, "S3") {
-			continue
-		}
-
-		hasS3Actions := false
-
-		if apInput.ApInput.What != nil && len(apInput.ApInput.What) > 0 {
-			for _, whatItem := range apInput.ApInput.What {
-				for _, permission := range whatItem.Permissions {
-					if permission == "*" || strings.HasPrefix(permission, "s3:") {
-						hasS3Actions = true
-						break
-					}
-				}
-
-				if hasS3Actions {
-					break
-				}
-			}
-		}
-
-		if !hasS3Actions {
-			continue
-		}
-
-		result = append(result, apInput)
-	}
-
-	return result
-}
-
 func printDebugAp(ap importer.AccessProvider) {
 	logger.Debug(fmt.Sprintf("=================  ap name: %v =================  ", ap.Name))
 

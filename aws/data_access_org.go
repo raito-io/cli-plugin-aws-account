@@ -85,6 +85,12 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 
 	for i := range aps {
 		ap := aps[i]
+
+		if ap.ApInput == nil {
+			logger.Warn(fmt.Sprintf("Access provider input is nil for ap of type: %s", ap.PolicyType))
+			continue
+		}
+
 		if isPermissionSetRole(ap.ApInput.Name) {
 			permissionSet := toPermissionSetName(ap.ApInput.Name)
 			if permissionSet == "" {
@@ -307,7 +313,7 @@ func (e *roleEnricher) fetchPermissionSetName(client *ssoadmin.Client, instanceA
 }
 
 func toPermissionSetName(name string) string {
-	prefix := RolePrefix + ReservedSSOPrefix
+	prefix := ReservedSSOPrefix
 	if len(name) <= len(prefix) {
 		return ""
 	}
@@ -323,5 +329,5 @@ func toPermissionSetName(name string) string {
 }
 
 func isPermissionSetRole(name string) bool {
-	return strings.HasPrefix(name, RolePrefix+ReservedSSOPrefix)
+	return strings.HasPrefix(name, ReservedSSOPrefix)
 }
