@@ -2,9 +2,10 @@ package aws
 
 import (
 	"fmt"
-	"github.com/aws/smithy-go/ptr"
 	"strconv"
 	"strings"
+
+	"github.com/aws/smithy-go/ptr"
 
 	"github.com/raito-io/cli/base/util/config"
 

@@ -376,7 +376,6 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(ctx context.Context
 
 func (repo *AwsIamRepository) GetPrincipalsFromAssumeRolePolicyDocument(ctx context.Context, configMap *config.ConfigMap, policyDocument *string) ([]string, error) {
 	// TODO replace with new createWhoFromTrustPolicyDocument method ?
-
 	principals := set.Set[string]{}
 
 	if policyDocument == nil {
