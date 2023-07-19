@@ -2,6 +2,7 @@ package aws
 
 import (
 	"fmt"
+	"github.com/aws/smithy-go/ptr"
 	"strconv"
 	"strings"
 
@@ -19,15 +20,99 @@ const (
 	TypeRole   string = "role"
 )
 
+func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, configMap *config.ConfigMap) (*sync_from_target.WhoItem, bool) {
+	if policy == nil {
+		return nil, false
+	}
+
+	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
+	incomplete := false
+	policyStatements := policy.Statements
+	whoItem := sync_from_target.WhoItem{}
+
+	users := set.NewSet[string]()
+	groups := set.NewSet[string]()
+
+	for ind := range policyStatements {
+		statement := policyStatements[ind]
+
+		effect := statement.Effect
+		if strings.EqualFold(effect, "deny") {
+			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q has deny statement. Ignoring", role))
+			incomplete = true
+
+			continue
+		}
+
+		if len(statement.NotResource) > 0 || len(statement.NotPrincipal) > 0 || len(statement.NotAction) > 0 {
+			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements. Ignoring", role))
+			incomplete = true
+
+			continue
+		}
+
+		actions := statement.Action
+		for _, action := range actions {
+			if strings.EqualFold(action, "sts:AssumeRole") {
+				for principalType, principals := range statement.Principal {
+					if principalType == "AWS" {
+						for _, principal := range principals {
+							resource, err := parseAndValidateArn(principal, &awsAccount, ptr.String("iam"))
+							if err != nil {
+								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements. Ignoring", role))
+								incomplete = true
+
+								continue
+							}
+
+							parts := strings.Split(resource, "/")
+
+							if len(parts) == 2 {
+								if parts[1] == "*" {
+									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains wildcard IAM resource %q. Ignoring", role, resource))
+									incomplete = true
+								} else if strings.EqualFold(parts[0], "user") {
+									users.Add(parts[1])
+								} else if strings.EqualFold(parts[0], "group") {
+									groups.Add(parts[1])
+								} else {
+									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q. Ignoring", role, resource))
+									incomplete = true
+								}
+							} else {
+								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q. Ignoring", role, resource))
+								incomplete = true
+							}
+						}
+					} else {
+						logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q. Ignoring", principalType, role))
+						incomplete = true
+
+						continue
+					}
+				}
+
+				break
+			} else {
+				logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized. Ignoring", action, role))
+				incomplete = true
+			}
+		}
+	}
+
+	whoItem.Users = users.Slice()
+	whoItem.Groups = groups.Slice()
+
+	return &whoItem, incomplete
+}
+
 func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
 
 	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
-
 	incomplete := false
-
 	policyStatements := policy.Statements
 	whatMap := make(map[string]set.Set[string])
 

@@ -45,6 +45,7 @@ type RoleEntity struct {
 	Id                       string
 	Description              string
 	AssumeRolePolicyDocument *string
+	AssumeRolePolicy         *awspolicy.Policy
 	Tags                     []*tag.Tag
 	LastUsedDate             *time.Time
 }

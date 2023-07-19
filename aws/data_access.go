@@ -101,7 +101,7 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 
 				toKeep[apInput.ApInput.ActualName] = struct{}{}
 			} else {
-				logger.Debug(fmt.Sprintf("SKipping role %q as it has no WHAT elements", apInput.ApInput.ActualName))
+				logger.Debug(fmt.Sprintf("Skipping role %q as it has no WHAT elements", apInput.ApInput.ActualName))
 			}
 
 			continue
@@ -160,7 +160,12 @@ func (a *AccessSyncer) fetchRoleAccessProviders(ctx context.Context, configMap *
 	for _, role := range roles {
 		roleName := fmt.Sprintf("%s%s", RolePrefix, role.Name)
 
-		userNames := []string{}
+		var whoItem *sync_from_target.WhoItem
+		incomplete := false
+
+		if role.AssumeRolePolicyDocument != nil {
+			whoItem, incomplete = createWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, configMap)
+		}
 
 		aps = append(aps, AccessProviderInputExtended{
 			LastUsedDate: role.LastUsedDate,
@@ -173,11 +178,9 @@ func (a *AccessSyncer) fetchRoleAccessProviders(ctx context.Context, configMap *
 				Type:       aws.String(string(Role)),
 				Action:     sync_from_target.Grant,
 				Policy:     "",
-				Who: &sync_from_target.WhoItem{
-					// Groups:          groupBindings,
-					Users: userNames,
-				},
-				What: []sync_from_target.WhatItem{},
+				Who:        whoItem,
+				What:       []sync_from_target.WhatItem{},
+				Incomplete: ptr.Bool(incomplete),
 			}})
 	}
 

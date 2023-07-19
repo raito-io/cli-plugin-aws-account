@@ -177,8 +177,9 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 					RoleName: role.RoleName,
 				}
 
-				roleDetailsRaw, err := client.GetRole(ctx, &roleInput)
-				if err != nil {
+				roleDetailsRaw, err2 := client.GetRole(ctx, &roleInput)
+				if err2 != nil {
+					// TODO error handling
 					return
 				}
 
@@ -205,12 +206,19 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 
 				tags := getTags(role.Tags)
 
+				trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
+				if err2 != nil {
+					// TODO error handling
+					return
+				}
+
 				result = append(result, RoleEntity{
 					ARN:                      Arn,
 					Id:                       Id,
 					Name:                     Name,
 					Description:              Description,
-					AssumeRolePolicyDocument: role.AssumeRolePolicyDocument,
+					AssumeRolePolicyDocument: trustPolicyDocument,
+					AssumeRolePolicy:         trustPolicy,
 					Tags:                     tags,
 					LastUsedDate:             roleLastUsed,
 				})
@@ -367,6 +375,8 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(ctx context.Context
 }
 
 func (repo *AwsIamRepository) GetPrincipalsFromAssumeRolePolicyDocument(ctx context.Context, configMap *config.ConfigMap, policyDocument *string) ([]string, error) {
+	// TODO replace with new createWhoFromTrustPolicyDocument method ?
+
 	principals := set.Set[string]{}
 
 	if policyDocument == nil {

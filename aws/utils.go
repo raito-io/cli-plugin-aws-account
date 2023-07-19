@@ -6,6 +6,7 @@ import (
 
 	"github.com/raito-io/cli/base/tag"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"github.com/hashicorp/go-hclog"
 	"github.com/raito-io/cli/base"
@@ -47,6 +48,28 @@ func getEmailAddressFromTags(tags []*tag.Tag, result string) string {
 	}
 
 	return result
+}
+
+// parseAndValidateArn parses the ARN and returns the resource part. Optionally, it can verify that the account and/or service match.
+func parseAndValidateArn(inputArn string, account *string, service *string) (string, error) {
+	res, err := arn.Parse(inputArn)
+	if err != nil {
+		return "", fmt.Errorf("error while parsing ARN: %s", err.Error())
+	}
+
+	if res.Partition != "" && res.Partition != "aws" {
+		return "", fmt.Errorf("only the 'aws' partition is supported in ARNs (found %q)", res.Partition)
+	}
+
+	if account != nil && res.AccountID != "" && res.AccountID != *account {
+		return "", fmt.Errorf("ARN pointing to a different account (%s)", res.AccountID)
+	}
+
+	if service != nil && res.Service != *service {
+		return "", fmt.Errorf("ARN is for the wrong service (%s)", res.Service)
+	}
+
+	return res.Resource, nil
 }
 
 func convertArnToFullname(arn string) string {
