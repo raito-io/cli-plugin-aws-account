@@ -161,6 +161,7 @@ func (a *AccessSyncer) fetchRoleAccessProviders(ctx context.Context, configMap *
 		roleName := fmt.Sprintf("%s%s", RolePrefix, role.Name)
 
 		isRaito := false
+
 		for _, tag := range role.Tags {
 			if tag.Key == "creator" && tag.Value == "raito" {
 				isRaito = true
@@ -224,6 +225,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 		var roleBindings []string
 
 		isRaito := false
+
 		for _, tag := range policy.Tags {
 			if tag.Key == "creator" && tag.Value == "raito" {
 				isRaito = true
