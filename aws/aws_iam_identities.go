@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/gammazero/workerpool"
-
 	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -28,57 +28,64 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.Co
 
 	moreObjectsAvailable := true
 	var marker *string
-	var result []UserEntity
+	var allUsers []types.User
 
 	for moreObjectsAvailable {
 		input := iam.ListUsersInput{
 			Marker: marker,
 		}
 
-		response, err := client.ListUsers(ctx, &input)
-		if err != nil {
+		response, err2 := client.ListUsers(ctx, &input)
+		if err2 != nil {
 			return nil, err
 		}
 
+		allUsers = append(allUsers, response.Users...)
+
 		moreObjectsAvailable = response.IsTruncated
 		marker = response.Marker
+	}
 
-		// TODO make number of workers configurable
-		workerPool := workerpool.New(5)
+	result := make([]UserEntity, 0, len(allUsers))
 
-		for i := range response.Users {
-			user := response.Users[i]
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
+	var smu sync.Mutex
 
-			workerPool.Submit(func() {
-				emailAddress := *user.UserName
-				var tags []*tag.Tag
+	for i := range allUsers {
+		user := allUsers[i]
 
-				if withDetails {
-					userInput := iam.GetUserInput{
-						UserName: user.UserName,
-					}
+		workerPool.Submit(func() {
+			emailAddress := *user.UserName
+			var tags []*tag.Tag
 
-					userRaw, err := client.GetUser(ctx, &userInput)
-					if err != nil {
-						return
-					}
-					user = *userRaw.User
-					tags = getTags(user.Tags)
-					emailAddress = getEmailAddressFromTags(tags, *user.UserName)
+			if withDetails {
+				userInput := iam.GetUserInput{
+					UserName: user.UserName,
 				}
 
-				result = append(result, UserEntity{
-					ExternalId: *user.UserId,
-					ARN:        *user.Arn,
-					Name:       *user.UserName,
-					Email:      emailAddress,
-					Tags:       tags,
-				})
-			})
-		}
+				userRaw, err2 := client.GetUser(ctx, &userInput)
+				if err2 != nil {
+					return
+				}
+				user = *userRaw.User
+				tags = getTags(user.Tags)
+				emailAddress = getEmailAddressFromTags(tags, *user.UserName)
+			}
 
-		workerPool.StopWait()
+			smu.Lock()
+			defer smu.Unlock()
+			result = append(result, UserEntity{
+				ExternalId: *user.UserId,
+				ARN:        *user.Arn,
+				Name:       *user.UserName,
+				Email:      emailAddress,
+				Tags:       tags,
+			})
+		})
 	}
+
+	workerPool.StopWait()
 
 	logger.Info(fmt.Sprintf("A total of %d users has been found", len(result)))
 
@@ -93,52 +100,56 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context, configMap *config.C
 
 	moreObjectsAvailable := true
 	var marker *string
-	var result []GroupEntity
+	var allGroups []types.Group
 
 	for moreObjectsAvailable {
 		input := iam.ListGroupsInput{
 			Marker: marker,
 		}
 
-		response, err := client.ListGroups(ctx, &input)
-		if err != nil {
+		response, err2 := client.ListGroups(ctx, &input)
+		if err2 != nil {
 			return nil, err
 		}
 
+		allGroups = append(allGroups, response.Groups...)
+
 		moreObjectsAvailable = response.IsTruncated
 		marker = response.Marker
+	}
 
-		for _, group := range response.Groups {
-			moreGroupDetailsAvailable := true
-			var groupMarker *string
-			var memberIds []string
+	result := make([]GroupEntity, 0, len(allGroups))
 
-			for moreGroupDetailsAvailable {
-				groupInput := iam.GetGroupInput{
-					GroupName: group.GroupName,
-					Marker:    groupMarker,
-				}
+	for _, group := range allGroups {
+		moreGroupDetailsAvailable := true
+		var groupMarker *string
+		var memberIds []string
 
-				groupDetails, err := client.GetGroup(ctx, &groupInput)
-				if err != nil {
-					return nil, nil
-				}
-
-				moreGroupDetailsAvailable = groupDetails.IsTruncated
-				groupMarker = groupDetails.Marker
-
-				for _, u := range groupDetails.Users {
-					memberIds = append(memberIds, *u.UserId)
-				}
+		for moreGroupDetailsAvailable {
+			groupInput := iam.GetGroupInput{
+				GroupName: group.GroupName,
+				Marker:    groupMarker,
 			}
 
-			result = append(result, GroupEntity{
-				ARN:        *group.Arn,
-				ExternalId: *group.GroupId,
-				Name:       *group.GroupName,
-				Members:    memberIds,
-			})
+			groupDetails, err := client.GetGroup(ctx, &groupInput)
+			if err != nil {
+				return nil, nil
+			}
+
+			moreGroupDetailsAvailable = groupDetails.IsTruncated
+			groupMarker = groupDetails.Marker
+
+			for _, u := range groupDetails.Users {
+				memberIds = append(memberIds, *u.UserId)
+			}
 		}
+
+		result = append(result, GroupEntity{
+			ARN:        *group.Arn,
+			ExternalId: *group.GroupId,
+			Name:       *group.GroupName,
+			Members:    memberIds,
+		})
 	}
 
 	return result, nil
@@ -151,87 +162,97 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 	}
 
 	var marker *string
-	var result []RoleEntity
+	var allRoles []types.Role
 
 	for {
 		input := iam.ListRolesInput{
 			Marker: marker,
 		}
 
-		resp, err := client.ListRoles(ctx, &input)
-		if err != nil {
+		resp, err2 := client.ListRoles(ctx, &input)
+		if err2 != nil {
 			return nil, err
 		}
 
-		// TODO make number of workers configurable
-		workerPool := workerpool.New(5)
-
-		for i := range resp.Roles {
-			role := resp.Roles[i]
-
-			workerPool.Submit(func() {
-				var Arn, Id, Name, Description string
-				var roleLastUsed *time.Time
-
-				roleInput := iam.GetRoleInput{
-					RoleName: role.RoleName,
-				}
-
-				roleDetailsRaw, err2 := client.GetRole(ctx, &roleInput)
-				if err2 != nil {
-					// TODO error handling
-					return
-				}
-
-				role := roleDetailsRaw.Role
-				if role.RoleLastUsed != nil && role.RoleLastUsed.LastUsedDate != nil {
-					roleLastUsed = role.RoleLastUsed.LastUsedDate
-				}
-
-				if role.Arn != nil {
-					Arn = *role.Arn
-				}
-
-				if role.RoleId != nil {
-					Id = *role.RoleId
-				}
-
-				if role.RoleName != nil {
-					Name = *role.RoleName
-				}
-
-				if role.Description != nil {
-					Description = *role.Description
-				}
-
-				tags := getTags(role.Tags)
-
-				trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
-				if err2 != nil {
-					// TODO error handling
-					return
-				}
-
-				result = append(result, RoleEntity{
-					ARN:                      Arn,
-					Id:                       Id,
-					Name:                     Name,
-					Description:              Description,
-					AssumeRolePolicyDocument: trustPolicyDocument,
-					AssumeRolePolicy:         trustPolicy,
-					Tags:                     tags,
-					LastUsedDate:             roleLastUsed,
-				})
-			})
-		}
-
-		workerPool.StopWait()
+		allRoles = append(allRoles, resp.Roles...)
 
 		if !resp.IsTruncated {
 			break
 		}
 		marker = resp.Marker
 	}
+
+	logger.Info(fmt.Sprintf("%d roles received from AWS", len(allRoles)))
+
+	result := make([]RoleEntity, 0, len(allRoles))
+
+	// TODO make number of workers configurable
+	workerPool := workerpool.New(5)
+	var smu sync.Mutex
+
+	for i := range allRoles {
+		roleFromList := allRoles[i]
+
+		workerPool.Submit(func() {
+			roleDetailsRaw, err2 := client.GetRole(ctx, &iam.GetRoleInput{
+				RoleName: roleFromList.RoleName,
+			})
+
+			if err2 != nil {
+				logger.Error(fmt.Sprintf("Error getting role %s: %s", *roleFromList.RoleName, err2.Error()))
+				// TODO error handling
+				return
+			}
+
+			var Arn, Id, Name, Description string
+			var roleLastUsed *time.Time
+
+			role := roleDetailsRaw.Role
+			if role.RoleLastUsed != nil && role.RoleLastUsed.LastUsedDate != nil {
+				roleLastUsed = role.RoleLastUsed.LastUsedDate
+			}
+
+			if role.Arn != nil {
+				Arn = *role.Arn
+			}
+
+			if role.RoleId != nil {
+				Id = *role.RoleId
+			}
+
+			if role.RoleName != nil {
+				Name = *role.RoleName
+			}
+
+			if role.Description != nil {
+				Description = *role.Description
+			}
+
+			tags := getTags(role.Tags)
+
+			trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
+			if err2 != nil {
+				logger.Error(fmt.Sprintf("Error reading trust policy from role %s: %s", *roleFromList.RoleName, err2.Error()))
+				// TODO error handling
+				return
+			}
+
+			smu.Lock()
+			defer smu.Unlock()
+			result = append(result, RoleEntity{
+				ARN:                      Arn,
+				Id:                       Id,
+				Name:                     Name,
+				Description:              Description,
+				AssumeRolePolicyDocument: trustPolicyDocument,
+				AssumeRolePolicy:         trustPolicy,
+				Tags:                     tags,
+				LastUsedDate:             roleLastUsed,
+			})
+		})
+	}
+
+	workerPool.StopWait()
 
 	logger.Info(fmt.Sprintf("A total of %d roles have been found", len(result)))
 

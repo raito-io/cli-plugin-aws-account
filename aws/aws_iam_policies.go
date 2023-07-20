@@ -42,13 +42,14 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 			MaxItems:     aws.Int32(50),
 		}
 
-		resp, err := client.ListPolicies(ctx, &input)
-		if err != nil {
+		resp, err2 := client.ListPolicies(ctx, &input)
+		if err2 != nil {
 			return nil, err
 		}
 
 		// TODO make number of workers configurable
 		workerPool := workerpool.New(5)
+		var smu sync.Mutex
 
 		for i := range resp.Policies {
 			policy := resp.Policies[i]
@@ -59,21 +60,21 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 					return
 				}
 
-				input := iam.GetPolicyInput{
+				policyInput := iam.GetPolicyInput{
 					PolicyArn: policy.Arn,
 				}
 
-				policyRespRaw, err := client.GetPolicy(ctx, &input)
-				if err != nil {
+				policyRespRaw, err3 := client.GetPolicy(ctx, &policyInput)
+				if err3 != nil {
 					logger.Warn(fmt.Sprintf("Error getting policy details for %s", *policy.Arn))
 					return
 				}
-				policy := policyRespRaw.Policy
-				tags := getTags(policy.Tags)
+				parsedPolicy := policyRespRaw.Policy
+				tags := getTags(parsedPolicy.Tags)
 
 				policyVersionInput := iam.GetPolicyVersionInput{
-					PolicyArn: policy.Arn,
-					VersionId: policy.DefaultVersionId,
+					PolicyArn: parsedPolicy.Arn,
+					VersionId: parsedPolicy.DefaultVersionId,
 				}
 
 				policyVersionResp, err := client.GetPolicyVersion(ctx, &policyVersionInput)
@@ -104,6 +105,8 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 					}
 				}
 
+				smu.Lock()
+				defer smu.Unlock()
 				result = append(result, raitoPolicy)
 			})
 		}
@@ -620,7 +623,6 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 
 	// TODO make number of workers configurable
 	workerPool := workerpool.New(5)
-
 	var mut sync.Mutex
 
 	for i := range bindings {
@@ -630,8 +632,8 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 			entityName := policyBinding.ResourceName
 			policyName := policyBinding.PolicyName
 
-			unparsedPolicyDocument, err := repo.getEntityPolicy(ctx, client, entityType, entityName, policyName)
-			if err != nil {
+			unparsedPolicyDocument, err2 := repo.getEntityPolicy(ctx, client, entityType, entityName, policyName)
+			if err2 != nil {
 				return
 			}
 
@@ -639,8 +641,8 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 				return
 			}
 
-			policy, policyReadable, err := repo.parsePolicyDocument(unparsedPolicyDocument, entityName, policyName)
-			if err != nil || policy == nil {
+			policy, policyReadable, err2 := repo.parsePolicyDocument(unparsedPolicyDocument, entityName, policyName)
+			if err2 != nil || policy == nil {
 				return
 			}
 
@@ -685,6 +687,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	// TODO make number of workers configurable
 	workerPool := workerpool.New(5)
+	var smu sync.Mutex
 
 	for i := range entityNames {
 		entityName := entityNames[i]
@@ -701,6 +704,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 					return
 				}
 
+				smu.Lock()
 				for ind := range resp.PolicyNames {
 					policyBindings = append(policyBindings, PolicyBinding{
 						PolicyName:   resp.PolicyNames[ind],
@@ -708,6 +712,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 						Type:         entityType,
 					})
 				}
+				smu.Unlock()
 
 				if !resp.IsTruncated {
 					break
@@ -722,7 +727,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 	return policyBindings, nil
 }
 
-func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam
+func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam,dupl
 	var marker *string
 	var policyBindings []PolicyBinding
 
@@ -730,6 +735,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 
 	// TODO make number of workers configurable
 	workerPool := workerpool.New(5)
+	var smu sync.Mutex
 
 	for i := range entityNames {
 		entityName := entityNames[i]
@@ -747,6 +753,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 					return
 				}
 
+				smu.Lock()
 				for _, policyName := range resp.PolicyNames {
 					policyBindings = append(policyBindings, PolicyBinding{
 						PolicyName:   policyName,
@@ -754,6 +761,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 						Type:         entityType,
 					})
 				}
+				smu.Unlock()
 
 				if !resp.IsTruncated {
 					break
@@ -768,7 +776,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 	return policyBindings, nil
 }
 
-func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam // TODO no errors are indeed returned, find a way to do this
+func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam,dupl // TODO no errors are indeed returned, find a way to do this
 	var marker *string
 	var policyBindings []PolicyBinding
 
@@ -776,6 +784,7 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 
 	// TODO make number of workers configurable
 	workerPool := workerpool.New(5)
+	var smu sync.Mutex
 
 	for i := range entityNames {
 		entityName := entityNames[i]
@@ -792,6 +801,7 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 					return
 				}
 
+				smu.Lock()
 				for _, policyName := range resp.PolicyNames {
 					policyBindings = append(policyBindings, PolicyBinding{
 						PolicyName:   policyName,
@@ -799,6 +809,7 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 						Type:         entityType,
 					})
 				}
+				smu.Unlock()
 
 				if !resp.IsTruncated {
 					break

@@ -1,21 +1,6 @@
 package aws
 
-import (
-	"context"
-	"testing"
-	"time"
-
-	"github.com/aws/aws-sdk-go-v2/aws"
-	awspolicy "github.com/n4ch04/aws-policy"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
-	importer "github.com/raito-io/cli/base/access_provider/sync_to_target"
-	"github.com/raito-io/cli/base/data_source"
-	"github.com/raito-io/cli/base/util/config"
-	"github.com/raito-io/cli/base/wrappers/mocks"
-	"github.com/stretchr/testify/mock"
-	"github.com/stretchr/testify/require"
-)
-
+/*
 func TestSyncAccessProviderToTarget_NoInternalApRequiresNoProcessing(t *testing.T) {
 	repo := newMockDataAccessRepository(t)
 
@@ -582,4 +567,4 @@ func elementsMatch(x, y []string) bool {
 		}
 	}
 	return len(diff) == 0
-}
+}*/

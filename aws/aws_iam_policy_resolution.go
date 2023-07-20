@@ -86,7 +86,7 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 							}
 						}
 					} else {
-						logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q.", principalType, role))
+						logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q.", role, principalType))
 						incomplete = true
 
 						continue

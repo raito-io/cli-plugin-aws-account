@@ -51,13 +51,34 @@ func setupMockImportEnvironment(t *testing.T, configMap *config.ConfigMap) (*moc
 		groupNames = append(groupNames, group.Name)
 	}
 
+	roleInlineMap := make(map[string][]PolicyEntity)
+	for _, rip := range roleInlinePolicies {
+		for _, rb := range rip.RoleBindings {
+			roleInlineMap[rb.ResourceName] = append(roleInlineMap[rb.ResourceName], rip)
+		}
+	}
+
+	userInlineMap := make(map[string][]PolicyEntity)
+	for _, uip := range userInlinePolicies {
+		for _, ub := range uip.RoleBindings {
+			userInlineMap[ub.ResourceName] = append(userInlineMap[ub.ResourceName], uip)
+		}
+	}
+
+	groupInlineMap := make(map[string][]PolicyEntity)
+	for _, gip := range groupInlinePolicies {
+		for _, gb := range gip.RoleBindings {
+			groupInlineMap[gb.ResourceName] = append(groupInlineMap[gb.ResourceName], gip)
+		}
+	}
+
 	repoMock.EXPECT().GetManagedPolicies(context.TODO(), mock.Anything, true).Return(managedPolicies, nil).Once()
 	repoMock.EXPECT().GetRoles(context.TODO(), configMap).Return(roles, nil).Once()
 	repoMock.EXPECT().GetGroups(context.TODO(), configMap, false).Return(groups, nil).Once()
 	repoMock.EXPECT().GetUsers(context.TODO(), configMap, false).Return(users, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, roleNames, "role").Return(roleInlinePolicies, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, userNames, "user").Return(userInlinePolicies, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, groupNames, "group").Return(groupInlinePolicies, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, roleNames, "role").Return(roleInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, userNames, "user").Return(userInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, groupNames, "group").Return(groupInlineMap, nil).Once()
 
 	return repoMock, syncer
 }

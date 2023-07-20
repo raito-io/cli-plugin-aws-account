@@ -651,19 +651,19 @@ func (_c *mockDataAccessRepository_GetGroups_Call) RunAndReturn(run func(context
 }
 
 // GetInlinePoliciesForEntities provides a mock function with given fields: ctx, configMap, entityNames, entityType
-func (_m *mockDataAccessRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) ([]PolicyEntity, error) {
+func (_m *mockDataAccessRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
 	ret := _m.Called(ctx, configMap, entityNames, entityType)
 
-	var r0 []PolicyEntity
+	var r0 map[string][]PolicyEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, []string, string) ([]PolicyEntity, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, []string, string) (map[string][]PolicyEntity, error)); ok {
 		return rf(ctx, configMap, entityNames, entityType)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, []string, string) []PolicyEntity); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, []string, string) map[string][]PolicyEntity); ok {
 		r0 = rf(ctx, configMap, entityNames, entityType)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]PolicyEntity)
+			r0 = ret.Get(0).(map[string][]PolicyEntity)
 		}
 	}
 
@@ -697,12 +697,12 @@ func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) Run(run fu
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) Return(_a0 []PolicyEntity, _a1 error) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
+func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) Return(_a0 map[string][]PolicyEntity, _a1 error) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
 	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, []string, string) ([]PolicyEntity, error)) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
+func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, []string, string) (map[string][]PolicyEntity, error)) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
 	_c.Call.Return(run)
 	return _c
 }
