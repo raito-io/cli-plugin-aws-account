@@ -35,11 +35,12 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
 
 ## To Do
 
+* When reading the WHAT from a policy document, smart merge with existing whatItems by matching on data object to avoid duplicates
+* When an 'internal policy' AP gets internalized. The old/relevant internal policies need to be removed. Use tagging for this?
+* Access from Raito to AWS
 * Pretty print policy document JSONs
 * Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
-* Change the way we model access providers (see Miro board)
 * Access-as-code
-* Groups in APs
 * Configurable concurrency
 * Support for other AWS partitions (e.g. china and gov-cloud) (typically not working in arn matching)
 * To improve: Error handling (for concurrent jobs). See 'error handling' TODOs

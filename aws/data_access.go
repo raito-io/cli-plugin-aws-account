@@ -160,6 +160,19 @@ func (a *AccessSyncer) fetchRoleAccessProviders(ctx context.Context, configMap *
 	for _, role := range roles {
 		roleName := fmt.Sprintf("%s%s", RolePrefix, role.Name)
 
+		isRaito := false
+		for _, tag := range role.Tags {
+			if tag.Key == "creator" && tag.Value == "raito" {
+				isRaito = true
+			}
+		}
+
+		if isRaito {
+			// TODO later, we need to continue as we possibly need to import the (locked) who or what
+			logger.Info(fmt.Sprintf("Ignoring role %q as it is managed by Raito", role.Name))
+			continue
+		}
+
 		var whoItem *sync_from_target.WhoItem
 		incomplete := false
 
@@ -210,11 +223,17 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 		var userBindings []string
 		var roleBindings []string
 
+		isRaito := false
 		for _, tag := range policy.Tags {
 			if tag.Key == "creator" && tag.Value == "raito" {
-				// TODO, shouldn't we return here (see log message)?
-				logger.Info(fmt.Sprintf("%s is raito policy, skipping import", policy.Name))
+				isRaito = true
 			}
+		}
+
+		if isRaito {
+			// TODO later, we need to continue as we possibly need to import the (locked) who or what
+			logger.Info(fmt.Sprintf("Ignoring managed policy %q as it is managed by Raito", policy.Name))
+			continue
 		}
 
 		for _, groupBinding := range policy.GroupBindings {
@@ -290,6 +309,7 @@ func convertPoliciesToWhat(policies []PolicyEntity, configMap *config.ConfigMap)
 		}
 
 		for _, what := range policyWhat {
+			// TODO smart merge with existing whatItems by matching on data object
 			if len(what.Permissions) > 0 && what.DataObject != nil {
 				whatItems = append(whatItems, what)
 			}

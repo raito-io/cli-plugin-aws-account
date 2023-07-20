@@ -38,15 +38,15 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 		statement := policyStatements[ind]
 
 		effect := statement.Effect
-		if strings.EqualFold(effect, "deny") {
-			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q has deny statement. Ignoring", role))
+		if !strings.EqualFold(effect, "allow") {
+			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q has unknown effect statement %q.", role, effect))
 			incomplete = true
 
 			continue
 		}
 
 		if len(statement.NotResource) > 0 || len(statement.NotPrincipal) > 0 || len(statement.NotAction) > 0 {
-			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements. Ignoring", role))
+			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements.", role))
 			incomplete = true
 
 			continue
@@ -60,7 +60,7 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 						for _, principal := range principals {
 							resource, err := parseAndValidateArn(principal, &awsAccount, ptr.String("iam"))
 							if err != nil {
-								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements. Ignoring", role))
+								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements.", role))
 								incomplete = true
 
 								continue
@@ -70,23 +70,23 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 
 							if len(parts) == 2 {
 								if parts[1] == "*" {
-									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains wildcard IAM resource %q. Ignoring", role, resource))
+									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains wildcard IAM resource %q.", role, resource))
 									incomplete = true
 								} else if strings.EqualFold(parts[0], "user") {
 									users.Add(parts[1])
 								} else if strings.EqualFold(parts[0], "group") {
 									groups.Add(parts[1])
 								} else {
-									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q. Ignoring", role, resource))
+									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q.", role, resource))
 									incomplete = true
 								}
 							} else {
-								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q. Ignoring", role, resource))
+								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q.", role, resource))
 								incomplete = true
 							}
 						}
 					} else {
-						logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q. Ignoring", principalType, role))
+						logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q.", principalType, role))
 						incomplete = true
 
 						continue
@@ -95,7 +95,7 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 
 				break
 			} else {
-				logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized. Ignoring", action, role))
+				logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized.", action, role))
 				incomplete = true
 			}
 		}
@@ -121,8 +121,16 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 		statement := policyStatements[ind]
 
 		effect := statement.Effect
-		if strings.EqualFold(effect, "deny") {
-			logger.Warn(fmt.Sprintf("Policy document for %q has deny statement. Ignoring", policyName))
+
+		if !strings.EqualFold(effect, "allow") {
+			logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q has unknown effect statement %q.", policyName, effect))
+			incomplete = true
+
+			continue
+		}
+
+		if len(statement.NotResource) > 0 || len(statement.NotPrincipal) > 0 || len(statement.NotAction) > 0 {
+			logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains not-statements.", policyName))
 			incomplete = true
 
 			continue
@@ -153,6 +161,10 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 			} else if resource == "*" {
 				fullName = awsAccount
 				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource)
+			} else {
+				logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
+				incomplete = true
+				continue
 			}
 
 			permissionSet := whatMap[fullName]
@@ -164,6 +176,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 			permissionSet.Add(resourceActions...)
 
 			if !incomplete && incompleteResource {
+				logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown actions (%v).", policyName, actions))
 				incomplete = true
 			}
 		}
