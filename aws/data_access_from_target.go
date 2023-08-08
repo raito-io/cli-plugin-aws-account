@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"fmt"
+	"github.com/raito-io/golang-set/set"
+	"sort"
 	"strings"
 
 	"github.com/aws/smithy-go/ptr"
@@ -311,10 +313,7 @@ func convertPoliciesToWhat(policies []PolicyEntity, configMap *config.ConfigMap)
 		}
 
 		for _, what := range policyWhat {
-			// TODO smart merge with existing whatItems by matching on data object
-			if len(what.Permissions) > 0 && what.DataObject != nil {
-				whatItems = append(whatItems, what)
-			}
+			whatItems = mergeWhatItem(whatItems, what)
 		}
 
 		if policyIncomplete {
@@ -323,6 +322,34 @@ func convertPoliciesToWhat(policies []PolicyEntity, configMap *config.ConfigMap)
 	}
 
 	return whatItems, incomplete, policyDocuments
+}
+
+func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.WhatItem) []sync_from_target.WhatItem {
+	if len(what.Permissions) > 0 && what.DataObject != nil {
+		var existingWhat *sync_from_target.WhatItem
+		var existingIndex int
+		for i := range whatItems {
+			w := whatItems[i]
+			if w.DataObject.FullName == what.DataObject.FullName {
+				existingWhat = &w
+				existingIndex = i
+				break
+			}
+		}
+
+		if existingWhat == nil {
+			whatItems = append(whatItems, what)
+		} else {
+			permissionSet := set.NewSet[string](what.Permissions...)
+			permissionSet.Add(existingWhat.Permissions...)
+			perms := permissionSet.Slice()
+			sort.Strings(perms)
+			existingWhat.Permissions = perms
+			whatItems[existingIndex] = *existingWhat
+		}
+	}
+
+	return whatItems
 }
 
 func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
@@ -487,7 +514,7 @@ func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, configMap *
 }
 
 func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_target.AccessProvider {
-	result := []*sync_from_target.AccessProvider{}
+	result := make([]*sync_from_target.AccessProvider, 0, len(input))
 
 	for _, ap := range input {
 		if ap.ApInput == nil {
@@ -502,5 +529,6 @@ func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_
 }
 
 func (a *AccessSyncer) SyncAccessAsCodeToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, prefix string, configMap *config.ConfigMap) error {
+	// TODO implement
 	return nil
 }

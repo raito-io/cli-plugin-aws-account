@@ -2,6 +2,9 @@ package aws
 
 import (
 	"context"
+	"github.com/raito-io/cli/base/access_provider/sync_from_target"
+	"github.com/raito-io/cli/base/data_source"
+	"github.com/stretchr/testify/assert"
 	"testing"
 
 	"github.com/raito-io/cli/base/util/config"
@@ -81,6 +84,49 @@ func setupMockImportEnvironment(t *testing.T, configMap *config.ConfigMap) (*moc
 	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, groupNames, "group").Return(groupInlineMap, nil).Once()
 
 	return repoMock, syncer
+}
+
+func TestMergeWhatItem(t *testing.T) {
+	var whatItems []sync_from_target.WhatItem
+	whatItems = mergeWhatItem(whatItems, sync_from_target.WhatItem{
+		DataObject: &data_source.DataObjectReference{
+			FullName: "1.2.3",
+			Type:     "t1",
+		},
+		Permissions: []string{"p1", "p2"},
+	})
+
+	whatItems = mergeWhatItem(whatItems, sync_from_target.WhatItem{
+		DataObject: &data_source.DataObjectReference{
+			FullName: "1.2.3",
+			Type:     "t1",
+		},
+		Permissions: []string{"p2", "p3"},
+	})
+
+	whatItems = mergeWhatItem(whatItems, sync_from_target.WhatItem{
+		DataObject: &data_source.DataObjectReference{
+			FullName: "1.2.4",
+			Type:     "t1",
+		},
+		Permissions: []string{"p1"},
+	})
+
+	assert.Equal(t, []sync_from_target.WhatItem{
+		{
+			DataObject: &data_source.DataObjectReference{
+				FullName: "1.2.3",
+				Type:     "t1",
+			},
+			Permissions: []string{"p1", "p2", "p3"},
+		},
+		{
+			DataObject: &data_source.DataObjectReference{
+				FullName: "1.2.4",
+				Type:     "t1",
+			},
+			Permissions: []string{"p1"},
+		}}, whatItems)
 }
 
 func TestTargetToAccessProvider_BasicImport(t *testing.T) {

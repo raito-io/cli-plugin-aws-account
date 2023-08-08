@@ -148,7 +148,9 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 			var resourceActions []string
 			var fullName string
 
-			if strings.HasPrefix(resource, "arn:aws:s3:") {
+			_, err := parseAndValidateArn(resource, nil, ptr.String("s3"))
+
+			if err == nil {
 				fullName = removeEndingWildcards(convertArnToFullname(resource))
 
 				isBucket := !strings.Contains(fullName, "/")

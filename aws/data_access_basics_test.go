@@ -25,26 +25,6 @@ func getObjects[T any](filename string) ([]T, error) {
 	return objects, nil
 }
 
-func getObject[T any](filename string) (*T, error) {
-	file, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-
-	var object T
-	err = json.Unmarshal(file, &object)
-	if err != nil {
-		return nil, err
-	}
-
-	return &object, nil
-}
-
-func printObjects[T any](input []T, filename string) error {
-	objectsJson, _ := json.MarshalIndent(input, "", "  ")
-	return ioutil.WriteFile(filename, objectsJson, 0644)
-}
-
 func TestAccessSyncer_PolicyDocumentParser(t *testing.T) {
 
 	var policy awspolicy.Policy
