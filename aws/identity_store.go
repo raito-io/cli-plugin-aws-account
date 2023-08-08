@@ -11,9 +11,9 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=identityStoreRepository --with-expecter --inpackage
 type identityStoreRepository interface {
-	GetUsers(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]UserEntity, error)
-	GetGroups(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]GroupEntity, error)
-	GetRoles(ctx context.Context, configMap *config.ConfigMap) ([]RoleEntity, error)
+	GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error)
+	GetGroups(ctx context.Context) ([]GroupEntity, error)
+	GetRoles(ctx context.Context) ([]RoleEntity, error)
 }
 
 type IdentityStoreSyncer struct {
@@ -33,11 +33,13 @@ func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context) (*is
 }
 
 func newRepoProvider(configMap *config.ConfigMap) identityStoreRepository {
-	return &AwsIamRepository{}
+	return &AwsIamRepository{
+		ConfigMap: configMap,
+	}
 }
 
 func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHandler wrappers.IdentityStoreIdentityHandler, configMap *config.ConfigMap) error {
-	groups, err := s.repoProvider(configMap).GetGroups(ctx, configMap, true)
+	groups, err := s.repoProvider(configMap).GetGroups(ctx)
 	if err != nil {
 		return err
 	}
@@ -61,7 +63,7 @@ func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHan
 	}
 
 	// get users
-	users, err := s.repoProvider(configMap).GetUsers(ctx, configMap, true)
+	users, err := s.repoProvider(configMap).GetUsers(ctx, true)
 	if err != nil {
 		return err
 	}

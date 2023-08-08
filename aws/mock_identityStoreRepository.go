@@ -5,8 +5,6 @@ package aws
 import (
 	context "context"
 
-	config "github.com/raito-io/cli/base/util/config"
-
 	mock "github.com/stretchr/testify/mock"
 )
 
@@ -23,25 +21,25 @@ func (_m *mockIdentityStoreRepository) EXPECT() *mockIdentityStoreRepository_Exp
 	return &mockIdentityStoreRepository_Expecter{mock: &_m.Mock}
 }
 
-// GetGroups provides a mock function with given fields: ctx, configMap, withDetails
-func (_m *mockIdentityStoreRepository) GetGroups(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]GroupEntity, error) {
-	ret := _m.Called(ctx, configMap, withDetails)
+// GetGroups provides a mock function with given fields: ctx
+func (_m *mockIdentityStoreRepository) GetGroups(ctx context.Context) ([]GroupEntity, error) {
+	ret := _m.Called(ctx)
 
 	var r0 []GroupEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) ([]GroupEntity, error)); ok {
-		return rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context) ([]GroupEntity, error)); ok {
+		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) []GroupEntity); ok {
-		r0 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context) []GroupEntity); ok {
+		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]GroupEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, bool) error); ok {
-		r1 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -56,15 +54,13 @@ type mockIdentityStoreRepository_GetGroups_Call struct {
 
 // GetGroups is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
-//   - withDetails bool
-func (_e *mockIdentityStoreRepository_Expecter) GetGroups(ctx interface{}, configMap interface{}, withDetails interface{}) *mockIdentityStoreRepository_GetGroups_Call {
-	return &mockIdentityStoreRepository_GetGroups_Call{Call: _e.mock.On("GetGroups", ctx, configMap, withDetails)}
+func (_e *mockIdentityStoreRepository_Expecter) GetGroups(ctx interface{}) *mockIdentityStoreRepository_GetGroups_Call {
+	return &mockIdentityStoreRepository_GetGroups_Call{Call: _e.mock.On("GetGroups", ctx)}
 }
 
-func (_c *mockIdentityStoreRepository_GetGroups_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, withDetails bool)) *mockIdentityStoreRepository_GetGroups_Call {
+func (_c *mockIdentityStoreRepository_GetGroups_Call) Run(run func(ctx context.Context)) *mockIdentityStoreRepository_GetGroups_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(bool))
+		run(args[0].(context.Context))
 	})
 	return _c
 }
@@ -74,30 +70,30 @@ func (_c *mockIdentityStoreRepository_GetGroups_Call) Return(_a0 []GroupEntity, 
 	return _c
 }
 
-func (_c *mockIdentityStoreRepository_GetGroups_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, bool) ([]GroupEntity, error)) *mockIdentityStoreRepository_GetGroups_Call {
+func (_c *mockIdentityStoreRepository_GetGroups_Call) RunAndReturn(run func(context.Context) ([]GroupEntity, error)) *mockIdentityStoreRepository_GetGroups_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetRoles provides a mock function with given fields: ctx, configMap
-func (_m *mockIdentityStoreRepository) GetRoles(ctx context.Context, configMap *config.ConfigMap) ([]RoleEntity, error) {
-	ret := _m.Called(ctx, configMap)
+// GetRoles provides a mock function with given fields: ctx
+func (_m *mockIdentityStoreRepository) GetRoles(ctx context.Context) ([]RoleEntity, error) {
+	ret := _m.Called(ctx)
 
 	var r0 []RoleEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap) ([]RoleEntity, error)); ok {
-		return rf(ctx, configMap)
+	if rf, ok := ret.Get(0).(func(context.Context) ([]RoleEntity, error)); ok {
+		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap) []RoleEntity); ok {
-		r0 = rf(ctx, configMap)
+	if rf, ok := ret.Get(0).(func(context.Context) []RoleEntity); ok {
+		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]RoleEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap) error); ok {
-		r1 = rf(ctx, configMap)
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -112,14 +108,13 @@ type mockIdentityStoreRepository_GetRoles_Call struct {
 
 // GetRoles is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
-func (_e *mockIdentityStoreRepository_Expecter) GetRoles(ctx interface{}, configMap interface{}) *mockIdentityStoreRepository_GetRoles_Call {
-	return &mockIdentityStoreRepository_GetRoles_Call{Call: _e.mock.On("GetRoles", ctx, configMap)}
+func (_e *mockIdentityStoreRepository_Expecter) GetRoles(ctx interface{}) *mockIdentityStoreRepository_GetRoles_Call {
+	return &mockIdentityStoreRepository_GetRoles_Call{Call: _e.mock.On("GetRoles", ctx)}
 }
 
-func (_c *mockIdentityStoreRepository_GetRoles_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap)) *mockIdentityStoreRepository_GetRoles_Call {
+func (_c *mockIdentityStoreRepository_GetRoles_Call) Run(run func(ctx context.Context)) *mockIdentityStoreRepository_GetRoles_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap))
+		run(args[0].(context.Context))
 	})
 	return _c
 }
@@ -129,30 +124,30 @@ func (_c *mockIdentityStoreRepository_GetRoles_Call) Return(_a0 []RoleEntity, _a
 	return _c
 }
 
-func (_c *mockIdentityStoreRepository_GetRoles_Call) RunAndReturn(run func(context.Context, *config.ConfigMap) ([]RoleEntity, error)) *mockIdentityStoreRepository_GetRoles_Call {
+func (_c *mockIdentityStoreRepository_GetRoles_Call) RunAndReturn(run func(context.Context) ([]RoleEntity, error)) *mockIdentityStoreRepository_GetRoles_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetUsers provides a mock function with given fields: ctx, configMap, withDetails
-func (_m *mockIdentityStoreRepository) GetUsers(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]UserEntity, error) {
-	ret := _m.Called(ctx, configMap, withDetails)
+// GetUsers provides a mock function with given fields: ctx, withDetails
+func (_m *mockIdentityStoreRepository) GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error) {
+	ret := _m.Called(ctx, withDetails)
 
 	var r0 []UserEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) ([]UserEntity, error)); ok {
-		return rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context, bool) ([]UserEntity, error)); ok {
+		return rf(ctx, withDetails)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) []UserEntity); ok {
-		r0 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context, bool) []UserEntity); ok {
+		r0 = rf(ctx, withDetails)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]UserEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, bool) error); ok {
-		r1 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(1).(func(context.Context, bool) error); ok {
+		r1 = rf(ctx, withDetails)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -167,15 +162,14 @@ type mockIdentityStoreRepository_GetUsers_Call struct {
 
 // GetUsers is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - withDetails bool
-func (_e *mockIdentityStoreRepository_Expecter) GetUsers(ctx interface{}, configMap interface{}, withDetails interface{}) *mockIdentityStoreRepository_GetUsers_Call {
-	return &mockIdentityStoreRepository_GetUsers_Call{Call: _e.mock.On("GetUsers", ctx, configMap, withDetails)}
+func (_e *mockIdentityStoreRepository_Expecter) GetUsers(ctx interface{}, withDetails interface{}) *mockIdentityStoreRepository_GetUsers_Call {
+	return &mockIdentityStoreRepository_GetUsers_Call{Call: _e.mock.On("GetUsers", ctx, withDetails)}
 }
 
-func (_c *mockIdentityStoreRepository_GetUsers_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, withDetails bool)) *mockIdentityStoreRepository_GetUsers_Call {
+func (_c *mockIdentityStoreRepository_GetUsers_Call) Run(run func(ctx context.Context, withDetails bool)) *mockIdentityStoreRepository_GetUsers_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(bool))
+		run(args[0].(context.Context), args[1].(bool))
 	})
 	return _c
 }
@@ -185,7 +179,7 @@ func (_c *mockIdentityStoreRepository_GetUsers_Call) Return(_a0 []UserEntity, _a
 	return _c
 }
 
-func (_c *mockIdentityStoreRepository_GetUsers_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, bool) ([]UserEntity, error)) *mockIdentityStoreRepository_GetUsers_Call {
+func (_c *mockIdentityStoreRepository_GetUsers_Call) RunAndReturn(run func(context.Context, bool) ([]UserEntity, error)) *mockIdentityStoreRepository_GetUsers_Call {
 	_c.Call.Return(run)
 	return _c
 }

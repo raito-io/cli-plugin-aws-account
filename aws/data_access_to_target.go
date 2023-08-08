@@ -13,7 +13,9 @@ import (
 )
 
 func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
-	repo := a.repoProvider()
+	a.repo = &AwsIamRepository{
+		ConfigMap: configMap,
+	}
 
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
 		logger.Info("No access providers to sync from Raito to AWS")
@@ -22,12 +24,12 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 
 	logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
-	policyActionMap, existingPolicyBindings, err := a.fetchExistingManagedPolicies(ctx, configMap)
+	policyActionMap, existingPolicyBindings, err := a.fetchExistingManagedPolicies(ctx)
 	if err != nil {
 		return err
 	}
 
-	roleActionMap, existingRoleAssumptions, err := a.fetchExistingRoles(ctx, configMap)
+	roleActionMap, existingRoleAssumptions, err := a.fetchExistingRoles(ctx)
 	if err != nil {
 		return err
 	}
@@ -101,7 +103,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 			var localErr error
 
 			// always convert an internal inline policy to a managed policy
-			entityName, entityType, localErr := repo.GetAttachedEntity(*ap)
+			entityName, entityType, localErr := a.repo.GetAttachedEntity(*ap)
 			logger.Info("Processing inline policy %s, for entity %s/%s", ap.Name, entityType, entityName)
 			if localErr != nil {
 				return localErr
@@ -187,14 +189,14 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				userNames = append(userNames, binding.ResourceName)
 			}
 
-			err = repo.CreateRole(ctx, configMap, roleName, "", userNames)
+			err = a.repo.CreateRole(ctx, roleName, "", userNames)
 			if err != nil {
 				return err
 			}
 		} else if action == DeleteAction {
 			logger.Info(fmt.Sprintf("Removing role %s", roleName))
 
-			err = repo.DeleteRole(ctx, configMap, roleName)
+			err = a.repo.DeleteRole(ctx, roleName)
 			if err != nil {
 				return err
 			}
@@ -214,7 +216,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 
 		logger.Info(fmt.Sprintf("Updating users for role %s: %s", roleName, userNames))
 
-		err = repo.UpdateAssumeEntities(ctx, configMap, roleName, userNames)
+		err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
 		if err != nil {
 			return err
 		}
@@ -260,13 +262,13 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 		if policyActionMap[policy.Name] == CreateAction {
 			logger.Info(fmt.Sprintf("Creating policy %s", policy.Name))
 
-			_, err = repo.CreateManagedPolicy(ctx, configMap, policy.Name, statements)
+			_, err = a.repo.CreateManagedPolicy(ctx, policy.Name, statements)
 			if err != nil {
 				return err
 			}
 		} else if policyActionMap[policy.Name] == UpdateAction {
 			logger.Info(fmt.Sprintf("Updating policy %s", policy.Name))
-			err = repo.UpdateManagedPolicy(ctx, configMap, policy.Name, statements)
+			err = a.repo.UpdateManagedPolicy(ctx, policy.Name, statements)
 			if err != nil {
 				return err
 			}
@@ -277,7 +279,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 		if policy_state == DeleteAction {
 			logger.Info(fmt.Sprintf("Deleting managed policy: %s", policy))
 
-			err = repo.DeleteManagedPolicy(ctx, configMap, policy)
+			err = a.repo.DeleteManagedPolicy(ctx, policy)
 			if err != nil {
 				return err
 			}
@@ -316,27 +318,27 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 	}
 
 	for policyName, bindings := range policyBindingsToAdd { //nolint: dupl
-		policyArn := repo.GetPolicyArn(policyName, configMap)
+		policyArn := a.repo.GetPolicyArn(policyName, configMap)
 
 		for _, binding := range bindings.Slice() {
 			if binding.Type == "user" {
 				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
-				err = repo.AttachUserToManagedPolicy(ctx, configMap, policyArn, []string{binding.ResourceName})
+				err = a.repo.AttachUserToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == "group" {
 				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
-				err = repo.AttachGroupToManagedPolicy(ctx, configMap, policyArn, []string{binding.ResourceName})
+				err = a.repo.AttachGroupToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == "role" {
 				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
-				err = repo.AttachRoleToManagedPolicy(ctx, configMap, policyArn, []string{binding.ResourceName})
+				err = a.repo.AttachRoleToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
@@ -345,27 +347,27 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 	}
 
 	for policyName, bindings := range policyBindingsToRemove { //nolint: dupl
-		policyArn := repo.GetPolicyArn(policyName, configMap)
+		policyArn := a.repo.GetPolicyArn(policyName, configMap)
 
 		for _, binding := range bindings.Slice() {
 			if binding.Type == "user" {
 				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
-				err = repo.DetachUserFromManagedPolicy(ctx, configMap, policyArn, []string{binding.ResourceName})
+				err = a.repo.DetachUserFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == "group" {
 				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
-				err = repo.DetachGroupFromManagedPolicy(ctx, configMap, policyArn, []string{binding.ResourceName})
+				err = a.repo.DetachGroupFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == "role" {
 				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
-				err = repo.DetachRoleFromManagedPolicy(ctx, configMap, policyArn, []string{binding.ResourceName})
+				err = a.repo.DetachRoleFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
@@ -382,7 +384,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 		if binding, found := inlinePolicyWithEntityMap[policy]; policy_state == DeleteAction && found {
 			logger.Info(fmt.Sprintf("Deleting inline policy %s for %s/%s", policy, binding.Type, binding.ResourceName))
 
-			err = repo.DeleteInlinePolicy(ctx, configMap, policy, binding.ResourceName, binding.Type)
+			err = a.repo.DeleteInlinePolicy(ctx, policy, binding.ResourceName, binding.Type)
 			if err != nil {
 				return err
 			}
@@ -392,12 +394,10 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 	return nil
 }
 
-func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config.ConfigMap) (map[string]string, map[string]set.Set[PolicyBinding], error) {
-	repo := a.repoProvider()
-
+func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
 	logger.Info("Fetching roles")
 
-	roles, err := repo.GetRoles(ctx, configMap)
+	roles, err := a.repo.GetRoles(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -410,7 +410,7 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config
 
 		var localErr error
 
-		userBindings, localErr := repo.GetPrincipalsFromAssumeRolePolicyDocument(ctx, configMap, role.AssumeRolePolicyDocument)
+		userBindings, localErr := a.repo.GetPrincipalsFromAssumeRolePolicyDocument(role.AssumeRolePolicyDocument)
 		if localErr != nil {
 			return nil, nil, localErr
 		}
@@ -429,10 +429,8 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config
 	return roleMap, existingRoleAssumptions, nil
 }
 
-func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context, configMap *config.ConfigMap) (map[string]string, map[string]set.Set[PolicyBinding], error) {
-	repo := a.repoProvider()
-
-	managedPolicies, err := repo.GetManagedPolicies(ctx, configMap, true)
+func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
+	managedPolicies, err := a.repo.GetManagedPolicies(ctx, true)
 	if err != nil {
 		return nil, nil, err
 	}

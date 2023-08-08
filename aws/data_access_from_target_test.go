@@ -13,13 +13,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupMockImportEnvironment(t *testing.T, configMap *config.ConfigMap) (*mockDataAccessRepository, *AccessSyncer) {
+func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *AccessSyncer) {
 	repoMock := newMockDataAccessRepository(t)
 
 	syncer := &AccessSyncer{
-		repoProvider: func() dataAccessRepository {
-			return repoMock
-		},
+		repo:            repoMock,
 		managedPolicies: nil,
 		inlinePolicies:  nil,
 	}
@@ -75,13 +73,13 @@ func setupMockImportEnvironment(t *testing.T, configMap *config.ConfigMap) (*moc
 		}
 	}
 
-	repoMock.EXPECT().GetManagedPolicies(context.TODO(), mock.Anything, true).Return(managedPolicies, nil).Once()
-	repoMock.EXPECT().GetRoles(context.TODO(), configMap).Return(roles, nil).Once()
-	repoMock.EXPECT().GetGroups(context.TODO(), configMap, false).Return(groups, nil).Once()
-	repoMock.EXPECT().GetUsers(context.TODO(), configMap, false).Return(users, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, roleNames, "role").Return(roleInlineMap, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, userNames, "user").Return(userInlineMap, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), configMap, groupNames, "group").Return(groupInlineMap, nil).Once()
+	repoMock.EXPECT().GetManagedPolicies(context.TODO(), true).Return(managedPolicies, nil).Once()
+	repoMock.EXPECT().GetRoles(context.TODO()).Return(roles, nil).Once()
+	repoMock.EXPECT().GetGroups(context.TODO()).Return(groups, nil).Once()
+	repoMock.EXPECT().GetUsers(context.TODO(), false).Return(users, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), roleNames, "role").Return(roleInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), userNames, "user").Return(userInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), groupNames, "group").Return(groupInlineMap, nil).Once()
 
 	return repoMock, syncer
 }
@@ -132,7 +130,7 @@ func TestMergeWhatItem(t *testing.T) {
 func TestTargetToAccessProvider_BasicImport(t *testing.T) {
 	configmap := config.ConfigMap{}
 	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
-	_, syncer := setupMockImportEnvironment(t, &configmap)
+	_, syncer := setupMockImportEnvironment(t)
 	ctx := context.Background()
 
 	apHandler := mocks.NewAccessProviderHandler(t)
@@ -145,7 +143,7 @@ func TestTargetToAccessProvider_BasicImport(t *testing.T) {
 	apHandler.EXPECT().AddAccessProviders(inputs...).Return(nil).Once()
 
 	//When
-	err := syncer.SyncAccessProvidersFromTarget(ctx, apHandler, &configmap)
+	err := syncer.doSyncAccessProvidersFromTarget(ctx, apHandler, &configmap)
 
 	// Then
 	require.Nil(t, err)

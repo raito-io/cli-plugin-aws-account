@@ -123,3 +123,7 @@ func getResourceNamesFromPolicyBindingArray(input []PolicyBinding) []string {
 
 	return result
 }
+
+func getConcurrency(config *config.ConfigMap) int {
+	return config.GetIntWithDefault(AwsConcurrency, 5)
+}

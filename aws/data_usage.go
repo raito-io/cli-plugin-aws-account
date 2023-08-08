@@ -41,12 +41,12 @@ func (s *DataUsageSyncer) provideRepo() dataUsageRepository {
 	}
 }
 
-func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandler wrappers.DataUsageStatementHandler, configParams *config.ConfigMap) error {
-	s.configMap = configParams
+func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandler wrappers.DataUsageStatementHandler, configMap *config.ConfigMap) error {
+	s.configMap = configMap
 
 	repo := s.provideRepo()
 
-	bucket := configParams.GetString(AwsS3CloudTrailBucket)
+	bucket := configMap.GetString(AwsS3CloudTrailBucket)
 
 	allUsageFiles, err := repo.ListFiles(ctx, bucket, nil)
 	if err != nil {
@@ -58,8 +58,8 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	numberOfDays := 90
 	startDate := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -numberOfDays)
 
-	if configParams.Parameters["lastUsed"] != "" {
-		startDateRaw, errLocal := time.Parse(time.RFC3339, configParams.Parameters["lastUsed"])
+	if configMap.Parameters["lastUsed"] != "" {
+		startDateRaw, errLocal := time.Parse(time.RFC3339, configMap.Parameters["lastUsed"])
 		if errLocal == nil && startDateRaw.After(startDate) {
 			startDate = startDateRaw
 		}
@@ -91,8 +91,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	logger.Info(fmt.Sprintf("%d files to process", len(usageFiles)))
 
 	fileChan := make(chan string)
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(configMap))
 	fileLock := new(sync.Mutex)
 	numWorkers := 16
 

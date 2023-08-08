@@ -7,6 +7,8 @@ const (
 
 	AwsRegion = "aws-region"
 
+	AwsConcurrency = "aws-concurrency"
+
 	AwsOrganizationProfile = "aws-organization-profile"
 
 	AwsOrganizationRegion = "aws-organization-region"

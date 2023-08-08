@@ -9,6 +9,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/gammazero/workerpool"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -26,8 +28,8 @@ const (
 	RoleResourceType  string = "role"
 )
 
-func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap *config.ConfigMap, withAttachedEntities bool) ([]PolicyEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttachedEntities bool) ([]PolicyEntity, error) {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -47,8 +49,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, configMap 
 			return nil, err
 		}
 
-		// TODO make number of workers configurable
-		workerPool := workerpool.New(5)
+		workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 		var smu sync.Mutex
 
 		for i := range resp.Policies {
@@ -180,8 +181,8 @@ func (repo *AwsIamRepository) GetPolicyArn(policyName string, configMap *config.
 	}.String()
 }
 
-func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -235,13 +236,13 @@ func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statem
 	return policyDoc, nil
 }
 
-func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, configMap)
+	policyArn := repo.GetPolicyArn(policyName, repo.ConfigMap)
 
 	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {
@@ -320,13 +321,13 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, configMap
 	return nil
 }
 
-func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyName string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, configMap)
+	policyArn := repo.GetPolicyArn(policyName, repo.ConfigMap)
 
 	emptyPolicy := PolicyEntity{
 		ARN: policyArn,
@@ -339,19 +340,19 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, configMap
 
 	logger.Info(fmt.Sprintf("Detaching %d users from policy %s", len(emptyPolicy.UserBindings), policyArn))
 
-	if localErr := repo.DetachUserFromManagedPolicy(ctx, configMap, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.UserBindings)); localErr != nil {
+	if localErr := repo.DetachUserFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.UserBindings)); localErr != nil {
 		return localErr
 	}
 
 	logger.Info(fmt.Sprintf("Detaching %d groups from policy %s", len(emptyPolicy.GroupBindings), policyArn))
 
-	if localErr := repo.DetachGroupFromManagedPolicy(ctx, configMap, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.GroupBindings)); localErr != nil {
+	if localErr := repo.DetachGroupFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.GroupBindings)); localErr != nil {
 		return localErr
 	}
 
 	logger.Info(fmt.Sprintf("Detaching %d roles from policy %s", len(emptyPolicy.RoleBindings), policyArn))
 
-	if localErr := repo.DetachRoleFromManagedPolicy(ctx, configMap, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
+	if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
 		return localErr
 	}
 
@@ -381,8 +382,8 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, configMap
 	return nil
 }
 
-func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, policyArn string, userNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -401,8 +402,8 @@ func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, con
 	return nil
 }
 
-func (repo *AwsIamRepository) AttachGroupToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) AttachGroupToManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -421,8 +422,8 @@ func (repo *AwsIamRepository) AttachGroupToManagedPolicy(ctx context.Context, co
 	return nil
 }
 
-func (repo *AwsIamRepository) AttachRoleToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) AttachRoleToManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -441,8 +442,8 @@ func (repo *AwsIamRepository) AttachRoleToManagedPolicy(ctx context.Context, con
 	return nil
 }
 
-func (repo *AwsIamRepository) DetachUserFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) DetachUserFromManagedPolicy(ctx context.Context, policyArn string, userNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -461,8 +462,8 @@ func (repo *AwsIamRepository) DetachUserFromManagedPolicy(ctx context.Context, c
 	return nil
 }
 
-func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -481,8 +482,8 @@ func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, 
 	return nil
 }
 
-func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -501,8 +502,8 @@ func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, c
 	return nil
 }
 
-func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -537,8 +538,8 @@ func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, configMap 
 	return err
 }
 
-func (repo *AwsIamRepository) DeleteInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -595,8 +596,8 @@ func (repo *AwsIamRepository) GetAttachedEntity(ap sync_to_target.AccessProvider
 	return resourceName, resourceType, nil
 }
 
-func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -621,8 +622,7 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 		}
 	}
 
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var mut sync.Mutex
 
 	for i := range bindings {
@@ -685,8 +685,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	entityType := UserResourceType
 
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
 
 	for i := range entityNames {
@@ -727,15 +726,15 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 	return policyBindings, nil
 }
 
-func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam,dupl
+func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: dupl
 	var marker *string
 	var policyBindings []PolicyBinding
 
 	entityType := GroupResourceType
 
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
+	var resultErr error
 
 	for i := range entityNames {
 		entityName := entityNames[i]
@@ -748,8 +747,11 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 				}
 
 				resp, err := client.ListGroupPolicies(ctx, &groupPolicyInput)
-
 				if err != nil {
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err)
+					smu.Unlock()
+
 					return
 				}
 
@@ -773,18 +775,18 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 
 	workerPool.StopWait()
 
-	return policyBindings, nil
+	return policyBindings, resultErr
 }
 
-func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: unparam,dupl // TODO no errors are indeed returned, find a way to do this
+func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: dupl
 	var marker *string
 	var policyBindings []PolicyBinding
 
 	entityType := RoleResourceType
 
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
+	var resultErr error
 
 	for i := range entityNames {
 		entityName := entityNames[i]
@@ -798,6 +800,10 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 
 				resp, err := client.ListRolePolicies(ctx, &rolePolicyInput)
 				if err != nil {
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err)
+					smu.Unlock()
+
 					return
 				}
 
@@ -821,7 +827,7 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 
 	workerPool.StopWait()
 
-	return policyBindings, nil
+	return policyBindings, resultErr
 }
 
 func (repo *AwsIamRepository) getEntityPolicy(ctx context.Context, client *iam.Client, entityType, entityName, policyName string) (*string, error) {

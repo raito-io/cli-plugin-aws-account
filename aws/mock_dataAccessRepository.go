@@ -28,13 +28,13 @@ func (_m *mockDataAccessRepository) EXPECT() *mockDataAccessRepository_Expecter 
 	return &mockDataAccessRepository_Expecter{mock: &_m.Mock}
 }
 
-// AttachGroupToManagedPolicy provides a mock function with given fields: ctx, configMap, policyArn, groupNames
-func (_m *mockDataAccessRepository) AttachGroupToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error {
-	ret := _m.Called(ctx, configMap, policyArn, groupNames)
+// AttachGroupToManagedPolicy provides a mock function with given fields: ctx, policyArn, groupNames
+func (_m *mockDataAccessRepository) AttachGroupToManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error {
+	ret := _m.Called(ctx, policyArn, groupNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, policyArn, groupNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, policyArn, groupNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -49,16 +49,15 @@ type mockDataAccessRepository_AttachGroupToManagedPolicy_Call struct {
 
 // AttachGroupToManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyArn string
 //   - groupNames []string
-func (_e *mockDataAccessRepository_Expecter) AttachGroupToManagedPolicy(ctx interface{}, configMap interface{}, policyArn interface{}, groupNames interface{}) *mockDataAccessRepository_AttachGroupToManagedPolicy_Call {
-	return &mockDataAccessRepository_AttachGroupToManagedPolicy_Call{Call: _e.mock.On("AttachGroupToManagedPolicy", ctx, configMap, policyArn, groupNames)}
+func (_e *mockDataAccessRepository_Expecter) AttachGroupToManagedPolicy(ctx interface{}, policyArn interface{}, groupNames interface{}) *mockDataAccessRepository_AttachGroupToManagedPolicy_Call {
+	return &mockDataAccessRepository_AttachGroupToManagedPolicy_Call{Call: _e.mock.On("AttachGroupToManagedPolicy", ctx, policyArn, groupNames)}
 }
 
-func (_c *mockDataAccessRepository_AttachGroupToManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string)) *mockDataAccessRepository_AttachGroupToManagedPolicy_Call {
+func (_c *mockDataAccessRepository_AttachGroupToManagedPolicy_Call) Run(run func(ctx context.Context, policyArn string, groupNames []string)) *mockDataAccessRepository_AttachGroupToManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -68,18 +67,18 @@ func (_c *mockDataAccessRepository_AttachGroupToManagedPolicy_Call) Return(_a0 e
 	return _c
 }
 
-func (_c *mockDataAccessRepository_AttachGroupToManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_AttachGroupToManagedPolicy_Call {
+func (_c *mockDataAccessRepository_AttachGroupToManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_AttachGroupToManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// AttachRoleToManagedPolicy provides a mock function with given fields: ctx, configMap, policyArn, roleNames
-func (_m *mockDataAccessRepository) AttachRoleToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error {
-	ret := _m.Called(ctx, configMap, policyArn, roleNames)
+// AttachRoleToManagedPolicy provides a mock function with given fields: ctx, policyArn, roleNames
+func (_m *mockDataAccessRepository) AttachRoleToManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error {
+	ret := _m.Called(ctx, policyArn, roleNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, policyArn, roleNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, policyArn, roleNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -94,16 +93,15 @@ type mockDataAccessRepository_AttachRoleToManagedPolicy_Call struct {
 
 // AttachRoleToManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyArn string
 //   - roleNames []string
-func (_e *mockDataAccessRepository_Expecter) AttachRoleToManagedPolicy(ctx interface{}, configMap interface{}, policyArn interface{}, roleNames interface{}) *mockDataAccessRepository_AttachRoleToManagedPolicy_Call {
-	return &mockDataAccessRepository_AttachRoleToManagedPolicy_Call{Call: _e.mock.On("AttachRoleToManagedPolicy", ctx, configMap, policyArn, roleNames)}
+func (_e *mockDataAccessRepository_Expecter) AttachRoleToManagedPolicy(ctx interface{}, policyArn interface{}, roleNames interface{}) *mockDataAccessRepository_AttachRoleToManagedPolicy_Call {
+	return &mockDataAccessRepository_AttachRoleToManagedPolicy_Call{Call: _e.mock.On("AttachRoleToManagedPolicy", ctx, policyArn, roleNames)}
 }
 
-func (_c *mockDataAccessRepository_AttachRoleToManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string)) *mockDataAccessRepository_AttachRoleToManagedPolicy_Call {
+func (_c *mockDataAccessRepository_AttachRoleToManagedPolicy_Call) Run(run func(ctx context.Context, policyArn string, roleNames []string)) *mockDataAccessRepository_AttachRoleToManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -113,18 +111,18 @@ func (_c *mockDataAccessRepository_AttachRoleToManagedPolicy_Call) Return(_a0 er
 	return _c
 }
 
-func (_c *mockDataAccessRepository_AttachRoleToManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_AttachRoleToManagedPolicy_Call {
+func (_c *mockDataAccessRepository_AttachRoleToManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_AttachRoleToManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// AttachUserToManagedPolicy provides a mock function with given fields: ctx, configMap, policyArn, userNames
-func (_m *mockDataAccessRepository) AttachUserToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error {
-	ret := _m.Called(ctx, configMap, policyArn, userNames)
+// AttachUserToManagedPolicy provides a mock function with given fields: ctx, policyArn, userNames
+func (_m *mockDataAccessRepository) AttachUserToManagedPolicy(ctx context.Context, policyArn string, userNames []string) error {
+	ret := _m.Called(ctx, policyArn, userNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, policyArn, userNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, policyArn, userNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -139,16 +137,15 @@ type mockDataAccessRepository_AttachUserToManagedPolicy_Call struct {
 
 // AttachUserToManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyArn string
 //   - userNames []string
-func (_e *mockDataAccessRepository_Expecter) AttachUserToManagedPolicy(ctx interface{}, configMap interface{}, policyArn interface{}, userNames interface{}) *mockDataAccessRepository_AttachUserToManagedPolicy_Call {
-	return &mockDataAccessRepository_AttachUserToManagedPolicy_Call{Call: _e.mock.On("AttachUserToManagedPolicy", ctx, configMap, policyArn, userNames)}
+func (_e *mockDataAccessRepository_Expecter) AttachUserToManagedPolicy(ctx interface{}, policyArn interface{}, userNames interface{}) *mockDataAccessRepository_AttachUserToManagedPolicy_Call {
+	return &mockDataAccessRepository_AttachUserToManagedPolicy_Call{Call: _e.mock.On("AttachUserToManagedPolicy", ctx, policyArn, userNames)}
 }
 
-func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string)) *mockDataAccessRepository_AttachUserToManagedPolicy_Call {
+func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) Run(run func(ctx context.Context, policyArn string, userNames []string)) *mockDataAccessRepository_AttachUserToManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -158,30 +155,30 @@ func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) Return(_a0 er
 	return _c
 }
 
-func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_AttachUserToManagedPolicy_Call {
+func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_AttachUserToManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// CreateManagedPolicy provides a mock function with given fields: ctx, configMap, policyName, statements
-func (_m *mockDataAccessRepository) CreateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
-	ret := _m.Called(ctx, configMap, policyName, statements)
+// CreateManagedPolicy provides a mock function with given fields: ctx, policyName, statements
+func (_m *mockDataAccessRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
+	ret := _m.Called(ctx, policyName, statements)
 
 	var r0 *types.Policy
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []awspolicy.Statement) (*types.Policy, error)); ok {
-		return rf(ctx, configMap, policyName, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []awspolicy.Statement) (*types.Policy, error)); ok {
+		return rf(ctx, policyName, statements)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []awspolicy.Statement) *types.Policy); ok {
-		r0 = rf(ctx, configMap, policyName, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []awspolicy.Statement) *types.Policy); ok {
+		r0 = rf(ctx, policyName, statements)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(*types.Policy)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, string, []awspolicy.Statement) error); ok {
-		r1 = rf(ctx, configMap, policyName, statements)
+	if rf, ok := ret.Get(1).(func(context.Context, string, []awspolicy.Statement) error); ok {
+		r1 = rf(ctx, policyName, statements)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -196,16 +193,15 @@ type mockDataAccessRepository_CreateManagedPolicy_Call struct {
 
 // CreateManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyName string
 //   - statements []awspolicy.Statement
-func (_e *mockDataAccessRepository_Expecter) CreateManagedPolicy(ctx interface{}, configMap interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_CreateManagedPolicy_Call {
-	return &mockDataAccessRepository_CreateManagedPolicy_Call{Call: _e.mock.On("CreateManagedPolicy", ctx, configMap, policyName, statements)}
+func (_e *mockDataAccessRepository_Expecter) CreateManagedPolicy(ctx interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_CreateManagedPolicy_Call {
+	return &mockDataAccessRepository_CreateManagedPolicy_Call{Call: _e.mock.On("CreateManagedPolicy", ctx, policyName, statements)}
 }
 
-func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_CreateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_CreateManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].([]awspolicy.Statement))
 	})
 	return _c
 }
@@ -215,18 +211,18 @@ func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) Return(_a0 *types.P
 	return _c
 }
 
-func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []awspolicy.Statement) (*types.Policy, error)) *mockDataAccessRepository_CreateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []awspolicy.Statement) (*types.Policy, error)) *mockDataAccessRepository_CreateManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// CreateRole provides a mock function with given fields: ctx, configMap, name, description, userNames
-func (_m *mockDataAccessRepository) CreateRole(ctx context.Context, configMap *config.ConfigMap, name string, description string, userNames []string) error {
-	ret := _m.Called(ctx, configMap, name, description, userNames)
+// CreateRole provides a mock function with given fields: ctx, name, description, userNames
+func (_m *mockDataAccessRepository) CreateRole(ctx context.Context, name string, description string, userNames []string) error {
+	ret := _m.Called(ctx, name, description, userNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, string, []string) error); ok {
-		r0 = rf(ctx, configMap, name, description, userNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []string) error); ok {
+		r0 = rf(ctx, name, description, userNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -241,17 +237,16 @@ type mockDataAccessRepository_CreateRole_Call struct {
 
 // CreateRole is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - name string
 //   - description string
 //   - userNames []string
-func (_e *mockDataAccessRepository_Expecter) CreateRole(ctx interface{}, configMap interface{}, name interface{}, description interface{}, userNames interface{}) *mockDataAccessRepository_CreateRole_Call {
-	return &mockDataAccessRepository_CreateRole_Call{Call: _e.mock.On("CreateRole", ctx, configMap, name, description, userNames)}
+func (_e *mockDataAccessRepository_Expecter) CreateRole(ctx interface{}, name interface{}, description interface{}, userNames interface{}) *mockDataAccessRepository_CreateRole_Call {
+	return &mockDataAccessRepository_CreateRole_Call{Call: _e.mock.On("CreateRole", ctx, name, description, userNames)}
 }
 
-func (_c *mockDataAccessRepository_CreateRole_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, name string, description string, userNames []string)) *mockDataAccessRepository_CreateRole_Call {
+func (_c *mockDataAccessRepository_CreateRole_Call) Run(run func(ctx context.Context, name string, description string, userNames []string)) *mockDataAccessRepository_CreateRole_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].(string), args[4].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]string))
 	})
 	return _c
 }
@@ -261,18 +256,18 @@ func (_c *mockDataAccessRepository_CreateRole_Call) Return(_a0 error) *mockDataA
 	return _c
 }
 
-func (_c *mockDataAccessRepository_CreateRole_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, string, []string) error) *mockDataAccessRepository_CreateRole_Call {
+func (_c *mockDataAccessRepository_CreateRole_Call) RunAndReturn(run func(context.Context, string, string, []string) error) *mockDataAccessRepository_CreateRole_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteInlinePolicy provides a mock function with given fields: ctx, configMap, policyName, resourceName, resourceType
-func (_m *mockDataAccessRepository) DeleteInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, resourceName string, resourceType string) error {
-	ret := _m.Called(ctx, configMap, policyName, resourceName, resourceType)
+// DeleteInlinePolicy provides a mock function with given fields: ctx, policyName, resourceName, resourceType
+func (_m *mockDataAccessRepository) DeleteInlinePolicy(ctx context.Context, policyName string, resourceName string, resourceType string) error {
+	ret := _m.Called(ctx, policyName, resourceName, resourceType)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, string, string) error); ok {
-		r0 = rf(ctx, configMap, policyName, resourceName, resourceType)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) error); ok {
+		r0 = rf(ctx, policyName, resourceName, resourceType)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -287,17 +282,16 @@ type mockDataAccessRepository_DeleteInlinePolicy_Call struct {
 
 // DeleteInlinePolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyName string
 //   - resourceName string
 //   - resourceType string
-func (_e *mockDataAccessRepository_Expecter) DeleteInlinePolicy(ctx interface{}, configMap interface{}, policyName interface{}, resourceName interface{}, resourceType interface{}) *mockDataAccessRepository_DeleteInlinePolicy_Call {
-	return &mockDataAccessRepository_DeleteInlinePolicy_Call{Call: _e.mock.On("DeleteInlinePolicy", ctx, configMap, policyName, resourceName, resourceType)}
+func (_e *mockDataAccessRepository_Expecter) DeleteInlinePolicy(ctx interface{}, policyName interface{}, resourceName interface{}, resourceType interface{}) *mockDataAccessRepository_DeleteInlinePolicy_Call {
+	return &mockDataAccessRepository_DeleteInlinePolicy_Call{Call: _e.mock.On("DeleteInlinePolicy", ctx, policyName, resourceName, resourceType)}
 }
 
-func (_c *mockDataAccessRepository_DeleteInlinePolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyName string, resourceName string, resourceType string)) *mockDataAccessRepository_DeleteInlinePolicy_Call {
+func (_c *mockDataAccessRepository_DeleteInlinePolicy_Call) Run(run func(ctx context.Context, policyName string, resourceName string, resourceType string)) *mockDataAccessRepository_DeleteInlinePolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].(string), args[4].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -307,18 +301,18 @@ func (_c *mockDataAccessRepository_DeleteInlinePolicy_Call) Return(_a0 error) *m
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DeleteInlinePolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, string, string) error) *mockDataAccessRepository_DeleteInlinePolicy_Call {
+func (_c *mockDataAccessRepository_DeleteInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, string) error) *mockDataAccessRepository_DeleteInlinePolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteManagedPolicy provides a mock function with given fields: ctx, configMap, policyName
-func (_m *mockDataAccessRepository) DeleteManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string) error {
-	ret := _m.Called(ctx, configMap, policyName)
+// DeleteManagedPolicy provides a mock function with given fields: ctx, policyName
+func (_m *mockDataAccessRepository) DeleteManagedPolicy(ctx context.Context, policyName string) error {
+	ret := _m.Called(ctx, policyName)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string) error); ok {
-		r0 = rf(ctx, configMap, policyName)
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, policyName)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -333,15 +327,14 @@ type mockDataAccessRepository_DeleteManagedPolicy_Call struct {
 
 // DeleteManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyName string
-func (_e *mockDataAccessRepository_Expecter) DeleteManagedPolicy(ctx interface{}, configMap interface{}, policyName interface{}) *mockDataAccessRepository_DeleteManagedPolicy_Call {
-	return &mockDataAccessRepository_DeleteManagedPolicy_Call{Call: _e.mock.On("DeleteManagedPolicy", ctx, configMap, policyName)}
+func (_e *mockDataAccessRepository_Expecter) DeleteManagedPolicy(ctx interface{}, policyName interface{}) *mockDataAccessRepository_DeleteManagedPolicy_Call {
+	return &mockDataAccessRepository_DeleteManagedPolicy_Call{Call: _e.mock.On("DeleteManagedPolicy", ctx, policyName)}
 }
 
-func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyName string)) *mockDataAccessRepository_DeleteManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) Run(run func(ctx context.Context, policyName string)) *mockDataAccessRepository_DeleteManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
@@ -351,18 +344,18 @@ func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string) error) *mockDataAccessRepository_DeleteManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) RunAndReturn(run func(context.Context, string) error) *mockDataAccessRepository_DeleteManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DeleteRole provides a mock function with given fields: ctx, configMap, name
-func (_m *mockDataAccessRepository) DeleteRole(ctx context.Context, configMap *config.ConfigMap, name string) error {
-	ret := _m.Called(ctx, configMap, name)
+// DeleteRole provides a mock function with given fields: ctx, name
+func (_m *mockDataAccessRepository) DeleteRole(ctx context.Context, name string) error {
+	ret := _m.Called(ctx, name)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string) error); ok {
-		r0 = rf(ctx, configMap, name)
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, name)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -377,15 +370,14 @@ type mockDataAccessRepository_DeleteRole_Call struct {
 
 // DeleteRole is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - name string
-func (_e *mockDataAccessRepository_Expecter) DeleteRole(ctx interface{}, configMap interface{}, name interface{}) *mockDataAccessRepository_DeleteRole_Call {
-	return &mockDataAccessRepository_DeleteRole_Call{Call: _e.mock.On("DeleteRole", ctx, configMap, name)}
+func (_e *mockDataAccessRepository_Expecter) DeleteRole(ctx interface{}, name interface{}) *mockDataAccessRepository_DeleteRole_Call {
+	return &mockDataAccessRepository_DeleteRole_Call{Call: _e.mock.On("DeleteRole", ctx, name)}
 }
 
-func (_c *mockDataAccessRepository_DeleteRole_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, name string)) *mockDataAccessRepository_DeleteRole_Call {
+func (_c *mockDataAccessRepository_DeleteRole_Call) Run(run func(ctx context.Context, name string)) *mockDataAccessRepository_DeleteRole_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
@@ -395,18 +387,18 @@ func (_c *mockDataAccessRepository_DeleteRole_Call) Return(_a0 error) *mockDataA
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DeleteRole_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string) error) *mockDataAccessRepository_DeleteRole_Call {
+func (_c *mockDataAccessRepository_DeleteRole_Call) RunAndReturn(run func(context.Context, string) error) *mockDataAccessRepository_DeleteRole_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DetachGroupFromManagedPolicy provides a mock function with given fields: ctx, configMap, policyArn, groupNames
-func (_m *mockDataAccessRepository) DetachGroupFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error {
-	ret := _m.Called(ctx, configMap, policyArn, groupNames)
+// DetachGroupFromManagedPolicy provides a mock function with given fields: ctx, policyArn, groupNames
+func (_m *mockDataAccessRepository) DetachGroupFromManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error {
+	ret := _m.Called(ctx, policyArn, groupNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, policyArn, groupNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, policyArn, groupNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -421,16 +413,15 @@ type mockDataAccessRepository_DetachGroupFromManagedPolicy_Call struct {
 
 // DetachGroupFromManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyArn string
 //   - groupNames []string
-func (_e *mockDataAccessRepository_Expecter) DetachGroupFromManagedPolicy(ctx interface{}, configMap interface{}, policyArn interface{}, groupNames interface{}) *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call {
-	return &mockDataAccessRepository_DetachGroupFromManagedPolicy_Call{Call: _e.mock.On("DetachGroupFromManagedPolicy", ctx, configMap, policyArn, groupNames)}
+func (_e *mockDataAccessRepository_Expecter) DetachGroupFromManagedPolicy(ctx interface{}, policyArn interface{}, groupNames interface{}) *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call {
+	return &mockDataAccessRepository_DetachGroupFromManagedPolicy_Call{Call: _e.mock.On("DetachGroupFromManagedPolicy", ctx, policyArn, groupNames)}
 }
 
-func (_c *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string)) *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call) Run(run func(ctx context.Context, policyArn string, groupNames []string)) *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -440,18 +431,18 @@ func (_c *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call) Return(_a0
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_DetachGroupFromManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DetachRoleFromManagedPolicy provides a mock function with given fields: ctx, configMap, policyArn, roleNames
-func (_m *mockDataAccessRepository) DetachRoleFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error {
-	ret := _m.Called(ctx, configMap, policyArn, roleNames)
+// DetachRoleFromManagedPolicy provides a mock function with given fields: ctx, policyArn, roleNames
+func (_m *mockDataAccessRepository) DetachRoleFromManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error {
+	ret := _m.Called(ctx, policyArn, roleNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, policyArn, roleNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, policyArn, roleNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -466,16 +457,15 @@ type mockDataAccessRepository_DetachRoleFromManagedPolicy_Call struct {
 
 // DetachRoleFromManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyArn string
 //   - roleNames []string
-func (_e *mockDataAccessRepository_Expecter) DetachRoleFromManagedPolicy(ctx interface{}, configMap interface{}, policyArn interface{}, roleNames interface{}) *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call {
-	return &mockDataAccessRepository_DetachRoleFromManagedPolicy_Call{Call: _e.mock.On("DetachRoleFromManagedPolicy", ctx, configMap, policyArn, roleNames)}
+func (_e *mockDataAccessRepository_Expecter) DetachRoleFromManagedPolicy(ctx interface{}, policyArn interface{}, roleNames interface{}) *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call {
+	return &mockDataAccessRepository_DetachRoleFromManagedPolicy_Call{Call: _e.mock.On("DetachRoleFromManagedPolicy", ctx, policyArn, roleNames)}
 }
 
-func (_c *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string)) *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call) Run(run func(ctx context.Context, policyArn string, roleNames []string)) *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -485,18 +475,18 @@ func (_c *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call) Return(_a0 
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_DetachRoleFromManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// DetachUserFromManagedPolicy provides a mock function with given fields: ctx, configMap, policyArn, userNames
-func (_m *mockDataAccessRepository) DetachUserFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error {
-	ret := _m.Called(ctx, configMap, policyArn, userNames)
+// DetachUserFromManagedPolicy provides a mock function with given fields: ctx, policyArn, userNames
+func (_m *mockDataAccessRepository) DetachUserFromManagedPolicy(ctx context.Context, policyArn string, userNames []string) error {
+	ret := _m.Called(ctx, policyArn, userNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, policyArn, userNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, policyArn, userNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -511,16 +501,15 @@ type mockDataAccessRepository_DetachUserFromManagedPolicy_Call struct {
 
 // DetachUserFromManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyArn string
 //   - userNames []string
-func (_e *mockDataAccessRepository_Expecter) DetachUserFromManagedPolicy(ctx interface{}, configMap interface{}, policyArn interface{}, userNames interface{}) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
-	return &mockDataAccessRepository_DetachUserFromManagedPolicy_Call{Call: _e.mock.On("DetachUserFromManagedPolicy", ctx, configMap, policyArn, userNames)}
+func (_e *mockDataAccessRepository_Expecter) DetachUserFromManagedPolicy(ctx interface{}, policyArn interface{}, userNames interface{}) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
+	return &mockDataAccessRepository_DetachUserFromManagedPolicy_Call{Call: _e.mock.On("DetachUserFromManagedPolicy", ctx, policyArn, userNames)}
 }
 
-func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string)) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) Run(run func(ctx context.Context, policyArn string, userNames []string)) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -530,7 +519,7 @@ func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) Return(_a0 
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -594,25 +583,25 @@ func (_c *mockDataAccessRepository_GetAttachedEntity_Call) RunAndReturn(run func
 	return _c
 }
 
-// GetGroups provides a mock function with given fields: ctx, configMap, withDetails
-func (_m *mockDataAccessRepository) GetGroups(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]GroupEntity, error) {
-	ret := _m.Called(ctx, configMap, withDetails)
+// GetGroups provides a mock function with given fields: ctx
+func (_m *mockDataAccessRepository) GetGroups(ctx context.Context) ([]GroupEntity, error) {
+	ret := _m.Called(ctx)
 
 	var r0 []GroupEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) ([]GroupEntity, error)); ok {
-		return rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context) ([]GroupEntity, error)); ok {
+		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) []GroupEntity); ok {
-		r0 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context) []GroupEntity); ok {
+		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]GroupEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, bool) error); ok {
-		r1 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -627,15 +616,13 @@ type mockDataAccessRepository_GetGroups_Call struct {
 
 // GetGroups is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
-//   - withDetails bool
-func (_e *mockDataAccessRepository_Expecter) GetGroups(ctx interface{}, configMap interface{}, withDetails interface{}) *mockDataAccessRepository_GetGroups_Call {
-	return &mockDataAccessRepository_GetGroups_Call{Call: _e.mock.On("GetGroups", ctx, configMap, withDetails)}
+func (_e *mockDataAccessRepository_Expecter) GetGroups(ctx interface{}) *mockDataAccessRepository_GetGroups_Call {
+	return &mockDataAccessRepository_GetGroups_Call{Call: _e.mock.On("GetGroups", ctx)}
 }
 
-func (_c *mockDataAccessRepository_GetGroups_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, withDetails bool)) *mockDataAccessRepository_GetGroups_Call {
+func (_c *mockDataAccessRepository_GetGroups_Call) Run(run func(ctx context.Context)) *mockDataAccessRepository_GetGroups_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(bool))
+		run(args[0].(context.Context))
 	})
 	return _c
 }
@@ -645,30 +632,30 @@ func (_c *mockDataAccessRepository_GetGroups_Call) Return(_a0 []GroupEntity, _a1
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetGroups_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, bool) ([]GroupEntity, error)) *mockDataAccessRepository_GetGroups_Call {
+func (_c *mockDataAccessRepository_GetGroups_Call) RunAndReturn(run func(context.Context) ([]GroupEntity, error)) *mockDataAccessRepository_GetGroups_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetInlinePoliciesForEntities provides a mock function with given fields: ctx, configMap, entityNames, entityType
-func (_m *mockDataAccessRepository) GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
-	ret := _m.Called(ctx, configMap, entityNames, entityType)
+// GetInlinePoliciesForEntities provides a mock function with given fields: ctx, entityNames, entityType
+func (_m *mockDataAccessRepository) GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
+	ret := _m.Called(ctx, entityNames, entityType)
 
 	var r0 map[string][]PolicyEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, []string, string) (map[string][]PolicyEntity, error)); ok {
-		return rf(ctx, configMap, entityNames, entityType)
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) (map[string][]PolicyEntity, error)); ok {
+		return rf(ctx, entityNames, entityType)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, []string, string) map[string][]PolicyEntity); ok {
-		r0 = rf(ctx, configMap, entityNames, entityType)
+	if rf, ok := ret.Get(0).(func(context.Context, []string, string) map[string][]PolicyEntity); ok {
+		r0 = rf(ctx, entityNames, entityType)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(map[string][]PolicyEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, []string, string) error); ok {
-		r1 = rf(ctx, configMap, entityNames, entityType)
+	if rf, ok := ret.Get(1).(func(context.Context, []string, string) error); ok {
+		r1 = rf(ctx, entityNames, entityType)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -683,16 +670,15 @@ type mockDataAccessRepository_GetInlinePoliciesForEntities_Call struct {
 
 // GetInlinePoliciesForEntities is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - entityNames []string
 //   - entityType string
-func (_e *mockDataAccessRepository_Expecter) GetInlinePoliciesForEntities(ctx interface{}, configMap interface{}, entityNames interface{}, entityType interface{}) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
-	return &mockDataAccessRepository_GetInlinePoliciesForEntities_Call{Call: _e.mock.On("GetInlinePoliciesForEntities", ctx, configMap, entityNames, entityType)}
+func (_e *mockDataAccessRepository_Expecter) GetInlinePoliciesForEntities(ctx interface{}, entityNames interface{}, entityType interface{}) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
+	return &mockDataAccessRepository_GetInlinePoliciesForEntities_Call{Call: _e.mock.On("GetInlinePoliciesForEntities", ctx, entityNames, entityType)}
 }
 
-func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string)) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
+func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) Run(run func(ctx context.Context, entityNames []string, entityType string)) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].([]string), args[3].(string))
+		run(args[0].(context.Context), args[1].([]string), args[2].(string))
 	})
 	return _c
 }
@@ -702,30 +688,30 @@ func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) Return(_a0
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, []string, string) (map[string][]PolicyEntity, error)) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
+func (_c *mockDataAccessRepository_GetInlinePoliciesForEntities_Call) RunAndReturn(run func(context.Context, []string, string) (map[string][]PolicyEntity, error)) *mockDataAccessRepository_GetInlinePoliciesForEntities_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetManagedPolicies provides a mock function with given fields: ctx, configMap, withAttachedEntities
-func (_m *mockDataAccessRepository) GetManagedPolicies(ctx context.Context, configMap *config.ConfigMap, withAttachedEntities bool) ([]PolicyEntity, error) {
-	ret := _m.Called(ctx, configMap, withAttachedEntities)
+// GetManagedPolicies provides a mock function with given fields: ctx, withAttachedEntities
+func (_m *mockDataAccessRepository) GetManagedPolicies(ctx context.Context, withAttachedEntities bool) ([]PolicyEntity, error) {
+	ret := _m.Called(ctx, withAttachedEntities)
 
 	var r0 []PolicyEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) ([]PolicyEntity, error)); ok {
-		return rf(ctx, configMap, withAttachedEntities)
+	if rf, ok := ret.Get(0).(func(context.Context, bool) ([]PolicyEntity, error)); ok {
+		return rf(ctx, withAttachedEntities)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) []PolicyEntity); ok {
-		r0 = rf(ctx, configMap, withAttachedEntities)
+	if rf, ok := ret.Get(0).(func(context.Context, bool) []PolicyEntity); ok {
+		r0 = rf(ctx, withAttachedEntities)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]PolicyEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, bool) error); ok {
-		r1 = rf(ctx, configMap, withAttachedEntities)
+	if rf, ok := ret.Get(1).(func(context.Context, bool) error); ok {
+		r1 = rf(ctx, withAttachedEntities)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -740,15 +726,14 @@ type mockDataAccessRepository_GetManagedPolicies_Call struct {
 
 // GetManagedPolicies is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - withAttachedEntities bool
-func (_e *mockDataAccessRepository_Expecter) GetManagedPolicies(ctx interface{}, configMap interface{}, withAttachedEntities interface{}) *mockDataAccessRepository_GetManagedPolicies_Call {
-	return &mockDataAccessRepository_GetManagedPolicies_Call{Call: _e.mock.On("GetManagedPolicies", ctx, configMap, withAttachedEntities)}
+func (_e *mockDataAccessRepository_Expecter) GetManagedPolicies(ctx interface{}, withAttachedEntities interface{}) *mockDataAccessRepository_GetManagedPolicies_Call {
+	return &mockDataAccessRepository_GetManagedPolicies_Call{Call: _e.mock.On("GetManagedPolicies", ctx, withAttachedEntities)}
 }
 
-func (_c *mockDataAccessRepository_GetManagedPolicies_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, withAttachedEntities bool)) *mockDataAccessRepository_GetManagedPolicies_Call {
+func (_c *mockDataAccessRepository_GetManagedPolicies_Call) Run(run func(ctx context.Context, withAttachedEntities bool)) *mockDataAccessRepository_GetManagedPolicies_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(bool))
+		run(args[0].(context.Context), args[1].(bool))
 	})
 	return _c
 }
@@ -758,7 +743,7 @@ func (_c *mockDataAccessRepository_GetManagedPolicies_Call) Return(_a0 []PolicyE
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetManagedPolicies_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, bool) ([]PolicyEntity, error)) *mockDataAccessRepository_GetManagedPolicies_Call {
+func (_c *mockDataAccessRepository_GetManagedPolicies_Call) RunAndReturn(run func(context.Context, bool) ([]PolicyEntity, error)) *mockDataAccessRepository_GetManagedPolicies_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -806,25 +791,25 @@ func (_c *mockDataAccessRepository_GetPolicyArn_Call) RunAndReturn(run func(stri
 	return _c
 }
 
-// GetPrincipalsFromAssumeRolePolicyDocument provides a mock function with given fields: ctx, configMap, policyDocument
-func (_m *mockDataAccessRepository) GetPrincipalsFromAssumeRolePolicyDocument(ctx context.Context, configMap *config.ConfigMap, policyDocument *string) ([]string, error) {
-	ret := _m.Called(ctx, configMap, policyDocument)
+// GetPrincipalsFromAssumeRolePolicyDocument provides a mock function with given fields: policyDocument
+func (_m *mockDataAccessRepository) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error) {
+	ret := _m.Called(policyDocument)
 
 	var r0 []string
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, *string) ([]string, error)); ok {
-		return rf(ctx, configMap, policyDocument)
+	if rf, ok := ret.Get(0).(func(*string) ([]string, error)); ok {
+		return rf(policyDocument)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, *string) []string); ok {
-		r0 = rf(ctx, configMap, policyDocument)
+	if rf, ok := ret.Get(0).(func(*string) []string); ok {
+		r0 = rf(policyDocument)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]string)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, *string) error); ok {
-		r1 = rf(ctx, configMap, policyDocument)
+	if rf, ok := ret.Get(1).(func(*string) error); ok {
+		r1 = rf(policyDocument)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -838,16 +823,14 @@ type mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call str
 }
 
 // GetPrincipalsFromAssumeRolePolicyDocument is a helper method to define mock.On call
-//   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyDocument *string
-func (_e *mockDataAccessRepository_Expecter) GetPrincipalsFromAssumeRolePolicyDocument(ctx interface{}, configMap interface{}, policyDocument interface{}) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
-	return &mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call{Call: _e.mock.On("GetPrincipalsFromAssumeRolePolicyDocument", ctx, configMap, policyDocument)}
+func (_e *mockDataAccessRepository_Expecter) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument interface{}) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
+	return &mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call{Call: _e.mock.On("GetPrincipalsFromAssumeRolePolicyDocument", policyDocument)}
 }
 
-func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyDocument *string)) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
+func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) Run(run func(policyDocument *string)) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(*string))
+		run(args[0].(*string))
 	})
 	return _c
 }
@@ -857,30 +840,30 @@ func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Cal
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, *string) ([]string, error)) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
+func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) RunAndReturn(run func(*string) ([]string, error)) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetRoles provides a mock function with given fields: ctx, configMap
-func (_m *mockDataAccessRepository) GetRoles(ctx context.Context, configMap *config.ConfigMap) ([]RoleEntity, error) {
-	ret := _m.Called(ctx, configMap)
+// GetRoles provides a mock function with given fields: ctx
+func (_m *mockDataAccessRepository) GetRoles(ctx context.Context) ([]RoleEntity, error) {
+	ret := _m.Called(ctx)
 
 	var r0 []RoleEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap) ([]RoleEntity, error)); ok {
-		return rf(ctx, configMap)
+	if rf, ok := ret.Get(0).(func(context.Context) ([]RoleEntity, error)); ok {
+		return rf(ctx)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap) []RoleEntity); ok {
-		r0 = rf(ctx, configMap)
+	if rf, ok := ret.Get(0).(func(context.Context) []RoleEntity); ok {
+		r0 = rf(ctx)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]RoleEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap) error); ok {
-		r1 = rf(ctx, configMap)
+	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
+		r1 = rf(ctx)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -895,14 +878,13 @@ type mockDataAccessRepository_GetRoles_Call struct {
 
 // GetRoles is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
-func (_e *mockDataAccessRepository_Expecter) GetRoles(ctx interface{}, configMap interface{}) *mockDataAccessRepository_GetRoles_Call {
-	return &mockDataAccessRepository_GetRoles_Call{Call: _e.mock.On("GetRoles", ctx, configMap)}
+func (_e *mockDataAccessRepository_Expecter) GetRoles(ctx interface{}) *mockDataAccessRepository_GetRoles_Call {
+	return &mockDataAccessRepository_GetRoles_Call{Call: _e.mock.On("GetRoles", ctx)}
 }
 
-func (_c *mockDataAccessRepository_GetRoles_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap)) *mockDataAccessRepository_GetRoles_Call {
+func (_c *mockDataAccessRepository_GetRoles_Call) Run(run func(ctx context.Context)) *mockDataAccessRepository_GetRoles_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap))
+		run(args[0].(context.Context))
 	})
 	return _c
 }
@@ -912,30 +894,30 @@ func (_c *mockDataAccessRepository_GetRoles_Call) Return(_a0 []RoleEntity, _a1 e
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetRoles_Call) RunAndReturn(run func(context.Context, *config.ConfigMap) ([]RoleEntity, error)) *mockDataAccessRepository_GetRoles_Call {
+func (_c *mockDataAccessRepository_GetRoles_Call) RunAndReturn(run func(context.Context) ([]RoleEntity, error)) *mockDataAccessRepository_GetRoles_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// GetUsers provides a mock function with given fields: ctx, configMap, withDetails
-func (_m *mockDataAccessRepository) GetUsers(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]UserEntity, error) {
-	ret := _m.Called(ctx, configMap, withDetails)
+// GetUsers provides a mock function with given fields: ctx, withDetails
+func (_m *mockDataAccessRepository) GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error) {
+	ret := _m.Called(ctx, withDetails)
 
 	var r0 []UserEntity
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) ([]UserEntity, error)); ok {
-		return rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context, bool) ([]UserEntity, error)); ok {
+		return rf(ctx, withDetails)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, bool) []UserEntity); ok {
-		r0 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(0).(func(context.Context, bool) []UserEntity); ok {
+		r0 = rf(ctx, withDetails)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]UserEntity)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, *config.ConfigMap, bool) error); ok {
-		r1 = rf(ctx, configMap, withDetails)
+	if rf, ok := ret.Get(1).(func(context.Context, bool) error); ok {
+		r1 = rf(ctx, withDetails)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -950,15 +932,14 @@ type mockDataAccessRepository_GetUsers_Call struct {
 
 // GetUsers is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - withDetails bool
-func (_e *mockDataAccessRepository_Expecter) GetUsers(ctx interface{}, configMap interface{}, withDetails interface{}) *mockDataAccessRepository_GetUsers_Call {
-	return &mockDataAccessRepository_GetUsers_Call{Call: _e.mock.On("GetUsers", ctx, configMap, withDetails)}
+func (_e *mockDataAccessRepository_Expecter) GetUsers(ctx interface{}, withDetails interface{}) *mockDataAccessRepository_GetUsers_Call {
+	return &mockDataAccessRepository_GetUsers_Call{Call: _e.mock.On("GetUsers", ctx, withDetails)}
 }
 
-func (_c *mockDataAccessRepository_GetUsers_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, withDetails bool)) *mockDataAccessRepository_GetUsers_Call {
+func (_c *mockDataAccessRepository_GetUsers_Call) Run(run func(ctx context.Context, withDetails bool)) *mockDataAccessRepository_GetUsers_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(bool))
+		run(args[0].(context.Context), args[1].(bool))
 	})
 	return _c
 }
@@ -968,18 +949,18 @@ func (_c *mockDataAccessRepository_GetUsers_Call) Return(_a0 []UserEntity, _a1 e
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetUsers_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, bool) ([]UserEntity, error)) *mockDataAccessRepository_GetUsers_Call {
+func (_c *mockDataAccessRepository_GetUsers_Call) RunAndReturn(run func(context.Context, bool) ([]UserEntity, error)) *mockDataAccessRepository_GetUsers_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateAssumeEntities provides a mock function with given fields: ctx, configMap, roleName, userNames
-func (_m *mockDataAccessRepository) UpdateAssumeEntities(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames []string) error {
-	ret := _m.Called(ctx, configMap, roleName, userNames)
+// UpdateAssumeEntities provides a mock function with given fields: ctx, roleName, userNames
+func (_m *mockDataAccessRepository) UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error {
+	ret := _m.Called(ctx, roleName, userNames)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []string) error); ok {
-		r0 = rf(ctx, configMap, roleName, userNames)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []string) error); ok {
+		r0 = rf(ctx, roleName, userNames)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -994,16 +975,15 @@ type mockDataAccessRepository_UpdateAssumeEntities_Call struct {
 
 // UpdateAssumeEntities is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - roleName string
 //   - userNames []string
-func (_e *mockDataAccessRepository_Expecter) UpdateAssumeEntities(ctx interface{}, configMap interface{}, roleName interface{}, userNames interface{}) *mockDataAccessRepository_UpdateAssumeEntities_Call {
-	return &mockDataAccessRepository_UpdateAssumeEntities_Call{Call: _e.mock.On("UpdateAssumeEntities", ctx, configMap, roleName, userNames)}
+func (_e *mockDataAccessRepository_Expecter) UpdateAssumeEntities(ctx interface{}, roleName interface{}, userNames interface{}) *mockDataAccessRepository_UpdateAssumeEntities_Call {
+	return &mockDataAccessRepository_UpdateAssumeEntities_Call{Call: _e.mock.On("UpdateAssumeEntities", ctx, roleName, userNames)}
 }
 
-func (_c *mockDataAccessRepository_UpdateAssumeEntities_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames []string)) *mockDataAccessRepository_UpdateAssumeEntities_Call {
+func (_c *mockDataAccessRepository_UpdateAssumeEntities_Call) Run(run func(ctx context.Context, roleName string, userNames []string)) *mockDataAccessRepository_UpdateAssumeEntities_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]string))
+		run(args[0].(context.Context), args[1].(string), args[2].([]string))
 	})
 	return _c
 }
@@ -1013,18 +993,18 @@ func (_c *mockDataAccessRepository_UpdateAssumeEntities_Call) Return(_a0 error) 
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateAssumeEntities_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []string) error) *mockDataAccessRepository_UpdateAssumeEntities_Call {
+func (_c *mockDataAccessRepository_UpdateAssumeEntities_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_UpdateAssumeEntities_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateInlinePolicy provides a mock function with given fields: ctx, configMap, policyName, resourceName, resourceType, statements
-func (_m *mockDataAccessRepository) UpdateInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, resourceName string, resourceType string, statements []awspolicy.Statement) error {
-	ret := _m.Called(ctx, configMap, policyName, resourceName, resourceType, statements)
+// UpdateInlinePolicy provides a mock function with given fields: ctx, policyName, resourceName, resourceType, statements
+func (_m *mockDataAccessRepository) UpdateInlinePolicy(ctx context.Context, policyName string, resourceName string, resourceType string, statements []awspolicy.Statement) error {
+	ret := _m.Called(ctx, policyName, resourceName, resourceType, statements)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, string, string, []awspolicy.Statement) error); ok {
-		r0 = rf(ctx, configMap, policyName, resourceName, resourceType, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []awspolicy.Statement) error); ok {
+		r0 = rf(ctx, policyName, resourceName, resourceType, statements)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1039,18 +1019,17 @@ type mockDataAccessRepository_UpdateInlinePolicy_Call struct {
 
 // UpdateInlinePolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyName string
 //   - resourceName string
 //   - resourceType string
 //   - statements []awspolicy.Statement
-func (_e *mockDataAccessRepository_Expecter) UpdateInlinePolicy(ctx interface{}, configMap interface{}, policyName interface{}, resourceName interface{}, resourceType interface{}, statements interface{}) *mockDataAccessRepository_UpdateInlinePolicy_Call {
-	return &mockDataAccessRepository_UpdateInlinePolicy_Call{Call: _e.mock.On("UpdateInlinePolicy", ctx, configMap, policyName, resourceName, resourceType, statements)}
+func (_e *mockDataAccessRepository_Expecter) UpdateInlinePolicy(ctx interface{}, policyName interface{}, resourceName interface{}, resourceType interface{}, statements interface{}) *mockDataAccessRepository_UpdateInlinePolicy_Call {
+	return &mockDataAccessRepository_UpdateInlinePolicy_Call{Call: _e.mock.On("UpdateInlinePolicy", ctx, policyName, resourceName, resourceType, statements)}
 }
 
-func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyName string, resourceName string, resourceType string, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateInlinePolicy_Call {
+func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) Run(run func(ctx context.Context, policyName string, resourceName string, resourceType string, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateInlinePolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].(string), args[4].(string), args[5].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].([]awspolicy.Statement))
 	})
 	return _c
 }
@@ -1060,18 +1039,18 @@ func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) Return(_a0 error) *m
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, string, string, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateInlinePolicy_Call {
+func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, string, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateInlinePolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateManagedPolicy provides a mock function with given fields: ctx, configMap, policyName, statements
-func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) error {
-	ret := _m.Called(ctx, configMap, policyName, statements)
+// UpdateManagedPolicy provides a mock function with given fields: ctx, policyName, statements
+func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) error {
+	ret := _m.Called(ctx, policyName, statements)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, *config.ConfigMap, string, []awspolicy.Statement) error); ok {
-		r0 = rf(ctx, configMap, policyName, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, []awspolicy.Statement) error); ok {
+		r0 = rf(ctx, policyName, statements)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1086,16 +1065,15 @@ type mockDataAccessRepository_UpdateManagedPolicy_Call struct {
 
 // UpdateManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
-//   - configMap *config.ConfigMap
 //   - policyName string
 //   - statements []awspolicy.Statement
-func (_e *mockDataAccessRepository_Expecter) UpdateManagedPolicy(ctx interface{}, configMap interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_UpdateManagedPolicy_Call {
-	return &mockDataAccessRepository_UpdateManagedPolicy_Call{Call: _e.mock.On("UpdateManagedPolicy", ctx, configMap, policyName, statements)}
+func (_e *mockDataAccessRepository_Expecter) UpdateManagedPolicy(ctx interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+	return &mockDataAccessRepository_UpdateManagedPolicy_Call{Call: _e.mock.On("UpdateManagedPolicy", ctx, policyName, statements)}
 }
 
-func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Run(run func(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(*config.ConfigMap), args[2].(string), args[3].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].([]awspolicy.Statement))
 	})
 	return _c
 }
@@ -1105,7 +1083,7 @@ func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) RunAndReturn(run func(context.Context, *config.ConfigMap, string, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }

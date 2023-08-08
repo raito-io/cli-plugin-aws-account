@@ -3,9 +3,10 @@ package aws
 import (
 	"context"
 	"fmt"
-	"github.com/raito-io/golang-set/set"
 	"sort"
 	"strings"
+
+	"github.com/raito-io/golang-set/set"
 
 	"github.com/aws/smithy-go/ptr"
 
@@ -20,48 +21,32 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=dataAccessRepository --with-expecter --inpackage
 type dataAccessRepository interface {
-	GetManagedPolicies(ctx context.Context, configMap *config.ConfigMap, withAttachedEntities bool) ([]PolicyEntity, error)
-	CreateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) (*types.Policy, error)
-	UpdateManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string, statements []awspolicy.Statement) error
-	DeleteManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyName string) error
-	AttachUserToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error
-	AttachGroupToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error
-	AttachRoleToManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error
-	DetachUserFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, userNames []string) error
-	DetachGroupFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, groupNames []string) error
-	DetachRoleFromManagedPolicy(ctx context.Context, configMap *config.ConfigMap, policyArn string, roleNames []string) error
-	GetUsers(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]UserEntity, error)
-	GetGroups(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]GroupEntity, error)
-	GetRoles(ctx context.Context, configMap *config.ConfigMap) ([]RoleEntity, error)
-	CreateRole(ctx context.Context, configMap *config.ConfigMap, name, description string, userNames []string) error
-	DeleteRole(ctx context.Context, configMap *config.ConfigMap, name string) error
-	GetPrincipalsFromAssumeRolePolicyDocument(ctx context.Context, configMap *config.ConfigMap, policyDocument *string) ([]string, error)
-	UpdateAssumeEntities(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames []string) error
+	GetManagedPolicies(ctx context.Context, withAttachedEntities bool) ([]PolicyEntity, error)
+	CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error)
+	UpdateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) error
+	DeleteManagedPolicy(ctx context.Context, policyName string) error
+	AttachUserToManagedPolicy(ctx context.Context, policyArn string, userNames []string) error
+	AttachGroupToManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error
+	AttachRoleToManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error
+	DetachUserFromManagedPolicy(ctx context.Context, policyArn string, userNames []string) error
+	DetachGroupFromManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error
+	DetachRoleFromManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error
+	GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error)
+	GetGroups(ctx context.Context) ([]GroupEntity, error)
+	GetRoles(ctx context.Context) ([]RoleEntity, error)
+	CreateRole(ctx context.Context, name, description string, userNames []string) error
+	DeleteRole(ctx context.Context, name string) error
+	GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error)
+	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	// RemoveAssumeRole(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames ...string) error
-	GetInlinePoliciesForEntities(ctx context.Context, configMap *config.ConfigMap, entityNames []string, entityType string) (map[string][]PolicyEntity, error)
-	DeleteInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string) error
-	UpdateInlinePolicy(ctx context.Context, configMap *config.ConfigMap, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
+	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]PolicyEntity, error)
+	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
+	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
 	GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error)
 	GetPolicyArn(policyName string, configMap *config.ConfigMap) string
 	// processApInheritance(inheritanceMap map[string]set.Set[string], policyMap map[string]string, roleMap map[string]string,
 	// 	newBindings *map[string]set.Set[PolicyBinding], existingBindings map[string]set.Set[PolicyBinding]) error
 	// getApNames(exportedAps []*importer.AccessProvider, aps ...string) []string
-}
-
-type AccessSyncer struct {
-	repoProvider    func() dataAccessRepository
-	managedPolicies []PolicyEntity
-	inlinePolicies  []PolicyEntity
-}
-
-func NewDataAccessSyncer() *AccessSyncer {
-	return &AccessSyncer{
-		repoProvider: newDataAccessRepo,
-	}
-}
-
-func newDataAccessRepo() dataAccessRepository {
-	return &AwsIamRepository{}
 }
 
 const (
@@ -71,6 +56,14 @@ const (
 )
 
 func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, accessProviderHandler wrappers.AccessProviderHandler, configMap *config.ConfigMap) error {
+	a.repo = &AwsIamRepository{
+		ConfigMap: configMap,
+	}
+
+	return a.doSyncAccessProvidersFromTarget(ctx, accessProviderHandler, configMap)
+}
+
+func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, accessProviderHandler wrappers.AccessProviderHandler, configMap *config.ConfigMap) error {
 	apImportList, err := a.fetchAllAccessProviders(ctx, configMap)
 	if err != nil {
 		return err
@@ -151,13 +144,8 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 	return result
 }
 
-func (a *AccessSyncer) fetchRoleAccessProviders(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, roles []RoleEntity, aps []AccessProviderInputExtended) []AccessProviderInputExtended {
 	logger.Info("Get all roles")
-	roles, err := repo.GetRoles(ctx, configMap)
-
-	if err != nil {
-		return nil, err
-	}
 
 	for _, role := range roles {
 		roleName := fmt.Sprintf("%s%s", RolePrefix, role.Name)
@@ -200,12 +188,12 @@ func (a *AccessSyncer) fetchRoleAccessProviders(ctx context.Context, configMap *
 			}})
 	}
 
-	return aps, nil
+	return aps
 }
 
-func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
 	logger.Info("Get all managed policies")
-	policies, err := repo.GetManagedPolicies(ctx, configMap, true)
+	policies, err := a.repo.GetManagedPolicies(ctx, true)
 
 	if err != nil {
 		return nil, err
@@ -328,11 +316,13 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	if len(what.Permissions) > 0 && what.DataObject != nil {
 		var existingWhat *sync_from_target.WhatItem
 		var existingIndex int
+
 		for i := range whatItems {
 			w := whatItems[i]
 			if w.DataObject.FullName == what.DataObject.FullName {
 				existingWhat = &w
 				existingIndex = i
+
 				break
 			}
 		}
@@ -352,8 +342,8 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	return whatItems
 }
 
-func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
-	userPolicies, err := a.getInlinePoliciesOnUsers(ctx, configMap, repo)
+func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, roles []RoleEntity, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
+	userPolicies, err := a.getInlinePoliciesOnUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +372,7 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			}})
 	}
 
-	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx, configMap, repo)
+	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -411,7 +401,7 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			}})
 	}
 
-	rolePolicies, err := a.getInlinePoliciesOnRoles(ctx, configMap, repo)
+	rolePolicies, err := a.getInlinePoliciesOnRoles(ctx, roles)
 	if err != nil {
 		return nil, err
 	}
@@ -441,24 +431,28 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 }
 
 func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *config.ConfigMap) ([]AccessProviderInputExtended, error) {
-	repo := a.repoProvider()
-
 	var apImportList []AccessProviderInputExtended
 
+	roles, err := a.repo.GetRoles(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	// Adding access providers to the list for the roles
-	apImportList, err := a.fetchRoleAccessProviders(ctx, configMap, repo, apImportList)
+	apImportList = a.fetchRoleAccessProviders(configMap, roles, apImportList)
+
 	if err != nil {
 		return nil, err
 	}
 
 	// Adding access providers to the list for the managed policies
-	apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, repo, apImportList)
+	apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
 	if err != nil {
 		return nil, err
 	}
 
 	// Adding access providers to the list for the inline policies (existing role access providers will be enriched with inline policies it may have)
-	apImportList, err = a.fetchInlinePolicyAccessProviders(ctx, configMap, repo, apImportList)
+	apImportList, err = a.fetchInlinePolicyAccessProviders(ctx, configMap, roles, apImportList)
 	if err != nil {
 		return nil, err
 	}
@@ -466,9 +460,9 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 	return apImportList, nil
 }
 
-func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository) (map[string][]PolicyEntity, error) {
+func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[string][]PolicyEntity, error) {
 	logger.Info("Get inline policies from groups")
-	groups, err := repo.GetGroups(ctx, configMap, false)
+	groups, err := a.repo.GetGroups(ctx)
 
 	if err != nil {
 		return nil, err
@@ -479,12 +473,12 @@ func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context, configMap 
 		groupNames = append(groupNames, g.Name)
 	}
 
-	return repo.GetInlinePoliciesForEntities(ctx, configMap, groupNames, "group")
+	return a.repo.GetInlinePoliciesForEntities(ctx, groupNames, "group")
 }
-func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository) (map[string][]PolicyEntity, error) {
+func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string][]PolicyEntity, error) {
 	logger.Info("Get inline policies from users")
 
-	users, err := repo.GetUsers(ctx, configMap, false)
+	users, err := a.repo.GetUsers(ctx, false)
 	if err != nil {
 		return nil, err
 	}
@@ -494,23 +488,18 @@ func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context, configMap *
 		userNames = append(userNames, u.Name)
 	}
 
-	return repo.GetInlinePoliciesForEntities(ctx, configMap, userNames, "user")
+	return a.repo.GetInlinePoliciesForEntities(ctx, userNames, "user")
 }
 
-func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, configMap *config.ConfigMap, repo dataAccessRepository) (map[string][]PolicyEntity, error) {
+func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []RoleEntity) (map[string][]PolicyEntity, error) {
 	logger.Info("Get inline policies from roles")
-
-	roles, err := repo.GetRoles(ctx, configMap)
-	if err != nil {
-		return nil, err
-	}
 
 	roleNames := []string{}
 	for _, role := range roles {
 		roleNames = append(roleNames, role.Name)
 	}
 
-	return repo.GetInlinePoliciesForEntities(ctx, configMap, roleNames, "role")
+	return a.repo.GetInlinePoliciesForEntities(ctx, roleNames, "role")
 }
 
 func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_target.AccessProvider {

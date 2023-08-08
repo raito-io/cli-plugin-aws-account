@@ -14,14 +14,13 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/golang-set/set"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 )
 
-func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]UserEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error) {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -48,8 +47,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.Co
 
 	result := make([]UserEntity, 0, len(allUsers))
 
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
 
 	for i := range allUsers {
@@ -92,8 +90,8 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, configMap *config.Co
 	return result, nil
 }
 
-func (repo *AwsIamRepository) GetGroups(ctx context.Context, configMap *config.ConfigMap, withDetails bool) ([]GroupEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, error) {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -155,8 +153,8 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context, configMap *config.C
 	return result, nil
 }
 
-func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.ConfigMap) ([]RoleEntity, error) {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error) {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -186,8 +184,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 
 	result := make([]RoleEntity, 0, len(allRoles))
 
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
 
 	for i := range allRoles {
@@ -261,18 +258,18 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, configMap *config.Co
 
 // CreateRole creates an AWS Role. Every role needs a non-empty policy document (otherwise the Role is useless).
 // the principals input parameters define which users will be able to assume the policy initially
-func (repo *AwsIamRepository) CreateRole(ctx context.Context, configMap *config.ConfigMap, name, description string, userNames []string) error {
+func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) error {
 	if len(userNames) == 0 {
 		logger.Warn("No users provided to assume the role")
 		return nil
 	}
 
-	client, err := repo.GetIamClient(ctx, configMap)
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	initialPolicy, err := repo.CreateAssumeRolePolicyDocument(ctx, configMap, nil, userNames...)
+	initialPolicy, err := repo.CreateAssumeRolePolicyDocument(nil, userNames...)
 	if err != nil {
 		return err
 	}
@@ -296,8 +293,8 @@ func (repo *AwsIamRepository) CreateRole(ctx context.Context, configMap *config.
 	return nil
 }
 
-func (repo *AwsIamRepository) DeleteRole(ctx context.Context, configMap *config.ConfigMap, name string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
@@ -312,13 +309,13 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, configMap *config.
 	return nil
 }
 
-func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames []string) error {
-	client, err := repo.GetIamClient(ctx, configMap)
+func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error {
+	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	newPolicyDoc, err := repo.CreateAssumeRolePolicyDocument(ctx, configMap, nil, userNames...)
+	newPolicyDoc, err := repo.CreateAssumeRolePolicyDocument(nil, userNames...)
 	if err != nil {
 		return err
 	}
@@ -334,16 +331,11 @@ func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, configMa
 	return nil
 }
 
-func (repo *AwsIamRepository) RemoveAssumeRole(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames ...string) error {
-	// TODO: remove all userNames from this function in the assume role policy document
-	return nil
-}
-
-func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(ctx context.Context, configMap *config.ConfigMap, existingPolicyDoc *string, userNames ...string) (string, error) {
+func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *string, userNames ...string) (string, error) {
 	newPrincipals := []string{}
 
 	for _, userName := range userNames {
-		newPrincipals = append(newPrincipals, getTrustPolicyArn(userName, configMap))
+		newPrincipals = append(newPrincipals, getTrustPolicyArn(userName, repo.ConfigMap))
 	}
 
 	var policy *awspolicy.Policy
@@ -395,7 +387,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(ctx context.Context
 	return *existingPolicyDoc, nil
 }
 
-func (repo *AwsIamRepository) GetPrincipalsFromAssumeRolePolicyDocument(ctx context.Context, configMap *config.ConfigMap, policyDocument *string) ([]string, error) {
+func (repo *AwsIamRepository) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error) {
 	// TODO replace with new createWhoFromTrustPolicyDocument method ?
 	principals := set.Set[string]{}
 

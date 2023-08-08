@@ -38,6 +38,7 @@ func main() {
 					{Name: aws.AwsS3MaxFolderDepth, Description: fmt.Sprintf("If %s is set to true, fetch all objects up to a certain folder depth.", aws.AwsS3EmulateFolderStructure), Mandatory: false},
 					{Name: aws.AwsS3IncludeBuckets, Description: "Optional comma-separated list of buckets to include. If specified, only these buckets will be handled. Wildcards (*) can be used.", Mandatory: false},
 					{Name: aws.AwsS3ExcludeBuckets, Description: "Optional comma-separated list of buckets to exclude. If specified, these buckets will not be handled. Wildcard (*) can be used. Excludes have preference over includes.", Mandatory: false},
+					{Name: aws.AwsConcurrency, Description: "The number of threads to use for concurrent API calls to AWS. The default is 5.", Mandatory: false},
 				},
 			},
 		})

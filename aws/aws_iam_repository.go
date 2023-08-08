@@ -9,10 +9,11 @@ import (
 )
 
 type AwsIamRepository struct {
+	ConfigMap *config.ConfigMap
 }
 
-func (repo *AwsIamRepository) GetIamClient(ctx context.Context, configMap *config.ConfigMap) (*iam.Client, error) {
-	cfg, err := GetAWSConfig(ctx, configMap, nil)
+func (repo *AwsIamRepository) GetIamClient(ctx context.Context) (*iam.Client, error) {
+	cfg, err := GetAWSConfig(ctx, repo.ConfigMap, nil)
 
 	if err != nil {
 		log.Fatalf("failed to load configuration, %v", err)
@@ -23,8 +24,8 @@ func (repo *AwsIamRepository) GetIamClient(ctx context.Context, configMap *confi
 	return client, nil
 }
 
-func (repo *AwsIamRepository) GetIamOrgClient(ctx context.Context, configMap *config.ConfigMap) (*iam.Client, error) {
-	cfg, err := GetAWSOrgConfig(ctx, configMap, nil)
+func (repo *AwsIamRepository) GetIamOrgClient(ctx context.Context) (*iam.Client, error) {
+	cfg, err := GetAWSOrgConfig(ctx, repo.ConfigMap, nil)
 
 	if err != nil {
 		log.Fatalf("failed to load configuration, %v", err)

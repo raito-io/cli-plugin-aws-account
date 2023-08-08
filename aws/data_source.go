@@ -156,8 +156,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 	}
 
 	// handle files
-	// TODO make number of workers configurable
-	workerPool := workerpool.New(5)
+	workerPool := workerpool.New(getConcurrency(configMap))
 
 	for i := range buckets {
 		bucket := buckets[i]
