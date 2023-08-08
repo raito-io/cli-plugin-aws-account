@@ -8,6 +8,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/gammazero/workerpool"
 	"github.com/raito-io/cli/base/tag"
 
@@ -50,6 +52,8 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
 
+	var resultErr error
+
 	for i := range allUsers {
 		user := allUsers[i]
 
@@ -64,8 +68,15 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 				userRaw, err2 := client.GetUser(ctx, &userInput)
 				if err2 != nil {
+					logger.Error(fmt.Sprintf("failed to get user %s: %s", *user.UserName, err2.Error()))
+
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err2)
+					smu.Unlock()
+
 					return
 				}
+
 				user = *userRaw.User
 				tags = getTags(user.Tags)
 				emailAddress = getEmailAddressFromTags(tags, *user.UserName)
@@ -87,7 +98,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 	logger.Info(fmt.Sprintf("A total of %d users has been found", len(result)))
 
-	return result, nil
+	return result, resultErr
 }
 
 func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, error) {
@@ -186,6 +197,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 
 	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
+	var resultErr error
 
 	for i := range allRoles {
 		roleFromList := allRoles[i]
@@ -197,7 +209,11 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 
 			if err2 != nil {
 				logger.Error(fmt.Sprintf("Error getting role %s: %s", *roleFromList.RoleName, err2.Error()))
-				// TODO error handling
+
+				smu.Lock()
+				resultErr = multierror.Append(resultErr, err2)
+				smu.Unlock()
+
 				return
 			}
 
@@ -230,7 +246,11 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 			trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
 			if err2 != nil {
 				logger.Error(fmt.Sprintf("Error reading trust policy from role %s: %s", *roleFromList.RoleName, err2.Error()))
-				// TODO error handling
+
+				smu.Lock()
+				resultErr = multierror.Append(resultErr, err2)
+				smu.Unlock()
+
 				return
 			}
 
@@ -253,7 +273,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 
 	logger.Info(fmt.Sprintf("A total of %d roles have been found", len(result)))
 
-	return result, nil
+	return result, resultErr
 }
 
 // CreateRole creates an AWS Role. Every role needs a non-empty policy document (otherwise the Role is useless).

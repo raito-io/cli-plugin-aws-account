@@ -51,23 +51,24 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttach
 
 		workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 		var smu sync.Mutex
+		var resultErr error
 
 		for i := range resp.Policies {
 			policy := resp.Policies[i]
 
 			workerPool.Submit(func() {
-				// TODO, dev, remove
-				if discardPolicy(policy) {
-					return
-				}
-
 				policyInput := iam.GetPolicyInput{
 					PolicyArn: policy.Arn,
 				}
 
 				policyRespRaw, err3 := client.GetPolicy(ctx, &policyInput)
 				if err3 != nil {
-					logger.Warn(fmt.Sprintf("Error getting policy details for %s", *policy.Arn))
+					logger.Error(fmt.Sprintf("Error getting policy details for %s", *policy.Arn))
+
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err3)
+					smu.Unlock()
+
 					return
 				}
 				parsedPolicy := policyRespRaw.Policy
@@ -78,14 +79,25 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttach
 					VersionId: parsedPolicy.DefaultVersionId,
 				}
 
-				policyVersionResp, err := client.GetPolicyVersion(ctx, &policyVersionInput)
-				if err != nil {
-					logger.Warn(fmt.Sprintf("Error getting policy document for %s", *policy.Arn))
+				policyVersionResp, err3 := client.GetPolicyVersion(ctx, &policyVersionInput)
+				if err3 != nil {
+					logger.Error(fmt.Sprintf("Error getting policy document for %s: %s", *policy.Arn, err3.Error()))
+
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err3)
+					smu.Unlock()
+
 					return
 				}
 
-				policyDoc, policyDocReadable, err := repo.parsePolicyDocument(policyVersionResp.PolicyVersion.Document, "", *policy.PolicyName)
-				if err != nil {
+				policyDoc, policyDocReadable, err3 := repo.parsePolicyDocument(policyVersionResp.PolicyVersion.Document, "", *policy.PolicyName)
+				if err3 != nil {
+					logger.Error(fmt.Sprintf("Error parsing policy document for %s: %s", *policy.Arn, err3.Error()))
+
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err3)
+					smu.Unlock()
+
 					return
 				}
 
@@ -102,6 +114,12 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttach
 				if withAttachedEntities {
 					err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &raitoPolicy)
 					if err != nil {
+						logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
+
+						smu.Lock()
+						resultErr = multierror.Append(resultErr, err)
+						smu.Unlock()
+
 						return
 					}
 				}
@@ -113,6 +131,10 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttach
 		}
 
 		workerPool.StopWait()
+
+		if resultErr != nil {
+			return nil, resultErr
+		}
 
 		if !resp.IsTruncated {
 			break
@@ -624,6 +646,7 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 
 	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var mut sync.Mutex
+	var resultErr error
 
 	for i := range bindings {
 		policyBinding := bindings[i]
@@ -634,6 +657,10 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 
 			unparsedPolicyDocument, err2 := repo.getEntityPolicy(ctx, client, entityType, entityName, policyName)
 			if err2 != nil {
+				mut.Lock()
+				resultErr = multierror.Append(resultErr, err2)
+				mut.Unlock()
+
 				return
 			}
 
@@ -642,7 +669,15 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 			}
 
 			policy, policyReadable, err2 := repo.parsePolicyDocument(unparsedPolicyDocument, entityName, policyName)
-			if err2 != nil || policy == nil {
+			if err2 != nil {
+				mut.Lock()
+				resultErr = multierror.Append(resultErr, err2)
+				mut.Unlock()
+
+				return
+			}
+
+			if policy == nil {
 				return
 			}
 
@@ -676,10 +711,10 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 
 	workerPool.StopWait()
 
-	return result, nil
+	return result, resultErr
 }
 
-func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint:all // TODO no errors are indeed returned, find a way to do this
+func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) {
 	var marker *string
 	var policyBindings []PolicyBinding
 
@@ -687,6 +722,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
 	var smu sync.Mutex
+	var resultErr error
 
 	for i := range entityNames {
 		entityName := entityNames[i]
@@ -700,6 +736,10 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 				resp, err := client.ListUserPolicies(ctx, &userPolicyInput)
 				if err != nil {
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err)
+					smu.Unlock()
+
 					return
 				}
 
@@ -723,7 +763,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	workerPool.StopWait()
 
-	return policyBindings, nil
+	return policyBindings, resultErr
 }
 
 func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: dupl

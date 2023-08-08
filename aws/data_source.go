@@ -8,6 +8,8 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/hashicorp/go-multierror"
+
 	"github.com/gammazero/workerpool"
 
 	"github.com/raito-io/cli/base/util/config"
@@ -157,19 +159,29 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 
 	// handle files
 	workerPool := workerpool.New(getConcurrency(configMap))
+	var smu sync.Mutex
+	var resultErr error
 
 	for i := range buckets {
 		bucket := buckets[i]
 
 		workerPool.Submit(func() {
 			bucketName := bucket.Key
-			files, err := s.provideRepo().ListFiles(ctx, bucketName, nil)
-			if err != nil {
+			files, err2 := s.provideRepo().ListFiles(ctx, bucketName, nil)
+			if err2 != nil {
+				smu.Lock()
+				resultErr = multierror.Append(resultErr, err2)
+				smu.Unlock()
+
 				return
 			}
 
-			err = s.addS3Entities(files, dataSourceHandler, configMap, fileLock)
-			if err != nil {
+			err2 = s.addS3Entities(files, dataSourceHandler, configMap, fileLock)
+			if err2 != nil {
+				smu.Lock()
+				resultErr = multierror.Append(resultErr, err2)
+				smu.Unlock()
+
 				return
 			}
 		})
@@ -177,7 +189,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 
 	workerPool.StopWait()
 
-	return nil
+	return resultErr
 }
 
 func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context) (*ds.MetaData, error) {

@@ -69,7 +69,6 @@ func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHan
 	}
 
 	for _, u := range users {
-		// TODO: figure out what the best mapping is here. No email for AWS users.
 		err = identityHandler.AddUsers(&is.User{
 			ExternalId:       u.ExternalId,
 			UserName:         u.Name,

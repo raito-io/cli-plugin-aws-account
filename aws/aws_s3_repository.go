@@ -47,10 +47,6 @@ func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]AwsS3Entity, er
 	result := []AwsS3Entity{}
 
 	for _, bucket := range output.Buckets {
-		if !useBucket(bucket) {
-			continue
-		}
-
 		result = append(result, AwsS3Entity{
 			Key:  *bucket.Name,
 			Type: ds.Bucket,

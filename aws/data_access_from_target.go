@@ -101,7 +101,6 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 
 			continue
 		} else if apInput.PolicyType == Policy {
-			// TODO hard-coded S3 now, but needs to be extended to other services later
 			hasS3Actions := false
 
 			if apInput.ApInput.What != nil && len(apInput.ApInput.What) > 0 {
