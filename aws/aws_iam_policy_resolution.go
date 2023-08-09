@@ -300,6 +300,19 @@ func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 			if isNewRole || isExistingRole {
 				roleDescendants.Add(descendant)
 				roleDescendants.AddSet(getDescendants(roleInheritanceMap, descendant))
+			} else if policyWho, f := existingPolicyWhoBindings[descendant]; f {
+				// The case where the internal AP depends on an external AP (of type policy). In that case we have to look at the bindings to see if there is a role in there.
+				for _, binding := range policyWho.Slice() {
+					if binding.Type == TypeRole {
+						_, isNewRole = newRoleWhoBindings[binding.ResourceName]
+						_, isExistingRole = existingRoleWhoBindings[binding.ResourceName]
+
+						if isNewRole || isExistingRole {
+							roleDescendants.Add(binding.ResourceName)
+							roleDescendants.AddSet(getDescendants(roleInheritanceMap, binding.ResourceName))
+						}
+					}
+				}
 			}
 		}
 

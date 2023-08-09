@@ -102,6 +102,82 @@ func TestApInheritanceHandler(t *testing.T) {
 	}...), newPolicyWhoBindings["Policy2"])
 }
 
+func TestApInheritanceHandler_WithExternals(t *testing.T) {
+	// In this test we test the following case of inheritance where all are Policy2 and Role2 are external APs:
+	// (Policy1) - [WHO] -> (Policy2) - [WHO] -> (Role1) - [WHO] -> (Role2)
+
+	roleInheritanceMap := map[string]set.Set[string]{
+		"Role1": set.NewSet("Role2"),
+	}
+	policyInheritanceMap := map[string]set.Set[string]{
+		"Policy1": set.NewSet("Policy2"),
+	}
+	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{
+		"Role1": set.NewSet(PolicyBinding{
+			Type:         "user",
+			ResourceName: "user1",
+		}),
+	}
+	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
+		"Policy1": set.NewSet(PolicyBinding{
+			Type:         "user",
+			ResourceName: "user3",
+		}),
+	}
+	existingRoleWhoBindings := map[string]set.Set[PolicyBinding]{
+		"Role2": set.NewSet(PolicyBinding{
+			Type:         "user",
+			ResourceName: "user2",
+		}),
+	}
+	existingPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
+		"Policy2": set.NewSet(PolicyBinding{
+			Type:         "user",
+			ResourceName: "user4",
+		}, PolicyBinding{
+			Type:         "role",
+			ResourceName: "Role1",
+		}),
+	}
+
+	processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+
+	fmt.Printf("Role1 bindings: %+v\n", newRoleWhoBindings["Role1"])
+	fmt.Printf("Role2 bindings: %+v\n", newRoleWhoBindings["Role2"])
+	fmt.Printf("Policy1 bindings: %+v\n", newPolicyWhoBindings["Policy1"])
+	fmt.Printf("Policy2 bindings: %+v\n", newPolicyWhoBindings["Policy2"])
+
+	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+		{
+			Type:         "user",
+			ResourceName: "user1",
+		},
+		{
+			Type:         "user",
+			ResourceName: "user2",
+		},
+	}...), newRoleWhoBindings["Role1"])
+
+	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+		{
+			Type:         "user",
+			ResourceName: "user3",
+		},
+		{
+			Type:         "user",
+			ResourceName: "user4",
+		},
+		{
+			Type:         "role",
+			ResourceName: "Role1",
+		},
+		{
+			Type:         "role",
+			ResourceName: "Role2",
+		},
+	}...), newPolicyWhoBindings["Policy1"])
+}
+
 func compareBindings(t *testing.T, expected set.Set[PolicyBinding], actual set.Set[PolicyBinding]) {
 	if len(expected) != len(actual) {
 		t.Error("Not the same number of bindings")
