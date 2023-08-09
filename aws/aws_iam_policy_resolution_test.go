@@ -21,21 +21,21 @@ func TestApInheritanceHandler(t *testing.T) {
 	}
 	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{
 		"Role1": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user1",
 		}),
 		"Role2": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user2",
 		}),
 	}
 	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
 		"Policy1": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user3",
 		}),
 		"Policy2": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user4",
 		}),
 	}
@@ -51,29 +51,29 @@ func TestApInheritanceHandler(t *testing.T) {
 
 	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user1",
 		},
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user2",
 		},
 	}...), newRoleWhoBindings["Role1"])
 
 	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user2",
 		},
 	}...), newRoleWhoBindings["Role2"])
 
 	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user3",
 		},
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user4",
 		},
 		{
@@ -88,7 +88,7 @@ func TestApInheritanceHandler(t *testing.T) {
 
 	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user4",
 		},
 		{
@@ -114,25 +114,25 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 	}
 	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{
 		"Role1": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user1",
 		}),
 	}
 	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
 		"Policy1": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user3",
 		}),
 	}
 	existingRoleWhoBindings := map[string]set.Set[PolicyBinding]{
 		"Role2": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user2",
 		}),
 	}
 	existingPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
 		"Policy2": set.NewSet(PolicyBinding{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user4",
 		}, PolicyBinding{
 			Type:         "role",
@@ -149,22 +149,22 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 
 	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user1",
 		},
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user2",
 		},
 	}...), newRoleWhoBindings["Role1"])
 
 	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user3",
 		},
 		{
-			Type:         "user",
+			Type:         UserResourceType,
 			ResourceName: "user4",
 		},
 		{

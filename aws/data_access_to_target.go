@@ -161,7 +161,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		// Shouldn't use ap.Who.UsersInherited, because this works across non-allowed boundaries (e.g. (User)<-[:WHO]-(Role)<-[:WHO]-(Policy))
 		for _, user := range ap.Who.Users {
 			key := PolicyBinding{
-				Type:         "user",
+				Type:         UserResourceType,
 				ResourceName: user,
 			}
 			whoBindings[name].Add(key)
@@ -169,7 +169,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		for _, group := range ap.Who.Groups {
 			key := PolicyBinding{
-				Type:         "group",
+				Type:         GroupResourceType,
 				ResourceName: group,
 				PolicyName:   name,
 			}
@@ -349,21 +349,21 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		policyArn := a.repo.GetPolicyArn(policyName, configMap)
 
 		for _, binding := range bindings.Slice() {
-			if binding.Type == "user" {
+			if binding.Type == UserResourceType {
 				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachUserToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
-			} else if binding.Type == "group" {
+			} else if binding.Type == GroupResourceType {
 				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachGroupToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
-			} else if binding.Type == "role" {
+			} else if binding.Type == RoleResourceType {
 				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachRoleToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
@@ -378,21 +378,21 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		policyArn := a.repo.GetPolicyArn(policyName, configMap)
 
 		for _, binding := range bindings.Slice() {
-			if binding.Type == "user" {
+			if binding.Type == UserResourceType {
 				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachUserFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
-			} else if binding.Type == "group" {
+			} else if binding.Type == GroupResourceType {
 				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachGroupFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
-			} else if binding.Type == "role" {
+			} else if binding.Type == RoleResourceType {
 				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachRoleFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
@@ -430,8 +430,9 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 		existingRoleAssumptions[role.Name] = set.Set[PolicyBinding]{}
 
 		for _, userName := range userBindings {
+			// TODO what about groups and roles?
 			key := PolicyBinding{
-				Type:         "user",
+				Type:         UserResourceType,
 				ResourceName: userName,
 			}
 			existingRoleAssumptions[role.Name].Add(key)

@@ -466,7 +466,7 @@ func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[strin
 		groupNames = append(groupNames, g.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, groupNames, "group")
+	return a.repo.GetInlinePoliciesForEntities(ctx, groupNames, GroupResourceType)
 }
 func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string][]PolicyEntity, error) {
 	logger.Info("Get inline policies from users")
@@ -481,7 +481,7 @@ func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string
 		userNames = append(userNames, u.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, userNames, "user")
+	return a.repo.GetInlinePoliciesForEntities(ctx, userNames, UserResourceType)
 }
 
 func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []RoleEntity) (map[string][]PolicyEntity, error) {
@@ -492,7 +492,7 @@ func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []Rol
 		roleNames = append(roleNames, role.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, roleNames, "role")
+	return a.repo.GetInlinePoliciesForEntities(ctx, roleNames, RoleResourceType)
 }
 
 func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_target.AccessProvider {
