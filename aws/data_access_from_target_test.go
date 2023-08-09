@@ -77,9 +77,9 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	repoMock.EXPECT().GetRoles(context.TODO()).Return(roles, nil).Once()
 	repoMock.EXPECT().GetGroups(context.TODO()).Return(groups, nil).Once()
 	repoMock.EXPECT().GetUsers(context.TODO(), false).Return(users, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), roleNames, "role").Return(roleInlineMap, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), userNames, "user").Return(userInlineMap, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), groupNames, "group").Return(groupInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), roleNames, RoleResourceType).Return(roleInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), userNames, UserResourceType).Return(userInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(context.TODO(), groupNames, GroupResourceType).Return(groupInlineMap, nil).Once()
 
 	return repoMock, syncer
 }

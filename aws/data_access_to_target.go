@@ -216,6 +216,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 			sort.Strings(userNames)
 			err = a.repo.CreateRole(ctx, roleName, "", userNames)
+
 			if err != nil {
 				return err
 			}
