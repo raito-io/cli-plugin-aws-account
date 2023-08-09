@@ -242,8 +242,8 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 	return mappedActions, incomplete
 }
 
-func getApNames(exportedAps []*importer.AccessProvider, aps ...string) []string {
-	result := []string{}
+func resolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...string) []string {
+	result := make([]string, 0, len(aps))
 
 	for _, ap := range aps {
 		if !strings.HasPrefix(ap, "ID:") {
@@ -257,9 +257,10 @@ func getApNames(exportedAps []*importer.AccessProvider, aps ...string) []string 
 		}
 
 		apID := parts[1]
-		for _, ap := range exportedAps {
-			if ap != nil && ap.Id == apID {
-				result = append(result, ap.Name)
+		for _, ap2 := range exportedAps {
+			if ap2 != nil && ap2.Id == apID {
+				apName, _ := generateName(ap2)
+				result = append(result, apName)
 			}
 		}
 	}
@@ -267,53 +268,77 @@ func getApNames(exportedAps []*importer.AccessProvider, aps ...string) []string 
 	return result
 }
 
-func processApInheritance(inheritanceMap map[string]set.Set[string], policyMap map[string]string, roleMap map[string]string,
-	newBindings *map[string]set.Set[PolicyBinding], existingBindings map[string]set.Set[PolicyBinding]) error { //nolint: gocritic // pointer needs to be used for newBindings, otherwise it doesn't work
-	for k := range inheritanceMap {
-		descendants := set.Set[string]{}
-		getAllDescendant(inheritanceMap, k, &descendants)
-		logger.Info(fmt.Sprintf("Descendents for %s: %s", k, descendants.Slice()))
+func getExistingOrNewBindings(existingBindings map[string]set.Set[PolicyBinding], newBindings map[string]set.Set[PolicyBinding], name string) set.Set[PolicyBinding] {
+	if b, f := newBindings[name]; f {
+		return b
+	}
 
-		currentType := getApType(k, policyMap, roleMap)
+	return existingBindings[name]
+}
 
-		for _, descendent := range descendants.Slice() {
-			descendentType := getApType(descendent, policyMap, roleMap)
+func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string],
+	newRoleWhoBindings map[string]set.Set[PolicyBinding], newPolicyWhoBindings map[string]set.Set[PolicyBinding],
+	existingRoleWhoBindings map[string]set.Set[PolicyBinding], existingPolicyWhoBindings map[string]set.Set[PolicyBinding]) error {
+	for k := range roleInheritanceMap {
+		// A role can only have other roles as descendants
+		descendants := getDescendants(roleInheritanceMap, k)
+		logger.Info(fmt.Sprintf("Descendants for role %s: %s", k, descendants.Slice()))
 
-			if (currentType == TypePolicy && descendentType == TypePolicy) || (currentType == TypeRole && descendentType == TypeRole) {
-				(*newBindings)[k].AddSet((*newBindings)[descendent])
-				(*newBindings)[k].AddSet(existingBindings[descendent])
-			} else if currentType == TypeRole && descendentType == TypePolicy {
-				logger.Warn(fmt.Sprintf("AP %s of type %s should not have an descendant of type %s (%s)", k, currentType, descendentType, descendent))
-			} else if currentType == TypePolicy && descendentType == TypeRole {
-				roleBinding := PolicyBinding{
-					Type:         TypeRole,
-					ResourceName: descendent,
-				}
-				(*newBindings)[k].Add(roleBinding)
+		for _, descendant := range descendants.Slice() {
+			newRoleWhoBindings[k].AddSet(getExistingOrNewBindings(existingRoleWhoBindings, newRoleWhoBindings, descendant))
+		}
+	}
+
+	for k := range policyInheritanceMap {
+		policyDescendants := getDescendants(policyInheritanceMap, k)
+		roleDescendants := set.NewSet[string]()
+
+		for _, descendant := range policyDescendants.Slice() {
+			_, isNewRole := newRoleWhoBindings[descendant]
+			_, isExistingRole := existingRoleWhoBindings[descendant]
+
+			if isNewRole || isExistingRole {
+				roleDescendants.Add(descendant)
+				roleDescendants.AddSet(getDescendants(roleInheritanceMap, descendant))
 			}
+		}
+
+		logger.Info(fmt.Sprintf("Role descendants for policy %s: %s", k, roleDescendants.Slice()))
+
+		// For descendants that are roles, we need to add that role as a binding for this policy
+		for _, descendant := range roleDescendants.Slice() {
+			roleBinding := PolicyBinding{
+				Type:         TypeRole,
+				ResourceName: descendant,
+			}
+			newPolicyWhoBindings[k].Add(roleBinding)
+		}
+	}
+
+	for k := range policyInheritanceMap {
+		policyDescendants := getDescendants(policyInheritanceMap, k)
+		logger.Info(fmt.Sprintf("Policy descendants for policy %s: %s", k, policyDescendants.Slice()))
+
+		// For descendants that are policies,
+		for _, descendant := range policyDescendants.Slice() {
+			newPolicyWhoBindings[k].AddSet(getExistingOrNewBindings(existingPolicyWhoBindings, newPolicyWhoBindings, descendant))
 		}
 	}
 
 	return nil
 }
 
-func getApType(apName string, policyMap map[string]string, roleMap map[string]string) string {
-	if _, found := policyMap[apName]; found {
-		return TypePolicy
-	} else if _, f := roleMap[apName]; f {
-		return TypeRole
-	}
+func getDescendants(childMap map[string]set.Set[string], apName string) set.Set[string] {
+	descendants := set.NewSet[string]()
 
-	return "none"
-}
-
-func getAllDescendant(childMap map[string]set.Set[string], apName string, descendantList *set.Set[string]) {
 	if v, found := childMap[apName]; !found || len(v) == 0 {
-		return
+		return descendants
 	}
 
 	for _, child := range childMap[apName].Slice() {
-		descendantList.Add(child)
-		getAllDescendant(childMap, child, descendantList)
+		descendants.Add(child)
+		descendants.AddSet(getDescendants(childMap, child))
 	}
+
+	return descendants
 }

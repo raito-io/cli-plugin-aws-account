@@ -44,6 +44,7 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
 * Support for other AWS partitions everywhere (e.g. china and gov-cloud) (typically not working in arn matching)
 * To improve: Error handling (for concurrent jobs). See 'error handling' TODOs
 * Have standard logging for all messages where we skip things because we don't support it. For example, always start with 'UNSUPPORTED: '
+* How do we handle the case where the name of a policy is the same as the name of a role? We seem to be putting them in the same maps.
 
 Not planned for now
 * Denies as Action in policies

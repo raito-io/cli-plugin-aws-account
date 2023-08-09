@@ -5,6 +5,9 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/pkg/errors"
+	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
+
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
@@ -12,11 +15,21 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
+const (
+	CreateAction string = "create"
+	UpdateAction string = "update"
+	DeleteAction string = "delete"
+)
+
 func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
 	a.repo = &AwsIamRepository{
 		ConfigMap: configMap,
 	}
 
+	return a.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler, configMap)
+}
+
+func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
 		logger.Info("No access providers to sync from Raito to AWS")
 		return nil
@@ -24,21 +37,21 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 
 	logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
-	policyActionMap, existingPolicyBindings, err := a.fetchExistingManagedPolicies(ctx)
+	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx)
 	if err != nil {
 		return err
 	}
 
-	roleActionMap, existingRoleAssumptions, err := a.fetchExistingRoles(ctx)
+	policyActionMap, existingPolicyWhoBindings, err := a.fetchExistingManagedPolicies(ctx)
 	if err != nil {
 		return err
 	}
-
-	inlineActionPolicyMap := map[string]string{}
-	inlinePolicyWithEntityMap := map[string]PolicyBinding{}
 
 	managedPoliciesToModify := []AccessWithWho{}
-	policyBindingsFromExport := map[string]set.Set[PolicyBinding]{}
+	// Need to separate roles and policies as they can have the same name
+	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{}
+	roleInheritanceMap := map[string]set.Set[string]{}
+	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{}
 	policyInheritanceMap := map[string]set.Set[string]{}
 
 	for i := range accessProviders.AccessProviders {
@@ -48,42 +61,58 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 			continue
 		}
 
+		// TODO have a default type for this.
 		if ap.Type == nil {
 			logger.Warn(fmt.Sprintf("No type provided for access provider %q", ap.Name))
 			continue
 		}
 
-		apActionMap := &policyActionMap
-		if strings.Contains(*ap.Type, "role") {
-			apActionMap = &roleActionMap
-		} else if strings.Contains(*ap.Type, "inline") {
-			apActionMap = &inlineActionPolicyMap
+		var apActionMap map[string]string
+		var inheritanceMap map[string]set.Set[string]
+		var whoBindings map[string]set.Set[PolicyBinding]
+
+		switch *ap.Type {
+		case string(Role):
+			apActionMap = roleActionMap
+			inheritanceMap = roleInheritanceMap
+			whoBindings = newRoleWhoBindings
+		case string(Policy):
+			apActionMap = policyActionMap
+			inheritanceMap = policyInheritanceMap
+			whoBindings = newPolicyWhoBindings
+		default:
+			return fmt.Errorf("unsupported access provider type: %s", *ap.Type)
 		}
 
 		printDebugAp(*ap)
 
-		err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: ap.Name})
-		if err != nil {
-			return err
+		name, err2 := generateName(ap)
+		if err2 != nil {
+			return errors.Wrap(err2, fmt.Sprintf("failed to generate actual name for access provider %q", ap.Name))
 		}
 
-		name := getPolicyName(ap)
+		// TODO move to a later stage where it makes more sense (for example, not when deleting the role/policy)
+		err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: name})
+		if err != nil {
+			return errors.Wrap(err, fmt.Sprintf("failed to add feedback for access provider %q", ap.Name))
+		}
 
-		_, found := (*apActionMap)[name]
+		_, found := apActionMap[name]
 
 		if ap.Delete {
 			if found {
-				(*apActionMap)[name] = DeleteAction
+				apActionMap[name] = DeleteAction
 			}
 
 			continue
-		} else if strings.Contains(*ap.Type, "role") {
+		} else if *ap.Type == string(Role) {
 			action := UpdateAction
 			if !found {
 				action = CreateAction
 			}
-			(*apActionMap)[name] = action
-		} else if strings.Contains(*ap.Type, "managed_policy") {
+			apActionMap[name] = action
+		} else if *ap.Type == string(Policy) {
+			// Policies, are currently always generated as managed policies.
 			managedPoliciesToModify = append(managedPoliciesToModify, AccessWithWho{
 				Name: name,
 				What: ap.What,
@@ -98,8 +127,8 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				logger.Info(fmt.Sprintf("Policy with name %s found. Adding to update list.", name))
 				action = UpdateAction
 			}
-			(*apActionMap)[name] = action
-		} else if strings.Contains(*ap.Type, "inline_policy") {
+			apActionMap[name] = action
+		} /* else if strings.Contains(*ap.Type, "inline_policy") {
 			var localErr error
 
 			// always convert an internal inline policy to a managed policy
@@ -122,12 +151,11 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				What: ap.What,
 			})
 			policyActionMap[name] = CreateAction
-		}
+		}*/
 
-		apInheritFromNames := getApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
-		policyInheritanceMap[ap.Name] = set.NewSet(apInheritFromNames...)
-
-		policyBindingsFromExport[name] = set.Set[PolicyBinding]{}
+		apInheritFromNames := resolveInheritedApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
+		inheritanceMap[name] = set.NewSet(apInheritFromNames...)
+		whoBindings[name] = set.Set[PolicyBinding]{}
 
 		// Shouldn't use ap.Who.UsersInherited, because this works across non-allowed boundaries (e.g. (User)<-[:WHO]-(Role)<-[:WHO]-(Policy))
 		for _, user := range ap.Who.Users {
@@ -135,7 +163,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				Type:         "user",
 				ResourceName: user,
 			}
-			policyBindingsFromExport[name].Add(key)
+			whoBindings[name].Add(key)
 		}
 
 		for _, group := range ap.Who.Groups {
@@ -145,11 +173,11 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				PolicyName:   name,
 			}
 
-			policyBindingsFromExport[name].Add(key)
+			whoBindings[name].Add(key)
 		}
 	}
 
-	err = processApInheritance(policyInheritanceMap, policyActionMap, roleActionMap, &policyBindingsFromExport, existingPolicyBindings)
+	err = processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingPolicyWhoBindings, existingRoleWhoBindings)
 	if err != nil {
 		return err
 	}
@@ -160,24 +188,19 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 
 	assumeRoles := map[string]set.Set[PolicyBinding]{}
 
-	for role, roleAction := range roleActionMap {
-		// only touch the access providers that are in the export
+	// TODO APs of type "role" with what-elements need to get inline policies to represent that.
+
+	for roleName, roleAction := range roleActionMap {
+		logger.Info(fmt.Sprintf("Processing role %s with action %s", roleName, roleAction))
+
 		if roleAction == UpdateAction || roleAction == CreateAction {
-			logger.Info(fmt.Sprintf("Existing bindings for %s: %s", role, existingRoleAssumptions[role]))
-			logger.Info(fmt.Sprintf("Export bindings for %s: %s", role, policyBindingsFromExport[role]))
+			logger.Info(fmt.Sprintf("Existing bindings for %s: %s", roleName, existingRoleWhoBindings[roleName]))
+			logger.Info(fmt.Sprintf("Export bindings for %s: %s", roleName, newRoleWhoBindings[roleName]))
 
-			assumeRoles[role] = set.NewSet(policyBindingsFromExport[role].Slice()...)
-		}
-	}
-
-	for roleName, action := range roleActionMap {
-		if action == "existing" {
-			continue
+			assumeRoles[roleName] = set.NewSet(newRoleWhoBindings[roleName].Slice()...)
 		}
 
-		logger.Info(fmt.Sprintf("Processing role %s with action %s", roleName, action))
-
-		if action == CreateAction {
+		if roleAction == CreateAction {
 			logger.Info(fmt.Sprintf("Creating role %s", roleName))
 
 			if len(assumeRoles[roleName]) == 0 {
@@ -185,6 +208,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 			}
 
 			userNames := []string{}
+			// TODO currently assumes all bindings are users. This should also look at groups.
 			for _, binding := range assumeRoles[roleName].Slice() {
 				userNames = append(userNames, binding.ResourceName)
 			}
@@ -193,32 +217,33 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 			if err != nil {
 				return err
 			}
-		} else if action == DeleteAction {
+		} else if roleAction == DeleteAction {
 			logger.Info(fmt.Sprintf("Removing role %s", roleName))
 
 			err = a.repo.DeleteRole(ctx, roleName)
 			if err != nil {
 				return err
 			}
-		}
-	}
+		} else if roleAction == UpdateAction {
+			userNames := []string{}
+			// TODO currently assumes all bindings are users. This should also look at groups.
+			for _, binding := range assumeRoles[roleName].Slice() {
+				userNames = append(userNames, binding.ResourceName)
+			}
 
-	// for now, do a full sync from scratch
-	for roleName, v := range assumeRoles {
-		userNames := []string{}
-		for _, binding := range v.Slice() {
-			userNames = append(userNames, binding.ResourceName)
-		}
+			// TODO Why is this? A role cannot have 0 bindings?
+			if len(userNames) == 0 {
+				continue
+			}
 
-		if len(userNames) == 0 {
-			continue
-		}
+			logger.Info(fmt.Sprintf("Updating users for role %s: %s", roleName, userNames))
 
-		logger.Info(fmt.Sprintf("Updating users for role %s: %s", roleName, userNames))
-
-		err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
-		if err != nil {
-			return err
+			err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
+			if err != nil {
+				return err
+			}
+		} else {
+			logger.Debug(fmt.Sprintf("no action needed for role %q", roleName))
 		}
 	}
 
@@ -289,19 +314,19 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 	policyBindingsToAdd := map[string]set.Set[PolicyBinding]{}
 	policyBindingsToRemove := map[string]set.Set[PolicyBinding]{}
 
-	for policy, policy_state := range policyActionMap {
+	for policy, policyState := range policyActionMap {
 		// only touch the access providers that are in the export
-		if policy_state == UpdateAction || policy_state == CreateAction {
-			policyBindingsToAdd[policy] = set.NewSet(policyBindingsFromExport[policy].Slice()...)
-			policyBindingsToAdd[policy].RemoveAll(existingPolicyBindings[policy].Slice()...)
+		if policyState == UpdateAction || policyState == CreateAction {
+			policyBindingsToAdd[policy] = set.NewSet(newRoleWhoBindings[policy].Slice()...)
+			policyBindingsToAdd[policy].RemoveAll(existingPolicyWhoBindings[policy].Slice()...)
 
-			policyBindingsToRemove[policy] = set.NewSet(existingPolicyBindings[policy].Slice()...)
-			policyBindingsToRemove[policy].RemoveAll(policyBindingsFromExport[policy].Slice()...)
+			policyBindingsToRemove[policy] = set.NewSet(existingPolicyWhoBindings[policy].Slice()...)
+			policyBindingsToRemove[policy].RemoveAll(newRoleWhoBindings[policy].Slice()...)
 		}
 	}
 
-	logger.Info(fmt.Sprintf("%d existing policies with bindings", len(existingPolicyBindings)))
-	logger.Info(fmt.Sprintf("%d export policies with bindings", len(policyBindingsFromExport)))
+	logger.Info(fmt.Sprintf("%d existing policies with bindings", len(existingPolicyWhoBindings)))
+	logger.Info(fmt.Sprintf("%d export policies with bindings", len(newRoleWhoBindings)))
 	logger.Info(fmt.Sprintf("%d policies with bindings TO ADD", len(policyBindingsToAdd)))
 	logger.Info(fmt.Sprintf("%d policies with bindings TO REMOVE", len(policyBindingsToRemove)))
 
@@ -371,22 +396,6 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 				if err != nil {
 					return err
 				}
-			}
-		}
-	}
-
-	// ============================================================
-	// =============== Inline policies ============================
-	// ============================================================
-	// inline policies can't be created in the UI, only actions are delete and update the what. Changing the who is done by converting it to a managed policy
-
-	for policy, policy_state := range inlineActionPolicyMap {
-		if binding, found := inlinePolicyWithEntityMap[policy]; policy_state == DeleteAction && found {
-			logger.Info(fmt.Sprintf("Deleting inline policy %s for %s/%s", policy, binding.Type, binding.ResourceName))
-
-			err = a.repo.DeleteInlinePolicy(ctx, policy, binding.ResourceName, binding.Type)
-			if err != nil {
-				return err
 			}
 		}
 	}
@@ -466,9 +475,18 @@ func removeArn(input []PolicyBinding) []PolicyBinding {
 	return result
 }
 
-func getPolicyName(ap *sync_to_target.AccessProvider) string {
-	name := ap.NamingHint
-	name = strings.ReplaceAll(name, " ", "_")
+func generateName(ap *sync_to_target.AccessProvider) (string, error) {
+	uniqueRoleNameGenerator, err := naming_hint.NewUniqueNameGenerator(logger, "", &naming_hint.NamingConstraints{
+		UpperCaseLetters:  true,
+		LowerCaseLetters:  true,
+		Numbers:           true,
+		SpecialCharacters: "+_",
+		MaxLength:         64,
+	})
 
-	return name
+	if err != nil {
+		return "", err
+	}
+
+	return uniqueRoleNameGenerator.Generate(ap)
 }

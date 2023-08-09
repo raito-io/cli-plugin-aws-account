@@ -37,14 +37,3 @@ func TestAccessSyncer_PolicyDocumentParser(t *testing.T) {
 	err = policy.UnmarshalJSON([]byte(policyDocument))
 	assert.Nil(t, err)
 }
-
-func TestSyncAccessProviderToTarget_GetApType(t *testing.T) {
-	policyMap := map[string]string{"Policy1": "policy", "Policy2": "policy"}
-	roleMap := map[string]string{"Role1": "role", "Role2": "role"}
-
-	assert.Equal(t, "policy", getApType("Policy1", policyMap, roleMap))
-	assert.Equal(t, "policy", getApType("Policy2", policyMap, roleMap))
-	assert.Equal(t, "role", getApType("Role1", policyMap, roleMap))
-	assert.Equal(t, "role", getApType("Role2", policyMap, roleMap))
-	assert.Equal(t, "none", getApType("SomethingElse", policyMap, roleMap))
-}

@@ -46,14 +46,8 @@ type dataAccessRepository interface {
 	GetPolicyArn(policyName string, configMap *config.ConfigMap) string
 	// processApInheritance(inheritanceMap map[string]set.Set[string], policyMap map[string]string, roleMap map[string]string,
 	// 	newBindings *map[string]set.Set[PolicyBinding], existingBindings map[string]set.Set[PolicyBinding]) error
-	// getApNames(exportedAps []*importer.AccessProvider, aps ...string) []string
+	// resolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...string) []string
 }
-
-const (
-	CreateAction string = "create"
-	UpdateAction string = "update"
-	DeleteAction string = "delete"
-)
 
 func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, accessProviderHandler wrappers.AccessProviderHandler, configMap *config.ConfigMap) error {
 	a.repo = &AwsIamRepository{
