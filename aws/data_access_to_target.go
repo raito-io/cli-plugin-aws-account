@@ -184,7 +184,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	// ============================================================
-	// =============== Roles ======================================
+	// ======================= Roles ==============================
 	// ============================================================
 
 	assumeRoles := map[string]set.Set[PolicyBinding]{}
@@ -252,7 +252,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	// ============================================================
-	// =============== Policies ===================================
+	// ====================== Policies ============================
 	// ============================================================
 
 	// create or update policy, overwrite what / policy document
