@@ -16,11 +16,6 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
-const (
-	TypePolicy string = "policy"
-	TypeRole   string = "role"
-)
-
 func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, configMap *config.ConfigMap) (*sync_from_target.WhoItem, bool) {
 	if policy == nil {
 		return nil, false
@@ -303,7 +298,7 @@ func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 			} else if policyWho, f := existingPolicyWhoBindings[descendant]; f {
 				// The case where the internal AP depends on an external AP (of type policy). In that case we have to look at the bindings to see if there is a role in there.
 				for _, binding := range policyWho.Slice() {
-					if binding.Type == TypeRole {
+					if binding.Type == RoleResourceType {
 						_, isNewRole = newRoleWhoBindings[binding.ResourceName]
 						_, isExistingRole = existingRoleWhoBindings[binding.ResourceName]
 
@@ -321,7 +316,7 @@ func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 		// For descendants that are roles, we need to add that role as a binding for this policy
 		for _, descendant := range roleDescendants.Slice() {
 			roleBinding := PolicyBinding{
-				Type:         TypeRole,
+				Type:         RoleResourceType,
 				ResourceName: descendant,
 			}
 			newPolicyWhoBindings[k].Add(roleBinding)
