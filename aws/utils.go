@@ -98,15 +98,6 @@ func getTrustPolicyArn(user string, configMap *config.ConfigMap) string {
 	return fmt.Sprintf("arn:aws:iam::%s:user/%s", configMap.GetString(AwsAccountId), user)
 }
 
-func prefixActionsWithService(service string, actions ...string) []string {
-	result := []string{}
-	for _, action := range actions {
-		result = append(result, fmt.Sprintf("%s:%s", service, action))
-	}
-
-	return result
-}
-
 func stripWhitespace(query string) string {
 	query = strings.ReplaceAll(query, "\t", "")
 	query = strings.ReplaceAll(query, "\n", "")

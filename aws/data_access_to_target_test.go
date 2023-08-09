@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers/mocks"
 	"github.com/stretchr/testify/mock"
@@ -62,6 +63,73 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	// repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	// repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
+	repoMock, syncer := setupMockExportEnvironment(t)
+	ctx := context.Background()
+	configmap := config.ConfigMap{}
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
+	}
+	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something",
+				Name:        "TestRole",
+				Description: "a test role",
+				NamingHint:  "test role",
+				Type:        aws.String(string(Role)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users: []string{"stewart_b"},
+				},
+
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "test_file",
+							Type:     "file",
+						},
+						Permissions: []string{"p1", "p2"},
+					},
+				},
+			},
+		},
+	}
+
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).Return(nil).Once()
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
 
@@ -189,6 +257,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 
 	repoMock.EXPECT().UpdateAssumeEntities(ctx, "data_engineering_sync", []string{"n_nguyen", "stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+	repoMock.EXPECT().DeleteRoleInlinePolicies(ctx, "data_engineering_sync").Return(nil).Once()
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
 

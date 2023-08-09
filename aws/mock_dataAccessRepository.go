@@ -261,6 +261,51 @@ func (_c *mockDataAccessRepository_CreateRole_Call) RunAndReturn(run func(contex
 	return _c
 }
 
+// CreateRoleInlinePolicy provides a mock function with given fields: ctx, roleName, policyName, statements
+func (_m *mockDataAccessRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error {
+	ret := _m.Called(ctx, roleName, policyName, statements)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []awspolicy.Statement) error); ok {
+		r0 = rf(ctx, roleName, policyName, statements)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// mockDataAccessRepository_CreateRoleInlinePolicy_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateRoleInlinePolicy'
+type mockDataAccessRepository_CreateRoleInlinePolicy_Call struct {
+	*mock.Call
+}
+
+// CreateRoleInlinePolicy is a helper method to define mock.On call
+//   - ctx context.Context
+//   - roleName string
+//   - policyName string
+//   - statements []awspolicy.Statement
+func (_e *mockDataAccessRepository_Expecter) CreateRoleInlinePolicy(ctx interface{}, roleName interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
+	return &mockDataAccessRepository_CreateRoleInlinePolicy_Call{Call: _e.mock.On("CreateRoleInlinePolicy", ctx, roleName, policyName, statements)}
+}
+
+func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) Run(run func(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]awspolicy.Statement))
+	})
+	return _c
+}
+
+func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) Return(_a0 error) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, []awspolicy.Statement) error) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // DeleteInlinePolicy provides a mock function with given fields: ctx, policyName, resourceName, resourceType
 func (_m *mockDataAccessRepository) DeleteInlinePolicy(ctx context.Context, policyName string, resourceName string, resourceType string) error {
 	ret := _m.Called(ctx, policyName, resourceName, resourceType)
@@ -388,6 +433,49 @@ func (_c *mockDataAccessRepository_DeleteRole_Call) Return(_a0 error) *mockDataA
 }
 
 func (_c *mockDataAccessRepository_DeleteRole_Call) RunAndReturn(run func(context.Context, string) error) *mockDataAccessRepository_DeleteRole_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
+// DeleteRoleInlinePolicies provides a mock function with given fields: ctx, roleName
+func (_m *mockDataAccessRepository) DeleteRoleInlinePolicies(ctx context.Context, roleName string) error {
+	ret := _m.Called(ctx, roleName)
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
+		r0 = rf(ctx, roleName)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// mockDataAccessRepository_DeleteRoleInlinePolicies_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'DeleteRoleInlinePolicies'
+type mockDataAccessRepository_DeleteRoleInlinePolicies_Call struct {
+	*mock.Call
+}
+
+// DeleteRoleInlinePolicies is a helper method to define mock.On call
+//   - ctx context.Context
+//   - roleName string
+func (_e *mockDataAccessRepository_Expecter) DeleteRoleInlinePolicies(ctx interface{}, roleName interface{}) *mockDataAccessRepository_DeleteRoleInlinePolicies_Call {
+	return &mockDataAccessRepository_DeleteRoleInlinePolicies_Call{Call: _e.mock.On("DeleteRoleInlinePolicies", ctx, roleName)}
+}
+
+func (_c *mockDataAccessRepository_DeleteRoleInlinePolicies_Call) Run(run func(ctx context.Context, roleName string)) *mockDataAccessRepository_DeleteRoleInlinePolicies_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *mockDataAccessRepository_DeleteRoleInlinePolicies_Call) Return(_a0 error) *mockDataAccessRepository_DeleteRoleInlinePolicies_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *mockDataAccessRepository_DeleteRoleInlinePolicies_Call) RunAndReturn(run func(context.Context, string) error) *mockDataAccessRepository_DeleteRoleInlinePolicies_Call {
 	_c.Call.Return(run)
 	return _c
 }

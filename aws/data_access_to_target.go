@@ -3,11 +3,9 @@ package aws
 import (
 	"context"
 	"fmt"
-	"sort"
-	"strings"
-
 	"github.com/pkg/errors"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
+	"sort"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
@@ -48,8 +46,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		return err
 	}
 
-	managedPoliciesToModify := []AccessWithWho{}
 	// Need to separate roles and policies as they can have the same name
+	policyAps := map[string]*sync_to_target.AccessProvider{}
+	roleAps := map[string]*sync_to_target.AccessProvider{}
 	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{}
 	roleInheritanceMap := map[string]set.Set[string]{}
 	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{}
@@ -71,16 +70,19 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		var apActionMap map[string]string
 		var inheritanceMap map[string]set.Set[string]
 		var whoBindings map[string]set.Set[PolicyBinding]
+		var aps map[string]*sync_to_target.AccessProvider
 
 		switch *ap.Type {
 		case string(Role):
 			apActionMap = roleActionMap
 			inheritanceMap = roleInheritanceMap
 			whoBindings = newRoleWhoBindings
+			aps = roleAps
 		case string(Policy):
 			apActionMap = policyActionMap
 			inheritanceMap = policyInheritanceMap
 			whoBindings = newPolicyWhoBindings
+			aps = policyAps
 		default:
 			return fmt.Errorf("unsupported access provider type: %s", *ap.Type)
 		}
@@ -106,75 +108,42 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			}
 
 			continue
-		} else if *ap.Type == string(Role) {
+		} else if *ap.Type == string(Role) || *ap.Type == string(Policy) {
+			// Map the role/policy name to the AP source
+			aps[name] = ap
+
+			// Check the action to perform and store it.
 			action := UpdateAction
 			if !found {
 				action = CreateAction
 			}
 			apActionMap[name] = action
-		} else if *ap.Type == string(Policy) {
-			// Policies, are currently always generated as managed policies.
-			managedPoliciesToModify = append(managedPoliciesToModify, AccessWithWho{
-				Name: name,
-				What: ap.What,
-				// Who:  ap.Who, // irrelevant, is through binding
-			})
-			action := ""
 
-			if !found {
-				logger.Info(fmt.Sprintf("Policy with name %s not found in existing policies. Adding to create list.", name))
-				action = CreateAction
-			} else {
-				logger.Info(fmt.Sprintf("Policy with name %s found. Adding to update list.", name))
-				action = UpdateAction
-			}
-			apActionMap[name] = action
-		} /* else if strings.Contains(*ap.Type, "inline_policy") {
-			var localErr error
+			// Storing the inheritance information to handle every we covered all APs
+			apInheritFromNames := resolveInheritedApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
+			inheritanceMap[name] = set.NewSet(apInheritFromNames...)
 
-			// always convert an internal inline policy to a managed policy
-			entityName, entityType, localErr := a.repo.GetAttachedEntity(*ap)
-			logger.Info("Processing inline policy %s, for entity %s/%s", ap.Name, entityType, entityName)
-			if localErr != nil {
-				return localErr
+			// Handling the WHO by converting it to policy bindings
+			whoBindings[name] = set.Set[PolicyBinding]{}
+
+			// Shouldn't use ap.Who.UsersInherited, because this works across non-allowed boundaries (e.g. (User)<-[:WHO]-(Role)<-[:WHO]-(Policy))
+			for _, user := range ap.Who.Users {
+				key := PolicyBinding{
+					Type:         UserResourceType,
+					ResourceName: user,
+				}
+				whoBindings[name].Add(key)
 			}
 
-			// Deleting the inline policy
-			inlinePolicyWithEntityMap[name] = PolicyBinding{
-				ResourceName: entityName,
-				Type:         entityType,
+			for _, group := range ap.Who.Groups {
+				key := PolicyBinding{
+					Type:         GroupResourceType,
+					ResourceName: group,
+					PolicyName:   name,
+				}
+
+				whoBindings[name].Add(key)
 			}
-			inlineActionPolicyMap[name] = DeleteAction
-
-			// Creating the managed policy instead
-			managedPoliciesToModify = append(managedPoliciesToModify, AccessWithWho{
-				Name: name,
-				What: ap.What,
-			})
-			policyActionMap[name] = CreateAction
-		}*/
-
-		apInheritFromNames := resolveInheritedApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
-		inheritanceMap[name] = set.NewSet(apInheritFromNames...)
-		whoBindings[name] = set.Set[PolicyBinding]{}
-
-		// Shouldn't use ap.Who.UsersInherited, because this works across non-allowed boundaries (e.g. (User)<-[:WHO]-(Role)<-[:WHO]-(Policy))
-		for _, user := range ap.Who.Users {
-			key := PolicyBinding{
-				Type:         UserResourceType,
-				ResourceName: user,
-			}
-			whoBindings[name].Add(key)
-		}
-
-		for _, group := range ap.Who.Groups {
-			key := PolicyBinding{
-				Type:         GroupResourceType,
-				ResourceName: group,
-				PolicyName:   name,
-			}
-
-			whoBindings[name].Add(key)
 		}
 	}
 
@@ -201,33 +170,16 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			assumeRoles[roleName] = set.NewSet(newRoleWhoBindings[roleName].Slice()...)
 		}
 
-		if roleAction == CreateAction {
-			logger.Info(fmt.Sprintf("Creating role %s", roleName))
-
-			if len(assumeRoles[roleName]) == 0 {
-				return fmt.Errorf("cannot create Role %s, no users are assigned to it", roleName)
-			}
-
-			userNames := []string{}
-			// TODO currently assumes all bindings are users. This should also look at groups.
-			for _, binding := range assumeRoles[roleName].Slice() {
-				userNames = append(userNames, binding.ResourceName)
-			}
-
-			sort.Strings(userNames)
-			err = a.repo.CreateRole(ctx, roleName, "", userNames)
-
-			if err != nil {
-				return err
-			}
-		} else if roleAction == DeleteAction {
+		if roleAction == DeleteAction {
+			// TODO delete inline policies or is that done automatically.
 			logger.Info(fmt.Sprintf("Removing role %s", roleName))
 
 			err = a.repo.DeleteRole(ctx, roleName)
 			if err != nil {
 				return err
 			}
-		} else if roleAction == UpdateAction {
+		} else if roleAction == CreateAction || roleAction == UpdateAction {
+			// Getting the who
 			userNames := []string{}
 			// TODO currently assumes all bindings are users. This should also look at groups.
 			for _, binding := range assumeRoles[roleName].Slice() {
@@ -239,12 +191,42 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				continue
 			}
 
-			logger.Info(fmt.Sprintf("Updating users for role %s: %s", roleName, userNames))
-
 			sort.Strings(userNames)
-			err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
-			if err != nil {
-				return err
+
+			// Getting the what
+			ap := roleAps[roleName]
+			statements := createPolicyStatementsFromWhat(ap.What)
+
+			if roleAction == CreateAction {
+				logger.Info(fmt.Sprintf("Creating role %s", roleName))
+
+				// Create the new role with the who
+				err = a.repo.CreateRole(ctx, roleName, "", userNames)
+				if err != nil {
+					return err
+				}
+			} else {
+				logger.Info(fmt.Sprintf("Updating role %s", roleName))
+
+				// Handle the who
+				err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
+				if err != nil {
+					return err
+				}
+
+				// Cleanup the old inline policies for the what
+				err = a.repo.DeleteRoleInlinePolicies(ctx, roleName)
+				if err != nil {
+					return err
+				}
+			}
+
+			if len(statements) > 0 {
+				// Create the inline policy for the what
+				err = a.repo.CreateRoleInlinePolicy(ctx, roleName, "Raito_Inline_"+roleName, statements)
+				if err != nil {
+					return err
+				}
 			}
 		} else {
 			logger.Debug(fmt.Sprintf("no action needed for role %q", roleName))
@@ -256,56 +238,33 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// ============================================================
 
 	// create or update policy, overwrite what / policy document
-	logger.Info(fmt.Sprintf("policies to add: %v", managedPoliciesToModify))
+	logger.Info(fmt.Sprintf("policies to add or update: %v", policyAps))
 
-	for ind := range managedPoliciesToModify {
-		policy := managedPoliciesToModify[ind]
-		policyInfo := map[string][]string{}
+	for name, ap := range policyAps {
+		action := policyActionMap[name]
 
-		logger.Info(fmt.Sprintf("Process policy %s, action: %s", policy.Name, policyActionMap[policy.Name]))
+		logger.Info(fmt.Sprintf("Process policy %s, action: %s", name, action))
 
-		for _, what := range policy.What {
-			if len(what.Permissions) == 0 {
-				continue
-			}
+		statements := createPolicyStatementsFromWhat(ap.What)
 
-			if _, found := policyInfo[what.DataObject.FullName]; !found {
-				policyInfo[what.DataObject.FullName] = what.Permissions
-			}
-		}
+		if action == CreateAction {
+			logger.Info(fmt.Sprintf("Creating policy %s", name))
 
-		var statements []awspolicy.Statement
-		for resource, actions := range policyInfo {
-			statements = append(statements, awspolicy.Statement{
-				Resource: []string{convertFullnameToArn(resource, "s3")},
-				Action:   prefixActionsWithService("s3", actions...),
-				Effect:   "Allow",
-			})
-		}
-
-		if strings.Contains(policy.Name, "/") {
-			logger.Info(fmt.Sprintf("skipping policy creation for %s", policy.Name))
-			continue
-		}
-
-		if policyActionMap[policy.Name] == CreateAction {
-			logger.Info(fmt.Sprintf("Creating policy %s", policy.Name))
-
-			_, err = a.repo.CreateManagedPolicy(ctx, policy.Name, statements)
+			_, err = a.repo.CreateManagedPolicy(ctx, name, statements)
 			if err != nil {
 				return err
 			}
-		} else if policyActionMap[policy.Name] == UpdateAction {
-			logger.Info(fmt.Sprintf("Updating policy %s", policy.Name))
-			err = a.repo.UpdateManagedPolicy(ctx, policy.Name, statements)
+		} else if action == UpdateAction {
+			logger.Info(fmt.Sprintf("Updating policy %s", name))
+			err = a.repo.UpdateManagedPolicy(ctx, name, statements)
 			if err != nil {
 				return err
 			}
 		}
 	}
 
-	for policy, policy_state := range policyActionMap {
-		if policy_state == DeleteAction {
+	for policy, policyState := range policyActionMap {
+		if policyState == DeleteAction {
 			logger.Info(fmt.Sprintf("Deleting managed policy: %s", policy))
 
 			err = a.repo.DeleteManagedPolicy(ctx, policy)
@@ -405,6 +364,31 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	return nil
+}
+
+func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspolicy.Statement {
+	policyInfo := map[string][]string{}
+
+	for _, what := range whatItems {
+		if len(what.Permissions) == 0 {
+			continue
+		}
+
+		if _, found := policyInfo[what.DataObject.FullName]; !found {
+			policyInfo[what.DataObject.FullName] = what.Permissions
+		}
+	}
+
+	var statements []awspolicy.Statement
+	for resource, actions := range policyInfo {
+		statements = append(statements, awspolicy.Statement{
+			Resource: []string{convertFullnameToArn(resource, "s3")},
+			Action:   actions,
+			Effect:   "Allow",
+		})
+	}
+
+	return statements
 }
 
 func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {

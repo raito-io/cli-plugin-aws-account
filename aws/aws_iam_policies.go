@@ -203,6 +203,70 @@ func (repo *AwsIamRepository) GetPolicyArn(policyName string, configMap *config.
 	}.String()
 }
 
+func (repo *AwsIamRepository) DeleteRoleInlinePolicies(ctx context.Context, roleName string) error {
+	client, err := repo.GetIamClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	// TODO we should handle paging here (unlikely there are too many though)
+	listPoliciesOutput, err := client.ListRolePolicies(ctx, &iam.ListRolePoliciesInput{
+		RoleName: &roleName,
+		MaxItems: aws.Int32(100),
+	})
+	if err != nil {
+		return err
+	}
+
+	for _, policyName := range listPoliciesOutput.PolicyNames {
+		_, err2 := client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
+			RoleName:   &roleName,
+			PolicyName: &policyName,
+		})
+		if err2 != nil {
+			return err
+		}
+
+		logger.Info(fmt.Sprintf("Deleted inline policy %s for role %s", policyName, roleName))
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error {
+	client, err := repo.GetIamClient(ctx)
+	if err != nil {
+		return err
+	}
+
+	if len(statements) == 0 {
+		logger.Warn(fmt.Sprintf("No statements/What provided for policy %s, skipping create", policyName))
+		return nil
+	}
+
+	policyDoc, err := repo.createPolicyDocument(statements)
+	if err != nil {
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Policy document for role inline policy creation: %s", policyDoc))
+
+	_, err = client.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
+		PolicyDocument: &policyDoc,
+		PolicyName:     &policyName,
+		RoleName:       &roleName,
+	})
+
+	if err != nil {
+		logger.Info(fmt.Sprintf("Failed to create inline policy %q for role %q: %s", policyName, roleName, err.Error()))
+		return err
+	}
+
+	logger.Info(fmt.Sprintf("Inline policy %q for role %q created", policyName, roleName))
+
+	return nil
+}
+
 func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
