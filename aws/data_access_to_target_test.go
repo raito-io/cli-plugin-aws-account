@@ -116,7 +116,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().UpdateAssumeEntities(ctx, "data_engineering_sync", []string{"stewart_b", "n_nguyen"}).Return(nil).Once()
+	repoMock.EXPECT().UpdateAssumeEntities(ctx, "data_engineering_sync", []string{"n_nguyen", "stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))

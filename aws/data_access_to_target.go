@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -213,6 +214,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				userNames = append(userNames, binding.ResourceName)
 			}
 
+			sort.Strings(userNames)
 			err = a.repo.CreateRole(ctx, roleName, "", userNames)
 			if err != nil {
 				return err
@@ -238,6 +240,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 			logger.Info(fmt.Sprintf("Updating users for role %s: %s", roleName, userNames))
 
+			sort.Strings(userNames)
 			err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
 			if err != nil {
 				return err
