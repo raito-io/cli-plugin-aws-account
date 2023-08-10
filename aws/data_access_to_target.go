@@ -147,10 +147,20 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 	}
 
-	err = processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingPolicyWhoBindings, existingRoleWhoBindings)
+	logger.Debug(fmt.Sprintf("roleInheritanceMap: %+v", roleInheritanceMap))
+	logger.Debug(fmt.Sprintf("policyInheritanceMap: %+v", policyInheritanceMap))
+	logger.Debug(fmt.Sprintf("newRoleWhoBindings: %+v", newRoleWhoBindings))
+	logger.Debug(fmt.Sprintf("newPolicyWhoBindings: %+v", newPolicyWhoBindings))
+	logger.Debug(fmt.Sprintf("existingPolicyWhoBindings: %+v", existingPolicyWhoBindings))
+	logger.Debug(fmt.Sprintf("existingRoleWhoBindings: %+v", existingRoleWhoBindings))
+
+	err = processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
 	if err != nil {
 		return err
 	}
+
+	logger.Debug(fmt.Sprintf("New policy bindings: %+v", newPolicyWhoBindings))
+	logger.Debug(fmt.Sprintf("New role bindings: %+v", newRoleWhoBindings))
 
 	// ============================================================
 	// ======================= Roles ==============================
@@ -289,43 +299,26 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 	}
 
-	logger.Info(fmt.Sprintf("%d existing policies with bindings", len(existingPolicyWhoBindings)))
-	logger.Info(fmt.Sprintf("%d export policies with bindings", len(newPolicyWhoBindings)))
-	logger.Info(fmt.Sprintf("%d policies with bindings TO ADD", len(policyBindingsToAdd)))
-	logger.Info(fmt.Sprintf("%d policies with bindings TO REMOVE", len(policyBindingsToRemove)))
-
-	for k, v := range policyBindingsToAdd {
-		for _, item := range v.Slice() {
-			logger.Info(fmt.Sprintf("Bindings to add: %s - %s - %s - %s", item.Type, item.ResourceId, item.ResourceName, k))
-		}
-	}
-
-	for k, v := range policyBindingsToRemove {
-		for _, item := range v.Slice() {
-			logger.Info(fmt.Sprintf("Bindings to remove: %s - %s - %s - %s", item.Type, item.ResourceId, item.ResourceName, k))
-		}
-	}
-
 	for policyName, bindings := range policyBindingsToAdd { //nolint: dupl
 		policyArn := a.repo.GetPolicyArn(policyName, configMap)
 
 		for _, binding := range bindings.Slice() {
 			if binding.Type == UserResourceType {
-				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
+				logger.Debug(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachUserToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == GroupResourceType {
-				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
+				logger.Debug(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachGroupToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == RoleResourceType {
-				logger.Info(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
+				logger.Debug(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachRoleToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
@@ -340,21 +333,21 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		for _, binding := range bindings.Slice() {
 			if binding.Type == UserResourceType {
-				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
+				logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachUserFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == GroupResourceType {
-				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
+				logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachGroupFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					return err
 				}
 			} else if binding.Type == RoleResourceType {
-				logger.Info(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
+				logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachRoleFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
