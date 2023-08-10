@@ -215,6 +215,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				}
 
 				// Cleanup the old inline policies for the what
+				// TODO now we delete all the inline policies. Can be made smarter to leave out the ones that don't contain anything we care about?
 				err = a.repo.DeleteRoleInlinePolicies(ctx, roleName)
 				if err != nil {
 					return err
@@ -280,16 +281,16 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	for policy, policyState := range policyActionMap {
 		// only touch the access providers that are in the export
 		if policyState == UpdateAction || policyState == CreateAction {
-			policyBindingsToAdd[policy] = set.NewSet(newRoleWhoBindings[policy].Slice()...)
+			policyBindingsToAdd[policy] = set.NewSet(newPolicyWhoBindings[policy].Slice()...)
 			policyBindingsToAdd[policy].RemoveAll(existingPolicyWhoBindings[policy].Slice()...)
 
 			policyBindingsToRemove[policy] = set.NewSet(existingPolicyWhoBindings[policy].Slice()...)
-			policyBindingsToRemove[policy].RemoveAll(newRoleWhoBindings[policy].Slice()...)
+			policyBindingsToRemove[policy].RemoveAll(newPolicyWhoBindings[policy].Slice()...)
 		}
 	}
 
 	logger.Info(fmt.Sprintf("%d existing policies with bindings", len(existingPolicyWhoBindings)))
-	logger.Info(fmt.Sprintf("%d export policies with bindings", len(newRoleWhoBindings)))
+	logger.Info(fmt.Sprintf("%d export policies with bindings", len(newPolicyWhoBindings)))
 	logger.Info(fmt.Sprintf("%d policies with bindings TO ADD", len(policyBindingsToAdd)))
 	logger.Info(fmt.Sprintf("%d policies with bindings TO REMOVE", len(policyBindingsToRemove)))
 
