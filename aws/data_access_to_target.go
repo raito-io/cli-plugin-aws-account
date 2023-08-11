@@ -168,8 +168,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	assumeRoles := map[string]set.Set[PolicyBinding]{}
 
-	// TODO APs of type "role" with what-elements need to get inline policies to represent that.
-
 	for roleName, roleAction := range roleActionMap {
 		logger.Info(fmt.Sprintf("Processing role %s with action %s", roleName, roleAction))
 
@@ -181,7 +179,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 
 		if roleAction == DeleteAction {
-			// TODO delete inline policies or is that done automatically.
 			logger.Info(fmt.Sprintf("Removing role %s", roleName))
 
 			err = a.repo.DeleteRole(ctx, roleName)
