@@ -97,12 +97,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			return errors.Wrap(err2, fmt.Sprintf("failed to generate actual name for access provider %q", ap.Name))
 		}
 
-		// TODO move to a later stage where it makes more sense (for example, not when deleting the role/policy)
-		err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: name})
-		if err != nil {
-			return errors.Wrap(err, fmt.Sprintf("failed to add feedback for access provider %q", ap.Name))
-		}
-
 		_, found := apActionMap[name]
 
 		if ap.Delete {
@@ -112,6 +106,11 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 			continue
 		} else if apType == string(Role) || apType == string(Policy) {
+			err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: name})
+			if err != nil {
+				return errors.Wrap(err, fmt.Sprintf("failed to add feedback for access provider %q", ap.Name))
+			}
+
 			// Map the role/policy name to the AP source
 			aps[name] = ap
 
@@ -138,14 +137,25 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				whoBindings[name].Add(key)
 			}
 
-			for _, group := range ap.Who.Groups {
-				key := PolicyBinding{
-					Type:         GroupResourceType,
-					ResourceName: group,
-					PolicyName:   name,
-				}
+			if apType == string(Role) {
+				// Roles don't support assignment to groups, so we take the users in the groups and add those directly.
+				for _, user := range ap.Who.UsersInGroups {
+					key := PolicyBinding{
+						Type:         UserResourceType,
+						ResourceName: user,
+					}
 
-				whoBindings[name].Add(key)
+					whoBindings[name].Add(key)
+				}
+			} else {
+				for _, group := range ap.Who.Groups {
+					key := PolicyBinding{
+						Type:         GroupResourceType,
+						ResourceName: group,
+					}
+
+					whoBindings[name].Add(key)
+				}
 			}
 		}
 	}
@@ -189,9 +199,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				return err
 			}
 		} else if roleAction == CreateAction || roleAction == UpdateAction {
-			// Getting the who
-			userNames := []string{}
-			// TODO currently assumes all bindings are users. This should also look at groups.
+			// Getting the who (for roles, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
+			userNames := make([]string, 0, len(assumeRoles[roleName]))
 			for _, binding := range assumeRoles[roleName].Slice() {
 				userNames = append(userNames, binding.ResourceName)
 			}
