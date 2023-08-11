@@ -61,7 +61,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
@@ -127,7 +127,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).Return(nil).Once()
 
@@ -198,8 +198,8 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().CreateRole(ctx, "another_role", "", []string{"nick_n", "stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))

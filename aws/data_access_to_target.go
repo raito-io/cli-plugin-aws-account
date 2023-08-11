@@ -63,7 +63,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 
 		apType := string(Policy)
-		
+
 		if ap.Type == nil {
 			logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
 		} else {
