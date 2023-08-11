@@ -62,10 +62,12 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			continue
 		}
 
-		// TODO have a default type for this.
+		apType := string(Policy)
+		
 		if ap.Type == nil {
-			logger.Warn(fmt.Sprintf("No type provided for access provider %q", ap.Name))
-			continue
+			logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
+		} else {
+			apType = *ap.Type
 		}
 
 		var apActionMap map[string]string
@@ -73,7 +75,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		var whoBindings map[string]set.Set[PolicyBinding]
 		var aps map[string]*sync_to_target.AccessProvider
 
-		switch *ap.Type {
+		switch apType {
 		case string(Role):
 			apActionMap = roleActionMap
 			inheritanceMap = roleInheritanceMap
@@ -85,7 +87,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			whoBindings = newPolicyWhoBindings
 			aps = policyAps
 		default:
-			return fmt.Errorf("unsupported access provider type: %s", *ap.Type)
+			return fmt.Errorf("unsupported access provider type: %s", apType)
 		}
 
 		printDebugAp(*ap)
@@ -109,7 +111,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			}
 
 			continue
-		} else if *ap.Type == string(Role) || *ap.Type == string(Policy) {
+		} else if apType == string(Role) || apType == string(Policy) {
 			// Map the role/policy name to the AP source
 			aps[name] = ap
 
