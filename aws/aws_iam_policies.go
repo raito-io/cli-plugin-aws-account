@@ -219,10 +219,12 @@ func (repo *AwsIamRepository) DeleteRoleInlinePolicies(ctx context.Context, role
 	}
 
 	for _, policyName := range listPoliciesOutput.PolicyNames {
+		pn := policyName
 		_, err2 := client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
 			RoleName:   &roleName,
-			PolicyName: &policyName,
+			PolicyName: &pn,
 		})
+
 		if err2 != nil {
 			return err
 		}

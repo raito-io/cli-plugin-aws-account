@@ -3,9 +3,10 @@ package aws
 import (
 	"context"
 	"fmt"
+	"sort"
+
 	"github.com/pkg/errors"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
-	"sort"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
@@ -208,7 +209,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				logger.Info(fmt.Sprintf("Creating role %s", roleName))
 
 				// Create the new role with the who
-				err = a.repo.CreateRole(ctx, roleName, "", userNames)
+				err = a.repo.CreateRole(ctx, roleName, ap.Description, userNames)
 				if err != nil {
 					return err
 				}
@@ -370,7 +371,7 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspo
 		}
 	}
 
-	var statements []awspolicy.Statement
+	statements := make([]awspolicy.Statement, 0, len(policyInfo))
 	for resource, actions := range policyInfo {
 		statements = append(statements, awspolicy.Statement{
 			Resource: []string{convertFullnameToArn(resource, "s3")},
