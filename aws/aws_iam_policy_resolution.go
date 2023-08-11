@@ -2,7 +2,6 @@ package aws
 
 import (
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/aws/smithy-go/ptr"
@@ -21,7 +20,7 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 		return nil, false
 	}
 
-	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
+	awsAccount := configMap.GetString(AwsAccountId)
 	incomplete := false
 	policyStatements := policy.Statements
 	whoItem := sync_from_target.WhoItem{}
@@ -107,7 +106,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 		return nil, false
 	}
 
-	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
+	awsAccount := configMap.GetString(AwsAccountId)
 	incomplete := false
 	policyStatements := policy.Statements
 	whatMap := make(map[string]set.Set[string])

@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -199,7 +198,7 @@ func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context) (*ds.MetaD
 }
 
 func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {
-	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
+	awsAccount := configMap.GetString(AwsAccountId)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -219,7 +218,7 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 }
 
 func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {
-	awsAccount := strconv.Itoa(configMap.GetInt(AwsAccountId))
+	awsAccount := configMap.GetString(AwsAccountId)
 	emulateFolders := configMap.GetBoolWithDefault(AwsS3EmulateFolderStructure, true)
 
 	if lock == nil {
