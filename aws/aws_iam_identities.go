@@ -191,8 +191,6 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 		marker = resp.Marker
 	}
 
-	logger.Info(fmt.Sprintf("%d roles received from AWS", len(allRoles)))
-
 	result := make([]RoleEntity, 0, len(allRoles))
 
 	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))

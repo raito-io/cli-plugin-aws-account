@@ -13,6 +13,10 @@ func printDebugAp(ap importer.AccessProvider) {
 		logger.Debug(fmt.Sprintf("=================  ap actual name: %v =================  ", *ap.ActualName))
 	}
 
+	if ap.ExternalId != nil {
+		logger.Debug(fmt.Sprintf("=================  ap external id: %v =================  ", *ap.ExternalId))
+	}
+
 	logger.Debug(fmt.Sprintf("=================  ap naming hint: %v =================  ", ap.NamingHint))
 	logger.Debug(fmt.Sprintf("=================  ap ID: %v =================  ", ap.Id))
 

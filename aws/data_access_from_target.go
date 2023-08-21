@@ -111,8 +111,6 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 	logger.Info("Get all roles")
 
 	for _, role := range roles {
-		roleName := fmt.Sprintf("%s%s", RolePrefix, role.Name)
-
 		isRaito := false
 
 		for _, tag := range role.Tags {
@@ -138,10 +136,10 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 			LastUsedDate: role.LastUsedDate,
 			PolicyType:   Role,
 			ApInput: &sync_from_target.AccessProvider{
-				ExternalId: role.Id,
+				ExternalId: RoleTypePrefix + role.Name,
 				Name:       role.Name,
-				ActualName: roleName,
-				NamingHint: roleName,
+				ActualName: role.Name,
+				NamingHint: role.Name,
 				Type:       aws.String(string(Role)),
 				Action:     sync_from_target.Grant,
 				Policy:     "",
@@ -200,7 +198,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 		}
 
 		for _, roleBinding := range policy.RoleBindings {
-			roleBindings = append(roleBindings, fmt.Sprintf("%s%s", RolePrefix, roleBinding.ResourceName))
+			roleBindings = append(roleBindings, roleBinding.ResourceName)
 		}
 
 		if len(groupBindings) == 0 && len(userBindings) == 0 && len(roleBindings) == 0 {
@@ -215,12 +213,14 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 			policyDocument = *policy.PolicyDocument
 		}
 
+		prefixedName := fmt.Sprintf("%s%s", PolicyPrefix, policy.Name)
+
 		apInput := sync_from_target.AccessProvider{
-			ExternalId: policy.Id,
+			ExternalId: PolicyTypePrefix + policy.Name,
 			Name:       policy.Name,
-			ActualName: policy.Name,
+			ActualName: prefixedName,
 			Type:       aws.String(string(Policy)),
-			NamingHint: fmt.Sprintf("%s%s", ManagedPrefix, policy.Name),
+			NamingHint: prefixedName,
 			Action:     sync_from_target.Grant,
 			Policy:     policyDocument,
 			Who: &sync_from_target.WhoItem{
@@ -316,11 +316,17 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 
 		name := "User " + user + " inline policies"
 
+		var policyIds strings.Builder
+		for i := range policies {
+			policyIds.WriteString(policies[i].Name)
+			policyIds.WriteString("|")
+		}
+
 		aps = append(aps, AccessProviderInputExtended{
 			PolicyType: Policy,
 			ApInput: &sync_from_target.AccessProvider{
 				// As internal policies don't have an ID we use the policy ARN
-				ExternalId: name,
+				ExternalId: UserTypePrefix + user + "|" + InlinePrefix + policyIds.String(),
 				Name:       name,
 				Type:       aws.String(string(Policy)),
 				NamingHint: "",
@@ -345,11 +351,17 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 
 		name := "Group " + group + " inline policies"
 
+		var policyIds strings.Builder
+		for i := range policies {
+			policyIds.WriteString(policies[i].Name)
+			policyIds.WriteString("|")
+		}
+
 		aps = append(aps, AccessProviderInputExtended{
 			PolicyType: Policy,
 			ApInput: &sync_from_target.AccessProvider{
 				// As internal policies don't have an ID we use the policy ARN
-				ExternalId: name,
+				ExternalId: GroupTypePrefix + group + "|" + InlinePrefix + policyIds.String(),
 				Name:       name,
 				Type:       aws.String(string(Policy)),
 				NamingHint: "",
@@ -385,6 +397,13 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 
 		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
 
+		var policyIds strings.Builder
+		for i := range policies {
+			policyIds.WriteString(policies[i].Name)
+			policyIds.WriteString("|")
+		}
+
+		roleAp.ExternalId = RoleTypePrefix + role + "|" + InlinePrefix + policyIds.String()
 		roleAp.Policy = policyDocuments
 		roleAp.What = whatItems
 		roleAp.Incomplete = ptr.Bool(incomplete || (roleAp.Incomplete != nil && *roleAp.Incomplete))

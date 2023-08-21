@@ -25,18 +25,18 @@ type UserEntity struct {
 	Tags       []*tag.Tag
 }
 
-type PolicyType string
+type AccessProviderType string
 
 const (
-	Role    PolicyType = "aws_role"
-	SSORole PolicyType = "aws_sso_role"
-	Policy  PolicyType = "aws_policy"
+	Role    AccessProviderType = "aws_role"
+	SSORole AccessProviderType = "aws_sso_role"
+	Policy  AccessProviderType = "aws_policy"
 )
 
 type AccessProviderInputExtended struct {
 	ApInput      *sync_from_target.AccessProvider
 	LastUsedDate *time.Time
-	PolicyType   PolicyType
+	PolicyType   AccessProviderType
 }
 
 type RoleEntity struct {
@@ -56,7 +56,7 @@ type PolicyEntity struct {
 	Id                       string
 	Description              string
 	AttachmentCount          int32
-	PolicyType               PolicyType
+	PolicyType               AccessProviderType
 	InlineParent             *string
 	AssumeRolePolicyDocument *string
 	AwsManaged               bool

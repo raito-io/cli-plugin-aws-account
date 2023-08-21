@@ -27,8 +27,8 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	managedPolicies, err := getObjects[PolicyEntity]("testdata/aws/test_managed_policies.json")
 	require.Nil(t, err)
 
-	repoMock.EXPECT().GetManagedPolicies(context.TODO(), true).Return(managedPolicies, nil).Once()
-	repoMock.EXPECT().GetRoles(context.TODO()).Return(roles, nil).Once()
+	repoMock.EXPECT().GetManagedPolicies(mock.Anything, true).Return(managedPolicies, nil).Once()
+	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
 
 	return repoMock, syncer
 }

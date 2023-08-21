@@ -31,14 +31,11 @@ Over time, multiple AWS services will be supported, but at the moment only S3 is
  - Synchronize the access providers from Raito Cloud into IAM/S3 permissions
  - Synchronize the data usage from CloudTrail to Raito Cloud.
 
-<!-- below, TODO -->
-
 ## To Do
 
 * Access from AWS to Raito
   * Pretty print policy document JSONs
 * Access from Raito to AWS
-  * When an 'internal policy' AP gets internalized. The old/relevant internal policies need to be removed. Use tagging for this?
   * Access-as-code
   * Limit the data we fetch and possibly don't need
 * Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
@@ -52,7 +49,6 @@ Not planned for now
 * Permission boundaries
 * Bucket Policies
 * Bucket ACLs
-
 
 ## Prerequisites
 To use this plugin, you will need

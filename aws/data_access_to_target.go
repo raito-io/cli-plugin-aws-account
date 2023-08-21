@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"sort"
+	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
@@ -55,6 +56,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{}
 	policyInheritanceMap := map[string]set.Set[string]{}
 
+	inlineUserPoliciesToDelete := map[string][]string{}
+	inlineGroupPoliciesToDelete := map[string][]string{}
+
 	for i := range accessProviders.AccessProviders {
 		ap := accessProviders.AccessProviders[i]
 
@@ -97,6 +101,31 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			return errors.Wrap(err2, fmt.Sprintf("failed to generate actual name for access provider %q", ap.Name))
 		}
 
+		// Check the incoming external ID to see if there is a list of inline policies defined
+		if ap.ExternalId != nil && strings.Contains(*ap.ExternalId, InlinePrefix) {
+			eId := *ap.ExternalId
+
+			logger.Info(fmt.Sprintf("Processing externalId %q for access provider %q", eId, ap.Name))
+
+			inlineString := eId[strings.Index(eId, InlinePrefix)+len(InlinePrefix):]
+			inlinePolicies := strings.Split(inlineString, "|")
+
+			// Note: for roles we currently don't do this as we simply remove/replace all the inline policies
+			if strings.HasPrefix(eId, UserTypePrefix) {
+				entityName := eId[len(UserTypePrefix):strings.Index(eId, "|")]
+
+				inlineUserPoliciesToDelete[entityName] = inlinePolicies
+
+				logger.Info(fmt.Sprintf("Handled inline policies for user %q: %v", entityName, inlinePolicies))
+			} else if strings.HasPrefix(eId, GroupTypePrefix) {
+				entityName := eId[len(GroupTypePrefix):strings.Index(eId, "|")]
+
+				inlineGroupPoliciesToDelete[entityName] = inlinePolicies
+
+				logger.Info(fmt.Sprintf("Handled inline policies for group %q: %v", entityName, inlinePolicies))
+			}
+		}
+
 		_, found := apActionMap[name]
 
 		if ap.Delete {
@@ -106,7 +135,14 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 			continue
 		} else if apType == string(Role) || apType == string(Policy) {
-			err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: name})
+			externalId := name
+			if apType == string(Role) {
+				externalId = fmt.Sprintf("%s|%s", RoleTypePrefix, name)
+			} else {
+				externalId = fmt.Sprintf("%s|%s", PolicyTypePrefix, name)
+			}
+
+			err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: name, ExternalId: &externalId})
 			if err != nil {
 				return errors.Wrap(err, fmt.Sprintf("failed to add feedback for access provider %q", ap.Name))
 			}
@@ -176,7 +212,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	logger.Debug(fmt.Sprintf("New role bindings: %+v", newRoleWhoBindings))
 
 	// ============================================================
-	// ======================= Roles ==============================
+	// ========================== Roles ===========================
 	// ============================================================
 
 	assumeRoles := map[string]set.Set[PolicyBinding]{}
@@ -233,8 +269,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 					return err
 				}
 
-				// Cleanup the old inline policies for the what
-				// TODO now we delete all the inline policies. Can be made smarter to leave out the ones that don't contain anything we care about?
+				// For roles, we always delete all the inline policies.
+				// If we wouldn't do that, we would be blind on what the role actually looks like.
+				// If new permissions are supported later on, we would never see them.
 				err = a.repo.DeleteRoleInlinePolicies(ctx, roleName)
 				if err != nil {
 					return err
@@ -366,6 +403,34 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 	}
 
+	// Delete old inline policies on users that are not needed anymore
+	for user, inlinePolicies := range inlineUserPoliciesToDelete {
+		logger.Info(fmt.Sprintf("Deleting inline polices for user %q: %v", user, inlinePolicies))
+
+		for _, inlinePolicy := range inlinePolicies {
+			inlinePolicy = strings.TrimSpace(inlinePolicy)
+			if inlinePolicy != "" {
+				err2 := a.repo.DeleteInlinePolicy(ctx, inlinePolicy, user, UserResourceType)
+				if err2 != nil {
+					logger.Warn(fmt.Sprintf("error while deleting inline policy %q for user %q: %s", inlinePolicy, user, err2.Error()))
+				}
+			}
+		}
+	}
+
+	// Delete old inline policies on groups that are not needed anymore
+	for group, inlinePolicies := range inlineGroupPoliciesToDelete {
+		for _, inlinePolicy := range inlinePolicies {
+			inlinePolicy = strings.TrimSpace(inlinePolicy)
+			if inlinePolicy != "" {
+				err2 := a.repo.DeleteInlinePolicy(ctx, inlinePolicy, group, GroupResourceType)
+				if err2 != nil {
+					logger.Warn(fmt.Sprintf("error while deleting inline policy %q for group %q: %s", inlinePolicy, group, err2.Error()))
+				}
+			}
+		}
+	}
+
 	return nil
 }
 
@@ -418,7 +483,6 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 		existingRoleAssumptions[role.Name] = set.Set[PolicyBinding]{}
 
 		for _, userName := range userBindings {
-			// TODO what about groups and roles?
 			key := PolicyBinding{
 				Type:         UserResourceType,
 				ResourceName: userName,
