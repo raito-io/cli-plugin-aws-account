@@ -21,7 +21,6 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	syncer := &AccessSyncer{
 		repo:            repoMock,
 		managedPolicies: nil,
-		inlinePolicies:  nil,
 	}
 
 	roles, err := getObjects[RoleEntity]("testdata/aws/test_roles.json")

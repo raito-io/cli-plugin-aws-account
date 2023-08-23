@@ -19,7 +19,6 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	syncer := &AccessSyncer{
 		repo:            repoMock,
 		managedPolicies: nil,
-		inlinePolicies:  nil,
 	}
 
 	managedPolicies, err := getObjects[PolicyEntity]("testdata/aws/test_managed_policies.json")
