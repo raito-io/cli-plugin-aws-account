@@ -137,9 +137,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		} else if apType == string(Role) || apType == string(Policy) {
 			externalId := name
 			if apType == string(Role) {
-				externalId = fmt.Sprintf("%s|%s", RoleTypePrefix, name)
+				externalId = fmt.Sprintf("%s%s", RoleTypePrefix, name)
 			} else {
-				externalId = fmt.Sprintf("%s|%s", PolicyTypePrefix, name)
+				externalId = fmt.Sprintf("%s%s", PolicyTypePrefix, name)
 			}
 
 			err = accessProviderFeedbackHandler.AddAccessProviderFeedback(ap.Id, sync_to_target.AccessSyncFeedbackInformation{AccessId: ap.Id, ActualName: name, ExternalId: &externalId})
@@ -464,7 +464,7 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 
 	roles, err := a.repo.GetRoles(ctx)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("error fetching existing roles: %w", err)
 	}
 
 	roleMap := map[string]string{}
@@ -477,7 +477,7 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 
 		userBindings, localErr := a.repo.GetPrincipalsFromAssumeRolePolicyDocument(role.AssumeRolePolicyDocument)
 		if localErr != nil {
-			return nil, nil, localErr
+			return nil, nil, fmt.Errorf("error fetching existing roles: %w", err)
 		}
 
 		existingRoleAssumptions[role.Name] = set.Set[PolicyBinding]{}
@@ -497,7 +497,7 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
 	managedPolicies, err := a.repo.GetManagedPolicies(ctx, true)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, fmt.Errorf("error fetching existing managed policies: %w", err)
 	}
 
 	a.managedPolicies = managedPolicies

@@ -3,6 +3,8 @@ package aws
 import (
 	"context"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/smithy-go/ptr"
+	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/util/config"
@@ -65,6 +67,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -129,9 +132,16 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
-	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).Return(nil).Once()
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []awspolicy.Statement{{
+		Effect: "Allow",
+		Action: []string{"p1", "p2"},
+		Resource: []string{
+			"arn:aws:s3:::test_file",
+		},
+	}}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -203,6 +213,8 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("another", sync_to_target.AccessSyncFeedbackInformation{AccessId: "another", ActualName: "another_role", ExternalId: ptr.String(RoleTypePrefix + "another_role")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -260,6 +272,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	repoMock.EXPECT().DeleteRoleInlinePolicies(ctx, "data_engineering_sync").Return(nil).Once()
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "data_engineering_sync", ExternalId: ptr.String(RoleTypePrefix + "data_engineering_sync")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -268,9 +281,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	// Then
 	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
 	repoMock.AssertNotCalled(t, "GetAttachedEntity")
-	// repoMock.AssertNotCalled(t, "CreateRole")
 	repoMock.AssertNotCalled(t, "DeleteRole")
-	// repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
 	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
 	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
 	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
@@ -324,7 +335,6 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
 	repoMock.AssertNotCalled(t, "GetAttachedEntity")
 	repoMock.AssertNotCalled(t, "CreateRole")
-	// repoMock.AssertCalled(t, "DeleteRole")
 	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
 	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
 	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
@@ -339,389 +349,143 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
 }
 
-/*
-func TestSyncAccessProviderToTarget_NoInternalApRequiresNoProcessing(t *testing.T) {
-	repo := newMockDataAccessRepository(t)
-
-	syncer := &AccessSyncer{
-		repoProvider: func() dataAccessRepository {
-			return repo
-		},
-		managedPolicies: nil,
-		inlinePolicies:  nil,
-	}
-
-	//When
-	err := syncer.SyncAccessProviderToTarget(context.Background(), nil, nil, nil)
-
-	// Then
-	require.Nil(t, err)
-	repo.AssertNotCalled(t, "GetRoles")
-	repo.AssertNotCalled(t, "GetManagedPolicies")
-
-	exportedAps := importer.AccessProviderImport{
-		LastCalculated:  time.Now().Unix(),
-		AccessProviders: []*importer.AccessProvider{},
-	}
-
-	//When
-	err = syncer.SyncAccessProviderToTarget(context.Background(), &exportedAps, nil, nil)
-
-	// Then
-	require.Nil(t, err)
-	repo.AssertNotCalled(t, "GetRoles")
-	repo.AssertNotCalled(t, "GetManagedPolicies")
-}
-
-func TestSyncAccessProviderToTarget_CreatedNewManagedPolicy(t *testing.T) {
+func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
 	configmap := config.ConfigMap{}
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
+	}
 	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
 
-	exportedAps := importer.AccessProviderImport{
+	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
-		AccessProviders: []*importer.AccessProvider{
+		AccessProviders: []*sync_to_target.AccessProvider{
 			{
+				// To fake that this is an internalized AP that was representing the inline policies of a user called 'userke'
+				ExternalId:  ptr.String(UserTypePrefix + "userke|" + InlinePrefix + "inline1|inline2"),
 				Id:          "something",
-				Name:        "Test Access Provider",
-				Description: "something",
-				NamingHint:  "test_access_provider",
-				Type:        aws.String(string(ManagedPolicy)),
+				Name:        "TestPolicy",
+				Description: "a test policy",
+				NamingHint:  "test_policy",
+				Type:        aws.String(string(Policy)),
 
 				Action: sync_to_target.Grant,
 
-				ActualName: aws.String("test_access_provider"),
+				ActualName: aws.String("test_policy"),
+
+				Who: sync_to_target.WhoItem{
+					Users:  []string{"stewart_b"},
+					Groups: []string{"g1"},
+				},
+
 				What: []sync_to_target.WhatItem{
 					{
-						Permissions: []string{"ListBucket"},
 						DataObject: &data_source.DataObjectReference{
-							Type:     data_source.File,
-							FullName: "s3://raito-data-usage/testfile.parquet",
+							FullName: "test_file",
+							Type:     "file",
 						},
+						Permissions: []string{"p1", "p2"},
 					},
-				},
-				Who: sync_to_target.WhoItem{
-					Users: []string{"benjamin_stewart"},
 				},
 			},
 		},
 	}
 
-	statements := []awspolicy.Statement{
-		{
-			Effect:   "Allow",
-			Action:   []string{"s3:ListBucket"},
-			Resource: []string{"arn:aws:s3:::s3://raito-data-usage/testfile.parquet"},
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", []awspolicy.Statement{{
+		Effect: "Allow",
+		Action: []string{"p1", "p2"},
+		Resource: []string{
+			"arn:aws:s3:::test_file",
 		},
-	}
-	repoMock.EXPECT().CreateManagedPolicy(ctx, &configmap, "test_access_provider", statements).Return(nil, nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything, &configmap, mock.Anything).Return([]string{}, nil)
-	repoMock.EXPECT().GetPolicyArn("test_access_provider", &configmap).Return("dummy_arn").Twice()
-	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, &configmap, "dummy_arn", []string{"benjamin_stewart"}).Return(nil).Once()
+	}}).Return(nil, nil).Once()
+	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+	repoMock.EXPECT().GetPolicyArn("test_policy", mock.Anything).Return("arn:test_policy").Twice()
+	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline1", "userke", UserResourceType).Return(nil).Once()
+	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline2", "userke", UserResourceType).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().AttachGroupToManagedPolicy(ctx, "arn:test_policy", []string{"g1"}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_policy", ExternalId: ptr.String(PolicyTypePrefix + "test_policy")})
 
 	// When
-	err := syncer.SyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
 	require.Nil(t, err)
 
 	// Then
-	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
-	repoMock.AssertNotCalled(t, "GetAttachedEntity")
-	repoMock.AssertNotCalled(t, "CreateRole")
 	repoMock.AssertNotCalled(t, "DeleteRole")
-	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
-	// repoMock.AssertCalled(t, "CreateManagedPolicy")
-	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
-	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
-	repoMock.AssertNotCalled(t, "GetPolicyArn")
-	// repoMock.AssertCalled(t, "AttachUserToManagedPolicy")
-	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
-	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
-}
-
-func TestSyncAccessProviderToTarget_DeleteManagedPolicy(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
-	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
-
-	exportedAps := importer.AccessProviderImport{
-		LastCalculated: time.Now().Unix(),
-		AccessProviders: []*importer.AccessProvider{
-			{
-				Id:          "something",
-				Name:        "SalesReadS3Policy",
-				Description: "something",
-				Delete:      true,
-				NamingHint:  "SalesReadS3Policy",
-				Type:        aws.String(string(ManagedPolicy)),
-
-				Action: sync_to_target.Grant,
-
-				ActualName: aws.String("SalesReadS3Policy"),
-				What: []sync_to_target.WhatItem{
-					{
-						Permissions: []string{"GetObject"},
-						DataObject: &data_source.DataObjectReference{
-							Type:     data_source.File,
-							FullName: "raito-operational-data/clean/Sales",
-						},
-					},
-					{
-						Permissions: []string{"GetObject"},
-						DataObject: &data_source.DataObjectReference{
-							Type:     data_source.File,
-							FullName: "raito-operational-data/derived/sales_overview.parquet",
-						},
-					},
-				},
-				Who: sync_to_target.WhoItem{
-					Users: []string{"benjamin_stewart"},
-				},
-			},
-		},
-	}
-
-	// Detaching users happens under the hood
-	repoMock.EXPECT().DeleteManagedPolicy(ctx, &configmap, "SalesReadS3Policy").Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything, &configmap, mock.Anything).Return([]string{}, nil)
-
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-
-	// When
-	err := syncer.SyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
-	require.Nil(t, err)
-
-	// Then
-	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
-	repoMock.AssertNotCalled(t, "GetAttachedEntity")
 	repoMock.AssertNotCalled(t, "CreateRole")
-	repoMock.AssertNotCalled(t, "DeleteRole")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
 	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
 	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
 	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
-	// repoMock.AssertCalled(t, "DeleteManagedPolicy")
-	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
 	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
 	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
 	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
 }
 
-func TestSyncAccessProviderToTarget_DeleteNonExistingManagedPolicy(t *testing.T) {
+func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
 	configmap := config.ConfigMap{}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
-
-	exportedAps := importer.AccessProviderImport{
-		LastCalculated: time.Now().Unix(),
-		AccessProviders: []*importer.AccessProvider{
-			{
-				Id:          "something",
-				Name:        "SalesReadS3Policydkdkdkdkd",
-				Description: "something",
-				Delete:      true,
-				NamingHint:  "SalesReadS3Policydkdkdkdkd",
-				Type:        aws.String(string(ManagedPolicy)),
-
-				Action: sync_to_target.Grant,
-
-				ActualName: aws.String("SalesReadS3Policydkdkdkdkd"),
-			},
-		},
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
 	}
-
-	// Detaching users happens under the hood
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything, &configmap, mock.Anything).Return([]string{}, nil)
-
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-
-	// When
-	err := syncer.SyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
-	require.Nil(t, err)
-
-	// Then
-	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
-	repoMock.AssertNotCalled(t, "GetAttachedEntity")
-	repoMock.AssertNotCalled(t, "CreateRole")
-	repoMock.AssertNotCalled(t, "DeleteRole")
-	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
-	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
-	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
-	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
-	repoMock.AssertNotCalled(t, "GetPolicyArn")
-	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
-	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
-	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
-}
-
-func TestSyncAccessProviderToTarget_InternalizedInlinePolicyBecomesManagedPolicyWhenAddingWho(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
-	ctx := context.Background()
-	configmap := config.ConfigMap{}
 	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
 
-	exportedAps := importer.AccessProviderImport{
+	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
-		AccessProviders: []*importer.AccessProvider{
+		AccessProviders: []*sync_to_target.AccessProvider{
 			{
 				Id:          "something",
-				Name:        "Test Access Provider",
-				Description: "something",
-				NamingHint:  "test_access_provider",
-				Type:        aws.String(string(InlinePolicyUser)),
+				Name:        "TestPolicy",
+				Description: "a test policy",
+				NamingHint:  "test policy",
+				Type:        aws.String(string(Policy)),
 
 				Action: sync_to_target.Grant,
 
-				ActualName: aws.String("test_access_provider"),
-				What: []sync_to_target.WhatItem{
-					{
-						Permissions: []string{"ListBucket"},
-						DataObject: &data_source.DataObjectReference{
-							Type:     data_source.File,
-							FullName: "s3://raito-data-usage/testfile.parquet",
-						},
-					},
-				},
 				Who: sync_to_target.WhoItem{
-					Users: []string{"benjamin_stewart", "dustin_hayden"},
+					Users: []string{"stewart_b"},
+				},
+			},
+			{
+				Id:          "another",
+				Name:        "AnotherPolicy",
+				Description: "another policy",
+				NamingHint:  "another policy",
+				Type:        aws.String(string(Policy)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"nick_n"},
+					InheritFrom: []string{"ID:something"},
 				},
 			},
 		},
 	}
 
-	statements := []awspolicy.Statement{
-		{
-			Effect:   "Allow",
-			Action:   []string{"s3:ListBucket"},
-			Resource: []string{"arn:aws:s3:::s3://raito-data-usage/testfile.parquet"},
-		},
-	}
-
-	repoMock.EXPECT().CreateManagedPolicy(ctx, &configmap, "test_access_provider", statements).Return(nil, nil).Once()
-
-	repoMock.EXPECT().GetAttachedEntity(*exportedAps.AccessProviders[0]).Return("user1", "user", nil).Once()
-	repoMock.EXPECT().DeleteInlinePolicy(ctx, &configmap, "test_access_provider", "user1", "user").Return(nil).Once()
-
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything, &configmap, mock.Anything).Return([]string{}, nil)
-	repoMock.EXPECT().GetPolicyArn("test_access_provider", &configmap).Return("dummy_arn").Twice()
-	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, &configmap, "dummy_arn", []string{"benjamin_stewart"}).Return(nil).Once()
-	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, &configmap, "dummy_arn", []string{"dustin_hayden"}).Return(nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "another_policy", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().GetPolicyArn("test_policy", mock.Anything).Return("arn:test_policy")
+	repoMock.EXPECT().GetPolicyArn("another_policy", mock.Anything).Return("arn:another_policy").Twice()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"nick_n"}).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_policy", ExternalId: ptr.String(PolicyTypePrefix + "test_policy")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("another", sync_to_target.AccessSyncFeedbackInformation{AccessId: "another", ActualName: "another_policy", ExternalId: ptr.String(PolicyTypePrefix + "another_policy")})
 
 	// When
-	err := syncer.SyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
-	require.Nil(t, err)
-
-	// Then
-	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
-	repoMock.AssertNotCalled(t, "GetAttachedEntity")
-	repoMock.AssertNotCalled(t, "CreateRole")
-	repoMock.AssertNotCalled(t, "DeleteRole")
-	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
-	// repoMock.AssertCalled(t, "CreateManagedPolicy")
-	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
-	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
-	repoMock.AssertNotCalled(t, "GetPolicyArn")
-	// repoMock.AssertCalled(t, "AttachUserToManagedPolicy")
-	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
-	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
-	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
-	// repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
-}
-
-func SyncAccessProviderToTarget_PolicyCannotBeTheWhoOfRole(t *testing.T) {
-
-}
-
-func TestSyncAccessProviderToTarget_ApInheritanceWorksAsExpected(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
-	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
-
-	exportedAps, err := getObject[importer.AccessProviderImport]("testdata/raito/test_ap_inheritance.json")
-	require.Nil(t, err)
-
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything, &configmap, mock.Anything).Return([]string{}, nil)
-
-	// RoleDataEngineer
-	repoMock.On("CreateRole", ctx, &configmap, "RoleDataEngineer", "",
-		mock.MatchedBy(func(userNames []string) bool {
-			return elementsMatch(userNames, []string{"stewart_b", "jobs_de"})
-		})).Return(nil).Once()
-	repoMock.On("UpdateAssumeEntities", ctx, &configmap, "RoleDataEngineer",
-		mock.MatchedBy(func(userNames []string) bool {
-			return elementsMatch(userNames, []string{"stewart_b", "jobs_de"})
-		})).Return(nil).Once()
-
-	// RoleDataAnalyst
-	repoMock.On("CreateRole", ctx, &configmap, "RoleDataAnalyst", "", mock.MatchedBy(func(userNames []string) bool {
-		return elementsMatch(userNames, []string{"atkinson_a", "stewart_b", "jobs_de"})
-	})).Return(nil).Once()
-	repoMock.On("UpdateAssumeEntities", ctx, &configmap, "RoleDataAnalyst", mock.MatchedBy(func(userNames []string) bool {
-		return elementsMatch(userNames, []string{"atkinson_a", "stewart_b", "jobs_de"})
-	})).Return(nil).Once()
-
-	// TestFileProvider
-	statements := []awspolicy.Statement{
-		{
-			Effect:   "Allow",
-			Action:   []string{"s3:ListBucket"},
-			Resource: []string{"arn:aws:s3:::raito-operational-data"},
-		},
-	}
-	repoMock.EXPECT().CreateManagedPolicy(ctx, &configmap, "TestFileProvider", statements).Return(nil, nil).Once()
-	repoMock.EXPECT().GetPolicyArn("TestFileProvider", &configmap).Return("ARN_TestFileProvider").Twice()
-	repoMock.On("AttachUserToManagedPolicy", ctx, &configmap, "ARN_TestFileProvider", []string{"jobs_de"}).Return(nil).Once()
-	repoMock.On("AttachUserToManagedPolicy", ctx, &configmap, "ARN_TestFileProvider", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestFileProvider", []string{"data_engineer"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestFileProvider", []string{"data_analyst"}).Return(nil).Once()
-	repoMock.On("AttachRoleToManagedPolicy", ctx, &configmap, "ARN_TestFileProvider", []string{"RoleDataAnalyst"}).Return(nil).Once()
-	repoMock.On("AttachRoleToManagedPolicy", ctx, &configmap, "ARN_TestFileProvider", []string{"RoleDataEngineer"}).Return(nil).Once()
-
-	// TestProvider
-	statements = []awspolicy.Statement{
-		{
-			Effect:   "Allow",
-			Action:   []string{"s3:GetBucketLocation"},
-			Resource: []string{"arn:aws:s3:::raito-operational-data"},
-		},
-	}
-	repoMock.EXPECT().CreateManagedPolicy(ctx, &configmap, "TestProvider", statements).Return(nil, nil).Once()
-	repoMock.EXPECT().GetPolicyArn("TestProvider", &configmap).Return("ARN_TestProvider").Twice()
-	repoMock.On("AttachUserToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"jobs_de"}).Return(nil).Once()
-	repoMock.On("AttachUserToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"marketing"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"human_resources"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"finance"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"sales"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"data_engineer"}).Return(nil).Once()
-	repoMock.On("AttachGroupToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"data_analyst"}).Return(nil).Once()
-	repoMock.On("AttachRoleToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"RoleDataAnalyst"}).Return(nil).Once()
-	repoMock.On("AttachRoleToManagedPolicy", ctx, &configmap, "ARN_TestProvider", []string{"RoleDataEngineer"}).Return(nil).Once()
-
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-
-	// When
-	err = syncer.SyncAccessProviderToTarget(ctx, exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
 	require.Nil(t, err)
 
 	// Then
@@ -729,46 +493,259 @@ func TestSyncAccessProviderToTarget_ApInheritanceWorksAsExpected(t *testing.T) {
 	repoMock.AssertNotCalled(t, "GetAttachedEntity")
 	// repoMock.AssertNotCalled(t, "CreateRole")
 	repoMock.AssertNotCalled(t, "DeleteRole")
-	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
-	// repoMock.AssertCalled(t, "CreateManagedPolicy")
+	// repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
 	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
 	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
 	repoMock.AssertNotCalled(t, "GetPolicyArn")
-	// repoMock.AssertCalled(t, "AttachUserToManagedPolicy")
-	// repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
-	// repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
-
 }
 
-func contains(element string, list []string) bool {
-	for _, el := range list {
-		if el == element {
-			return true
-		}
+func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
+	repoMock, syncer := setupMockExportEnvironment(t)
+	ctx := context.Background()
+	configmap := config.ConfigMap{}
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
 	}
-	return false
+	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "p1",
+				Name:        "P1",
+				Description: "test policy1",
+				NamingHint:  "p1",
+				Type:        aws.String(string(Policy)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"user1"},
+					InheritFrom: []string{"ID:p3"},
+				},
+			},
+			{
+				Id:          "p2",
+				Name:        "P2",
+				Description: "test policy2",
+				NamingHint:  "p2",
+				Type:        aws.String(string(Policy)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"user2"},
+					InheritFrom: []string{"ID:p3"},
+				},
+			},
+			{
+				Id:          "p3",
+				Name:        "P3",
+				Description: "test policy3",
+				NamingHint:  "p3",
+				Type:        aws.String(string(Policy)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"user3"},
+					InheritFrom: []string{"ID:r1"},
+				},
+			},
+			{
+				Id:          "r1",
+				Name:        "r1",
+				Description: "test role1",
+				NamingHint:  "r1",
+				Type:        aws.String(string(Role)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"user4"},
+					InheritFrom: []string{"ID:r2"},
+				},
+			},
+			{
+				Id:          "r2",
+				Name:        "r2",
+				Description: "test role2",
+				NamingHint:  "r2",
+				Type:        aws.String(string(Role)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users: []string{"user5"},
+				},
+			},
+		},
+	}
+
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "p1", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "p2", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "p3", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().GetPolicyArn("p1", mock.Anything).Return("arn:p1")
+	repoMock.EXPECT().GetPolicyArn("p2", mock.Anything).Return("arn:p2")
+	repoMock.EXPECT().GetPolicyArn("p3", mock.Anything).Return("arn:p3")
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p1", []string{"user1"}).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p1", []string{"user3"}).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p2", []string{"user2"}).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p2", []string{"user3"}).Return(nil).Once()
+	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p3", []string{"user3"}).Return(nil).Once()
+
+	repoMock.EXPECT().CreateRole(ctx, "r1", "test role1", []string{"user4", "user5"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "r2", "test role2", []string{"user5"}).Return(nil).Once()
+
+	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p1", []string{"r1"}).Return(nil).Once()
+	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p2", []string{"r1"}).Return(nil).Once()
+	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p3", []string{"r1"}).Return(nil).Once()
+	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p1", []string{"r2"}).Return(nil).Once()
+	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p2", []string{"r2"}).Return(nil).Once()
+	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p3", []string{"r2"}).Return(nil).Once()
+
+	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("p1", sync_to_target.AccessSyncFeedbackInformation{AccessId: "p1", ActualName: "p1", ExternalId: ptr.String(PolicyTypePrefix + "p1")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("p2", sync_to_target.AccessSyncFeedbackInformation{AccessId: "p2", ActualName: "p2", ExternalId: ptr.String(PolicyTypePrefix + "p2")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("p3", sync_to_target.AccessSyncFeedbackInformation{AccessId: "p3", ActualName: "p3", ExternalId: ptr.String(PolicyTypePrefix + "p3")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("r1", sync_to_target.AccessSyncFeedbackInformation{AccessId: "r1", ActualName: "r1", ExternalId: ptr.String(RoleTypePrefix + "r1")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback("r2", sync_to_target.AccessSyncFeedbackInformation{AccessId: "r2", ActualName: "r2", ExternalId: ptr.String(RoleTypePrefix + "r2")})
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	// repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	// repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
 }
 
-func elementsMatch(x, y []string) bool {
-	if len(x) != len(y) {
-		return false
+func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
+	repoMock, syncer := setupMockExportEnvironment(t)
+	ctx := context.Background()
+	configmap := config.ConfigMap{}
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
 	}
-	diff := make(map[string]int, len(x))
-	for _, _x := range x {
-		diff[_x]++
+	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something",
+				Name:        "HumanResourcesReadS3Policy",
+				Description: "a test policy",
+				Delete:      true,
+				NamingHint:  "HumanResourcesReadS3Policy",
+				Type:        aws.String(string(Policy)),
+
+				Action: sync_to_target.Grant,
+
+				ActualName: aws.String("HumanResourcesReadS3Policy"),
+			},
+		},
 	}
-	for _, _y := range y {
-		if _, ok := diff[_y]; !ok {
-			return false
-		}
-		diff[_y] -= 1
-		if diff[_y] == 0 {
-			delete(diff, _y)
-		}
+
+	repoMock.EXPECT().DeleteManagedPolicy(ctx, "HumanResourcesReadS3Policy").Return(nil).Once()
+	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
+	repoMock, syncer := setupMockExportEnvironment(t)
+	ctx := context.Background()
+	configmap := config.ConfigMap{}
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
 	}
-	return len(diff) == 0
-}*/
+	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something",
+				Name:        "test_policy",
+				Description: "a test policy",
+				Delete:      true,
+				NamingHint:  "test_policy",
+				Type:        aws.String(string(Policy)),
+
+				Action: sync_to_target.Grant,
+
+				ActualName: aws.String("test_policy"),
+			},
+		},
+	}
+
+	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
