@@ -42,7 +42,6 @@ type dataAccessRepository interface {
 type AccessSyncer struct {
 	repo            dataAccessRepository
 	managedPolicies []PolicyEntity
-	inlinePolicies  []PolicyEntity
 }
 
 func NewDataAccessSyncer() *AccessSyncer {
