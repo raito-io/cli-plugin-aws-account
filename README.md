@@ -60,7 +60,12 @@ authentication options: https://docs.aws.amazon.com/sdkref/latest/guide/standard
 
 ## Warnings and Limitations
 
-** IMPORTANT WARNING: The plugin currently recognizes a limited set of permissions and services, (currently only S3). As a result, only policies and roles encompassing these permissions will be incorporated into Raito Cloud. This presents a partial representation of the entire AWS IAM environment. It's crucial to consider this limitation when internalizing external Access Controls into Raito Cloud, as it might override or even eliminate roles, policies, or permissions in AWS IAM that the plugin doesn't recognize. Hence, it's preferable to create new Access Controls rather than internalizing existing ones. Users will receive a warning if they attempt to internalize an Access Control that could be incomplete.**
+The plugin only supports a limited set of features and permissions from AWS IAM. In most cases, warnings are logged when things the plugin comes across features it does not support.
+
+ - Only policy statements with the `Allow` effect are taken into consideration. This means that, for example, 'Deny' policies are not supported.
+ - Permission boundaries are not supported 
+ - S3 Bucket Policies and Bucket ACLs are current not supported
+ - IMPORTANT WARNING: The plugin only recognizes a limited set of permissions and services, (currently only S3). As a result, only policies and roles encompassing these permissions will be incorporated into Raito Cloud. This presents a partial representation of the entire AWS IAM environment. It's crucial to consider this limitation when internalizing external Access Controls into Raito Cloud, as it might override or even eliminate roles, policies, or permissions in AWS IAM that the plugin doesn't recognize. Hence, it's preferable to create new Access Controls rather than internalizing existing ones. Users will receive a warning if they attempt to internalize an Access Control that could be incomplete.
 
 ## Usage
 To use the plugin, add the following snippet to your Raito CLI configuration file (`raito.yml`, by default) under the `targets` section:
@@ -82,18 +87,16 @@ Next, replace the values of the indicated fields with your specific values, or u
 - `data-source-id`: The ID of the Data source you created in Raito Cloud.
 - `identity-store-id`: The ID of the Identity Store you created in Raito Cloud.
 - `aws-account-id`: The ID of the AWS account you want to sync. Make sure to remove the hyphens.
-- `aws-profile`: The AWS SDK profile to use for connecting to the AWS account to synchronize. When not specified, the default profile is used (or what is defined in the AWS_PROFILE environment variable).
-- `aws-region`: The AWS region to use for connecting to the AWS account to synchronize. When not specified, the default region as found by the AWS SDK is used.
-- `aws-organization-profile`: The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.
-- `aws-organization-region`: The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and `aws-organization-profile` parameter is defined, the default region for the profile will be used.
-- `aws-concurrency`: The number of threads to use for concurrent API calls to AWS. The default is 5.
-
+- `aws-profile` (optional): The AWS SDK profile to use for connecting to the AWS account to synchronize. When not specified, the default profile is used (or what is defined in the AWS_PROFILE environment variable).
+- `aws-region` (optional): The AWS region to use for connecting to the AWS account to synchronize. When not specified, the default region as found by the AWS SDK is used.
+- `aws-organization-profile` (optional): The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.
+- `aws-organization-region` (optional): The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and `aws-organization-profile` parameter is defined, the default region for the profile will be used.
+- `aws-concurrency` (optional): The number of threads to use for concurrent API calls to AWS. The default is 5.
 - `aws-s3-emulate-folder-structure` (optional): If set to true, S3 objects will be organized in a folder structure, just as in the AWS console. If set to false, you'll get a flat list of all files within a bucket. True, by default.
 - `aws-s3-max-folder-depth` (optional): The maximum folder depth that will be synced. Beyond this, no folders or files will be synced. If not set, 20 is used as default.
 - `aws-s3-cloudtrail-bucket`: The S3 bucket where S3 usage data, generated by AWS CloudTrail, is stored.
 - `aws-s3-include-buckets` (optional): Comma-separated list of buckets to include. If specified, only these buckets will be handled. Wildcards (*) can be used.
 - `aws-s3-exclude-buckets` (optional): Comma-separated list of buckets to exclude. If specified, these buckets will not be handled. Wildcard (*) can be used. Excludes have preference over includes.
-
 
 You will also need to configure the Raito CLI further to connect to your Raito Cloud account, if that's not set up yet.
 A full guide on how to configure the Raito CLI can be found on (http://docs.raito.io/docs/cli/configuration).
