@@ -48,9 +48,15 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 
 	bucket := configMap.GetString(AwsS3CloudTrailBucket)
 
+	if bucket == "" {
+		logger.Warn("No usage cloud trail bucket specified.")
+
+		return nil
+	}
+
 	allUsageFiles, err := repo.ListFiles(ctx, bucket, nil)
 	if err != nil {
-		return err
+		return fmt.Errorf("error while reading usage files from S3 bucket: %w", err)
 	}
 
 	logger.Info(fmt.Sprintf("A total of %d usage files found in bucket %s", len(allUsageFiles), bucket))

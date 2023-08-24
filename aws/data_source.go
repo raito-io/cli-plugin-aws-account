@@ -246,7 +246,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
-				maxFolderDepth := configMap.GetIntWithDefault(AwsS3MaxFolderDepth, 100)
+				maxFolderDepth := configMap.GetIntWithDefault(AwsS3MaxFolderDepth, 20)
 
 				parts := strings.Split(entity.Key, "/")
 				parentExternalId := entity.ParentKey
