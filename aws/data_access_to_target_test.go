@@ -2,6 +2,11 @@ package aws
 
 import (
 	"context"
+	"slices"
+	"sort"
+	"testing"
+	"time"
+
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/smithy-go/ptr"
 	awspolicy "github.com/n4ch04/aws-policy"
@@ -13,10 +18,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"slices"
-	"sort"
-	"testing"
-	"time"
 )
 
 func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *AccessSyncer) {
