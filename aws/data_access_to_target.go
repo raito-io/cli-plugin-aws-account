@@ -134,7 +134,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			}
 
 			continue
-		} else if apType == string(Role) || apType == string(Policy) {
+		} else {
 			externalId := name
 			if apType == string(Role) {
 				externalId = fmt.Sprintf("%s%s", RoleTypePrefix, name)
@@ -239,11 +239,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			userNames := make([]string, 0, len(assumeRoles[roleName]))
 			for _, binding := range assumeRoles[roleName].Slice() {
 				userNames = append(userNames, binding.ResourceName)
-			}
-
-			// TODO Why is this? A role cannot have 0 bindings?
-			if len(userNames) == 0 {
-				continue
 			}
 
 			sort.Strings(userNames)

@@ -123,6 +123,7 @@ Note: if you have multiple targets configured in your configuration file, you ca
 * Access from AWS to Raito
   * Pretty print policy document JSONs
 * Access from Raito to AWS
+  * Inheritance for roles with their own WHAT needs to be handled differently: the WHAT needs to be inherited in that case.
   * Access-as-code
   * Limit the data we fetch and possibly don't need
 * Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
