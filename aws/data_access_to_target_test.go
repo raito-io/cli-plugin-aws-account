@@ -9,8 +9,12 @@ import (
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers/mocks"
+	"github.com/raito-io/golang-set/set"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"slices"
+	"sort"
 	"testing"
 	"time"
 )
@@ -189,6 +193,15 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 				Who: sync_to_target.WhoItem{
 					Users: []string{"stewart_b"},
 				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "file1",
+							Type:     "file",
+						},
+						Permissions: []string{"p1", "p2"},
+					},
+				},
 			},
 			{
 				Id:          "another",
@@ -203,6 +216,15 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 					Users:       []string{"nick_n"},
 					InheritFrom: []string{"ID:something"},
 				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "folder1",
+							Type:     "folder",
+						},
+						Permissions: []string{"p3"},
+					},
+				},
 			},
 		},
 	}
@@ -210,6 +232,32 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
+
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).RunAndReturn(func(ctx context.Context, s string, s2 string, statements []awspolicy.Statement) error {
+		assert.Equal(t, 2, len(statements))
+
+		file := false
+		folder := false
+		for _, statement := range statements {
+			if statement.Resource[0] == "arn:aws:s3:::file1" {
+				file = true
+				assert.True(t, slices.Contains(statement.Action, "p1"))
+				assert.True(t, slices.Contains(statement.Action, "p2"))
+			} else if statement.Resource[0] == "arn:aws:s3:::folder1" {
+				folder = true
+				assert.True(t, slices.Contains(statement.Action, "p3"))
+			}
+		}
+
+		assert.True(t, file && folder)
+		return nil
+	}).Once()
+
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "another_role", "Raito_Inline_another_role", []awspolicy.Statement{{
+		Effect:   "Allow",
+		Action:   []string{"p3"},
+		Resource: []string{"arn:aws:s3:::folder1"},
+	}}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
 	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
@@ -747,4 +795,35 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestGetRecursiveInheritedAPs(t *testing.T) {
+	var tests = []struct {
+		Start          string
+		InheritanceMap map[string]set.Set[string]
+		ExpectedResult []string
+	}{
+		{"r1", map[string]set.Set[string]{
+			"r1": set.NewSet("r2"),
+			"r2": set.NewSet("r3"),
+		}, []string{"r2", "r3"}},
+
+		{"r1", map[string]set.Set[string]{
+			"r0": set.NewSet("r1"),
+			"r1": set.NewSet("r2", "r3"),
+			"r3": set.NewSet("r5"),
+			"r4": set.NewSet("r2"),
+		}, []string{"r2", "r3", "r5"}},
+	}
+
+	for _, test := range tests {
+		inherited := set.NewSet[string]()
+
+		getRecursiveInheritedAPs(test.Start, test.InheritanceMap, inherited)
+
+		res := inherited.Slice()
+		sort.Strings(res)
+
+		assert.Equal(t, res, test.ExpectedResult)
+	}
 }

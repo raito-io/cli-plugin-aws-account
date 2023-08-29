@@ -123,7 +123,6 @@ Note: if you have multiple targets configured in your configuration file, you ca
 * Access from AWS to Raito
   * Pretty print policy document JSONs
 * Access from Raito to AWS
-  * Inheritance for roles with their own WHAT needs to be handled differently: the WHAT needs to be inherited in that case.
   * Access-as-code
   * Limit the data we fetch and possibly don't need
 * Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
@@ -131,6 +130,9 @@ Note: if you have multiple targets configured in your configuration file, you ca
 * To improve: Error handling (for concurrent jobs). See 'error handling' TODOs
 * Have standard logging for all messages where we skip things because we don't support it. For example, always start with 'UNSUPPORTED: '
 * How do we handle the case where the name of a policy is the same as the name of a role? We seem to be putting them in the same maps.
+* Documentation (readme and docs)
+  * How role and policy inheritance is handled 'to target'
+  * How inline policies are handled 'from target'
 
 Not planned for now
 * Denies as Action in policies

@@ -146,10 +146,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 
 			if err == nil {
 				fullName = removeEndingWildcards(convertArnToFullname(resource))
-
-				if strings.HasSuffix(fullName, "/") {
-					fullName = fullName[0 : len(fullName)-1]
-				}
+				fullName = strings.TrimSuffix(fullName, "")
 
 				isBucket := !strings.Contains(fullName, "/")
 

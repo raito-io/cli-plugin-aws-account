@@ -53,6 +53,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	roleAps := map[string]*sync_to_target.AccessProvider{}
 	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{}
 	roleInheritanceMap := map[string]set.Set[string]{}
+	inverseRoleInheritanceMap := map[string]set.Set[string]{}
 	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{}
 	policyInheritanceMap := map[string]set.Set[string]{}
 
@@ -183,6 +184,14 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 					whoBindings[name].Add(key)
 				}
+
+				// For roles we also build the reverse inheritance map
+				for _, inheritFrom := range apInheritFromNames {
+					if _, f := inverseRoleInheritanceMap[inheritFrom]; !f {
+						inverseRoleInheritanceMap[inheritFrom] = set.NewSet[string]()
+					}
+					inverseRoleInheritanceMap[inheritFrom].Add(name)
+				}
 			} else {
 				for _, group := range ap.Who.Groups {
 					key := PolicyBinding{
@@ -246,6 +255,12 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			// Getting the what
 			ap := roleAps[roleName]
 			statements := createPolicyStatementsFromWhat(ap.What)
+
+			// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
+			inheritedAPs := getAllAPsInInheritanceChainForWhat(roleName, inverseRoleInheritanceMap, roleAps)
+			for _, inheritedAP := range inheritedAPs {
+				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.What)...)
+			}
 
 			if roleAction == CreateAction {
 				logger.Info(fmt.Sprintf("Creating role %s", roleName))
@@ -427,6 +442,31 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	return nil
+}
+
+func getAllAPsInInheritanceChainForWhat(start string, inverseRoleInheritanceMap map[string]set.Set[string], roleAps map[string]*sync_to_target.AccessProvider) []*sync_to_target.AccessProvider {
+	inherited := set.NewSet[string]()
+	getRecursiveInheritedAPs(start, inverseRoleInheritanceMap, inherited)
+
+	aps := make([]*sync_to_target.AccessProvider, 0, len(inherited))
+
+	is := inherited.Slice()
+	for _, i := range is {
+		aps = append(aps, roleAps[i])
+	}
+
+	return aps
+}
+
+func getRecursiveInheritedAPs(start string, inverseRoleInheritanceMap map[string]set.Set[string], inherited set.Set[string]) {
+	if in, f := inverseRoleInheritanceMap[start]; f {
+		for k := range in {
+			if !inherited.Contains(k) {
+				inherited.Add(k)
+				getRecursiveInheritedAPs(k, inverseRoleInheritanceMap, inherited)
+			}
+		}
+	}
 }
 
 func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspolicy.Statement {
