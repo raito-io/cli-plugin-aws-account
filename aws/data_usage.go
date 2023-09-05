@@ -119,7 +119,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 
 func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan string, repo dataUsageRepository,
 	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex) {
-	logger.Info("Starting worker")
+	logger.Info("Starting data usage worker")
 
 	for fileKey := range fileChan {
 		parts := strings.Split(fileKey, "/")

@@ -351,13 +351,13 @@ func (_c *mockDataAccessRepository_DeleteInlinePolicy_Call) RunAndReturn(run fun
 	return _c
 }
 
-// DeleteManagedPolicy provides a mock function with given fields: ctx, policyName
-func (_m *mockDataAccessRepository) DeleteManagedPolicy(ctx context.Context, policyName string) error {
-	ret := _m.Called(ctx, policyName)
+// DeleteManagedPolicy provides a mock function with given fields: ctx, policyName, awsManaged
+func (_m *mockDataAccessRepository) DeleteManagedPolicy(ctx context.Context, policyName string, awsManaged bool) error {
+	ret := _m.Called(ctx, policyName, awsManaged)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, policyName)
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool) error); ok {
+		r0 = rf(ctx, policyName, awsManaged)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -373,13 +373,14 @@ type mockDataAccessRepository_DeleteManagedPolicy_Call struct {
 // DeleteManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
 //   - policyName string
-func (_e *mockDataAccessRepository_Expecter) DeleteManagedPolicy(ctx interface{}, policyName interface{}) *mockDataAccessRepository_DeleteManagedPolicy_Call {
-	return &mockDataAccessRepository_DeleteManagedPolicy_Call{Call: _e.mock.On("DeleteManagedPolicy", ctx, policyName)}
+//   - awsManaged bool
+func (_e *mockDataAccessRepository_Expecter) DeleteManagedPolicy(ctx interface{}, policyName interface{}, awsManaged interface{}) *mockDataAccessRepository_DeleteManagedPolicy_Call {
+	return &mockDataAccessRepository_DeleteManagedPolicy_Call{Call: _e.mock.On("DeleteManagedPolicy", ctx, policyName, awsManaged)}
 }
 
-func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) Run(run func(ctx context.Context, policyName string)) *mockDataAccessRepository_DeleteManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, awsManaged bool)) *mockDataAccessRepository_DeleteManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(bool))
 	})
 	return _c
 }
@@ -389,7 +390,7 @@ func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) RunAndReturn(run func(context.Context, string) error) *mockDataAccessRepository_DeleteManagedPolicy_Call {
+func (_c *mockDataAccessRepository_DeleteManagedPolicy_Call) RunAndReturn(run func(context.Context, string, bool) error) *mockDataAccessRepository_DeleteManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -836,13 +837,13 @@ func (_c *mockDataAccessRepository_GetManagedPolicies_Call) RunAndReturn(run fun
 	return _c
 }
 
-// GetPolicyArn provides a mock function with given fields: policyName, configMap
-func (_m *mockDataAccessRepository) GetPolicyArn(policyName string, configMap *config.ConfigMap) string {
-	ret := _m.Called(policyName, configMap)
+// GetPolicyArn provides a mock function with given fields: policyName, awsManaged, configMap
+func (_m *mockDataAccessRepository) GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string {
+	ret := _m.Called(policyName, awsManaged, configMap)
 
 	var r0 string
-	if rf, ok := ret.Get(0).(func(string, *config.ConfigMap) string); ok {
-		r0 = rf(policyName, configMap)
+	if rf, ok := ret.Get(0).(func(string, bool, *config.ConfigMap) string); ok {
+		r0 = rf(policyName, awsManaged, configMap)
 	} else {
 		r0 = ret.Get(0).(string)
 	}
@@ -857,14 +858,15 @@ type mockDataAccessRepository_GetPolicyArn_Call struct {
 
 // GetPolicyArn is a helper method to define mock.On call
 //   - policyName string
+//   - awsManaged bool
 //   - configMap *config.ConfigMap
-func (_e *mockDataAccessRepository_Expecter) GetPolicyArn(policyName interface{}, configMap interface{}) *mockDataAccessRepository_GetPolicyArn_Call {
-	return &mockDataAccessRepository_GetPolicyArn_Call{Call: _e.mock.On("GetPolicyArn", policyName, configMap)}
+func (_e *mockDataAccessRepository_Expecter) GetPolicyArn(policyName interface{}, awsManaged interface{}, configMap interface{}) *mockDataAccessRepository_GetPolicyArn_Call {
+	return &mockDataAccessRepository_GetPolicyArn_Call{Call: _e.mock.On("GetPolicyArn", policyName, awsManaged, configMap)}
 }
 
-func (_c *mockDataAccessRepository_GetPolicyArn_Call) Run(run func(policyName string, configMap *config.ConfigMap)) *mockDataAccessRepository_GetPolicyArn_Call {
+func (_c *mockDataAccessRepository_GetPolicyArn_Call) Run(run func(policyName string, awsManaged bool, configMap *config.ConfigMap)) *mockDataAccessRepository_GetPolicyArn_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(string), args[1].(*config.ConfigMap))
+		run(args[0].(string), args[1].(bool), args[2].(*config.ConfigMap))
 	})
 	return _c
 }
@@ -874,7 +876,7 @@ func (_c *mockDataAccessRepository_GetPolicyArn_Call) Return(_a0 string) *mockDa
 	return _c
 }
 
-func (_c *mockDataAccessRepository_GetPolicyArn_Call) RunAndReturn(run func(string, *config.ConfigMap) string) *mockDataAccessRepository_GetPolicyArn_Call {
+func (_c *mockDataAccessRepository_GetPolicyArn_Call) RunAndReturn(run func(string, bool, *config.ConfigMap) string) *mockDataAccessRepository_GetPolicyArn_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1132,13 +1134,13 @@ func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) RunAndReturn(run fun
 	return _c
 }
 
-// UpdateManagedPolicy provides a mock function with given fields: ctx, policyName, statements
-func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) error {
-	ret := _m.Called(ctx, policyName, statements)
+// UpdateManagedPolicy provides a mock function with given fields: ctx, policyName, awsManaged, statements
+func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error {
+	ret := _m.Called(ctx, policyName, awsManaged, statements)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []awspolicy.Statement) error); ok {
-		r0 = rf(ctx, policyName, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool, []awspolicy.Statement) error); ok {
+		r0 = rf(ctx, policyName, awsManaged, statements)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1154,14 +1156,15 @@ type mockDataAccessRepository_UpdateManagedPolicy_Call struct {
 // UpdateManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
 //   - policyName string
+//   - awsManaged bool
 //   - statements []awspolicy.Statement
-func (_e *mockDataAccessRepository_Expecter) UpdateManagedPolicy(ctx interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_UpdateManagedPolicy_Call {
-	return &mockDataAccessRepository_UpdateManagedPolicy_Call{Call: _e.mock.On("UpdateManagedPolicy", ctx, policyName, statements)}
+func (_e *mockDataAccessRepository_Expecter) UpdateManagedPolicy(ctx interface{}, policyName interface{}, awsManaged interface{}, statements interface{}) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+	return &mockDataAccessRepository_UpdateManagedPolicy_Call{Call: _e.mock.On("UpdateManagedPolicy", ctx, policyName, awsManaged, statements)}
 }
 
-func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(bool), args[3].([]awspolicy.Statement))
 	})
 	return _c
 }
@@ -1171,7 +1174,7 @@ func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, bool, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }

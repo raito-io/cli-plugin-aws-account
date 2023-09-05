@@ -194,13 +194,19 @@ func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Con
 	return nil
 }
 
-func (repo *AwsIamRepository) GetPolicyArn(policyName string, configMap *config.ConfigMap) string {
-	return arn.ARN{
+func (repo *AwsIamRepository) GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string {
+	arn := arn.ARN{
 		Partition: "aws",
 		Service:   "iam",
 		AccountID: configMap.GetString(AwsAccountId),
 		Resource:  "policy/" + policyName,
-	}.String()
+	}
+
+	if awsManaged {
+		arn.AccountID = "aws"
+	}
+
+	return arn.String()
 }
 
 func (repo *AwsIamRepository) DeleteRoleInlinePolicies(ctx context.Context, roleName string) error {
@@ -285,7 +291,7 @@ func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyNam
 		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Policy document for managed policy creation: %s", policyDoc))
+	logger.Debug(fmt.Sprintf("Policy document for managed policy creation: %s", policyDoc))
 
 	input := iam.CreatePolicyInput{
 		PolicyDocument: &policyDoc,
@@ -324,22 +330,22 @@ func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statem
 	return policyDoc, nil
 }
 
-func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, repo.ConfigMap)
+	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.ConfigMap)
 
 	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {
-		return err
+		return fmt.Errorf("updating management policy: %w", err)
 	}
 
 	versions, err := client.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyArn})
 	if err != nil {
-		return err
+		return fmt.Errorf("updating management policy: %w", err)
 	}
 
 	// check if the current default policy document is the same as the new one, if so, don't update
@@ -354,16 +360,16 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 		})
 
 		if localErr != nil {
-			return localErr
+			return fmt.Errorf("updating management policy: %w", localErr)
 		}
 
 		existingPolicyDoc, localErr2 := url.QueryUnescape(*defaultVersion.PolicyVersion.Document)
 		if localErr2 != nil {
-			return localErr2
+			return fmt.Errorf("updating management policy: %w", localErr2)
 		}
 
-		logger.Info(existingPolicyDoc)
-		logger.Info(policyDoc)
+		logger.Debug(existingPolicyDoc)
+		logger.Debug(policyDoc)
 
 		if strings.EqualFold(stripWhitespace(existingPolicyDoc), stripWhitespace(policyDoc)) {
 			logger.Info(fmt.Sprintf("Policy %s is already up-to-date", policyName))
@@ -389,7 +395,7 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 				})
 
 				if localErr != nil {
-					return localErr
+					return fmt.Errorf("updating management policy: %w", localErr)
 				}
 
 				break
@@ -403,19 +409,19 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 		SetAsDefault:   true,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("updating management policy: %w", err)
 	}
 
 	return nil
 }
 
-func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyName string) error {
+func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyName string, awsManaged bool) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, repo.ConfigMap)
+	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.ConfigMap)
 
 	emptyPolicy := PolicyEntity{
 		ARN: policyArn,
@@ -423,30 +429,30 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 
 	err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &emptyPolicy)
 	if err != nil {
-		return err
+		return fmt.Errorf("deleting management policy: %w", err)
 	}
 
 	logger.Info(fmt.Sprintf("Detaching %d users from policy %s", len(emptyPolicy.UserBindings), policyArn))
 
 	if localErr := repo.DetachUserFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.UserBindings)); localErr != nil {
-		return localErr
+		return fmt.Errorf("deleting management policy: %w", localErr)
 	}
 
 	logger.Info(fmt.Sprintf("Detaching %d groups from policy %s", len(emptyPolicy.GroupBindings), policyArn))
 
 	if localErr := repo.DetachGroupFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.GroupBindings)); localErr != nil {
-		return localErr
+		return fmt.Errorf("deleting management policy: %w", localErr)
 	}
 
 	logger.Info(fmt.Sprintf("Detaching %d roles from policy %s", len(emptyPolicy.RoleBindings), policyArn))
 
 	if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
-		return localErr
+		return fmt.Errorf("deleting management policy: %w", localErr)
 	}
 
 	versions, err := client.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyArn})
 	if err != nil {
-		return err
+		return fmt.Errorf("deleting management policy: %w", err)
 	}
 
 	for _, version := range versions.Versions {
@@ -457,14 +463,14 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 			})
 
 			if err != nil {
-				return err
+				return fmt.Errorf("deleting management policy: %w", err)
 			}
 		}
 	}
 
 	_, err = client.DeletePolicy(ctx, &iam.DeletePolicyInput{PolicyArn: &policyArn})
 	if err != nil {
-		return err
+		return fmt.Errorf("deleting management policy: %w", err)
 	}
 
 	return nil
@@ -482,7 +488,7 @@ func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, pol
 			UserName:  aws.String(userName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't attach policy %v to user %v. Here's why: %v\n", policyArn, userName, err.Error()))
+			logger.Error(fmt.Sprintf("Couldn't attach policy %v to user %v: %v\n", policyArn, userName, err.Error()))
 			return err
 		}
 	}

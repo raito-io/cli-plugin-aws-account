@@ -2,6 +2,8 @@ package aws
 
 import (
 	"context"
+	"fmt"
+	"reflect"
 	"slices"
 	"sort"
 	"testing"
@@ -37,6 +39,59 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
 
 	return repoMock, syncer
+}
+
+func TestSimplifyPermissions(t *testing.T) {
+	tests := []struct {
+		allPermissions   []string
+		userPermissions  []string
+		expectedSimplify []string
+	}{
+		{
+			[]string{"s3:getObject", "s3:getList", "s3:putObject", "s3:deleteObject"},
+			[]string{"s3:getObject", "s3:getList"},
+			[]string{"s3:get*"},
+		},
+		{
+			[]string{"s3:getObject", "s3:getList", "s3:putObject", "s3:deleteObject"},
+			[]string{"s3:getObject", "s3:getList", "s3:putObject", "s3:deleteObject"},
+			[]string{"s3:*"},
+		},
+		{
+			[]string{"ec2:doStuff", "s3:getObject", "s3:getList", "s3:putObject", "s3:deleteObject"},
+			[]string{"s3:getObject", "s3:getList", "s3:putObject", "s3:deleteObject"},
+			[]string{"s3:*"},
+		},
+		{
+			[]string{"s3:getObject", "s3:getList", "s3:putObject"},
+			[]string{"s3:getObject", "s3:putObject"},
+			[]string{"s3:getObject", "s3:putObject"},
+		},
+		{
+			[]string{"s3:getObject", "s3:getObjectVersions", "s3:putObject", "s3:putObjectAcl", "s3:deleteObject", "ec2:doStuff"},
+			[]string{"s3:getObject", "s3:getObjectVersions", "s3:putObject", "s3:putObjectAcl", "s3:deleteObject", "ec2:doStuff"},
+			[]string{"*"},
+		},
+		{
+			[]string{"s3:getObject", "s3:getObjectVersions", "s3:putObject", "s3:putObjectAcl", "s3:deleteObject", "ec2:doStuff"},
+			[]string{},
+			[]string{},
+		},
+		{
+			[]string{},
+			[]string{"s3:getObject", "s3:getObjectVersions", "s3:putObject", "s3:putObjectAcl", "s3:deleteObject", "ec2:doStuff"},
+			[]string{},
+		},
+	}
+
+	for i, test := range tests {
+		simplified := optimizePermissions(test.allPermissions, test.userPermissions)
+		if reflect.DeepEqual(simplified, test.expectedSimplify) {
+			fmt.Printf("Test case %d passed\n", i+1)
+		} else {
+			fmt.Printf("Test case %d failed. Got %v but expected %v\n", i+1, simplified, test.expectedSimplify)
+		}
+	}
 }
 
 func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
@@ -448,7 +503,7 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 		},
 	}}).Return(nil, nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
-	repoMock.EXPECT().GetPolicyArn("test_policy", mock.Anything).Return("arn:test_policy").Twice()
+	repoMock.EXPECT().GetPolicyArn("test_policy", false, mock.Anything).Return("arn:test_policy").Twice()
 	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline1", "userke", UserResourceType).Return(nil).Once()
 	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline2", "userke", UserResourceType).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
@@ -521,8 +576,8 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 
 	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", mock.Anything).Return(nil, nil).Once()
 	repoMock.EXPECT().CreateManagedPolicy(ctx, "another_policy", mock.Anything).Return(nil, nil).Once()
-	repoMock.EXPECT().GetPolicyArn("test_policy", mock.Anything).Return("arn:test_policy")
-	repoMock.EXPECT().GetPolicyArn("another_policy", mock.Anything).Return("arn:another_policy").Twice()
+	repoMock.EXPECT().GetPolicyArn("test_policy", false, mock.Anything).Return("arn:test_policy")
+	repoMock.EXPECT().GetPolicyArn("another_policy", false, mock.Anything).Return("arn:another_policy").Twice()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"nick_n"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"stewart_b"}).Return(nil).Once()
@@ -642,9 +697,9 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	repoMock.EXPECT().CreateManagedPolicy(ctx, "p1", mock.Anything).Return(nil, nil).Once()
 	repoMock.EXPECT().CreateManagedPolicy(ctx, "p2", mock.Anything).Return(nil, nil).Once()
 	repoMock.EXPECT().CreateManagedPolicy(ctx, "p3", mock.Anything).Return(nil, nil).Once()
-	repoMock.EXPECT().GetPolicyArn("p1", mock.Anything).Return("arn:p1")
-	repoMock.EXPECT().GetPolicyArn("p2", mock.Anything).Return("arn:p2")
-	repoMock.EXPECT().GetPolicyArn("p3", mock.Anything).Return("arn:p3")
+	repoMock.EXPECT().GetPolicyArn("p1", false, mock.Anything).Return("arn:p1")
+	repoMock.EXPECT().GetPolicyArn("p2", false, mock.Anything).Return("arn:p2")
+	repoMock.EXPECT().GetPolicyArn("p3", false, mock.Anything).Return("arn:p3")
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p1", []string{"user1"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p1", []string{"user3"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p2", []string{"user2"}).Return(nil).Once()
@@ -720,7 +775,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().DeleteManagedPolicy(ctx, "HumanResourcesReadS3Policy").Return(nil).Once()
+	repoMock.EXPECT().DeleteManagedPolicy(ctx, "HumanResourcesReadS3Policy", false).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))

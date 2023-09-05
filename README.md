@@ -120,16 +120,15 @@ Note: if you have multiple targets configured in your configuration file, you ca
 
 ## To Do
 
-* Access from AWS to Raito
-  * Pretty print policy document JSONs
 * Access from Raito to AWS
+  * When writing policy statements we are running into the sizing limits very quickly due to the expansion of all the permissions. We should have a smart system that looks for the most optimal prefixes to use e.g. s3:*
   * Access-as-code
   * Limit the data we fetch and possibly don't need
+  * No support for aws_sso_role yet (organization)
 * Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
 * Support for other AWS partitions everywhere (e.g. china and gov-cloud) (typically not working in arn matching)
 * To improve: Error handling (for concurrent jobs). See 'error handling' TODOs
-* Have standard logging for all messages where we skip things because we don't support it. For example, always start with 'UNSUPPORTED: '
-* How do we handle the case where the name of a policy is the same as the name of a role? We seem to be putting them in the same maps.
+* How do we handle the case where the name of a policy is the same as the name of a role? This would currently create problems
 * Documentation (readme and docs)
   * How role and policy inheritance is handled 'to target'
   * How inline policies are handled 'from target'

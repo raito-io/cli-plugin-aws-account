@@ -9,18 +9,13 @@ import (
 )
 
 var metaData *ds.MetaData
+var dataObjects map[string]*ds.DataObjectType
 var mu sync.Mutex
 
 func GetDataObjectType(name string) *ds.DataObjectType {
-	md := GetS3MetaData()
+	GetS3MetaData()
 
-	for _, dot := range md.DataObjectTypes {
-		if dot.Name == name {
-			return dot
-		}
-	}
-
-	return nil
+	return dataObjects[name]
 }
 
 func GetS3MetaData() *ds.MetaData {
@@ -110,6 +105,12 @@ func GetS3MetaData() *ds.MetaData {
 					WhoInputTypes:     []string{"User", "Group", "AccessProvider:" + string(Policy), "AccessProvider:" + string(Role), "AccessProvider:" + string(SSORole)},
 				},
 			},
+		}
+
+		dataObjects = make(map[string]*ds.DataObjectType)
+
+		for _, dot := range metaData.DataObjectTypes {
+			dataObjects[dot.Name] = dot
 		}
 	}
 

@@ -3,8 +3,11 @@ package aws
 import (
 	"context"
 	"fmt"
+	"slices"
 	"sort"
 	"strings"
+
+	ds "github.com/raito-io/cli/base/data_source"
 
 	"github.com/pkg/errors"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
@@ -307,7 +310,15 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// create or update policy, overwrite what / policy document
 	logger.Info(fmt.Sprintf("policies to add or update: %v", policyAps))
 
+	managedPolicies := set.NewSet[string]()
+
+	skippedPolicies := set.NewSet[string]()
+
 	for name, ap := range policyAps {
+		if ap.WhatLocked != nil && *ap.WhatLocked {
+			managedPolicies.Add(name)
+		}
+
 		action := policyActionMap[name]
 
 		logger.Info(fmt.Sprintf("Process policy %s, action: %s", name, action))
@@ -317,13 +328,17 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		if action == CreateAction {
 			logger.Info(fmt.Sprintf("Creating policy %s", name))
 
-			_, err = a.repo.CreateManagedPolicy(ctx, name, statements)
+			p, err := a.repo.CreateManagedPolicy(ctx, name, statements)
 			if err != nil {
 				return err
 			}
-		} else if action == UpdateAction {
+
+			if p == nil {
+				skippedPolicies.Add(name)
+			}
+		} else if action == UpdateAction && !managedPolicies.Contains(name) {
 			logger.Info(fmt.Sprintf("Updating policy %s", name))
-			err = a.repo.UpdateManagedPolicy(ctx, name, statements)
+			err = a.repo.UpdateManagedPolicy(ctx, name, false, statements)
 			if err != nil {
 				return err
 			}
@@ -334,7 +349,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		if policyState == DeleteAction {
 			logger.Info(fmt.Sprintf("Deleting managed policy: %s", policy))
 
-			err = a.repo.DeleteManagedPolicy(ctx, policy)
+			err = a.repo.DeleteManagedPolicy(ctx, policy, managedPolicies.Contains(policy))
 			if err != nil {
 				return err
 			}
@@ -345,6 +360,10 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	policyBindingsToRemove := map[string]set.Set[PolicyBinding]{}
 
 	for policy, policyState := range policyActionMap {
+		if skippedPolicies.Contains(policy) {
+			continue
+		}
+
 		// only touch the access providers that are in the export
 		if policyState == UpdateAction || policyState == CreateAction {
 			policyBindingsToAdd[policy] = set.NewSet(newPolicyWhoBindings[policy].Slice()...)
@@ -356,7 +375,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	for policyName, bindings := range policyBindingsToAdd { //nolint: dupl
-		policyArn := a.repo.GetPolicyArn(policyName, configMap)
+		policyArn := a.repo.GetPolicyArn(policyName, managedPolicies.Contains(policyName), configMap)
 
 		for _, binding := range bindings.Slice() {
 			if binding.Type == UserResourceType {
@@ -385,7 +404,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	for policyName, bindings := range policyBindingsToRemove { //nolint: dupl
-		policyArn := a.repo.GetPolicyArn(policyName, configMap)
+		policyArn := a.repo.GetPolicyArn(policyName, managedPolicies.Contains(policyName), configMap)
 
 		for _, binding := range bindings.Slice() {
 			if binding.Type == UserResourceType {
@@ -478,7 +497,14 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspo
 		}
 
 		if _, found := policyInfo[what.DataObject.FullName]; !found {
-			policyInfo[what.DataObject.FullName] = what.Permissions
+			dot := GetDataObjectType(what.DataObject.Type)
+			allPermissions := what.Permissions
+
+			if dot != nil {
+				allPermissions = toPermissionList(dot.GetPermissions())
+			}
+
+			policyInfo[what.DataObject.FullName] = optimizePermissions(allPermissions, what.Permissions)
 		}
 	}
 
@@ -492,6 +518,75 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspo
 	}
 
 	return statements
+}
+
+func toPermissionList(input []*ds.DataObjectTypePermission) []string {
+	output := make([]string, 0, len(input))
+
+	for _, permission := range input {
+		output = append(output, permission.Permission)
+	}
+
+	return output
+}
+
+func optimizePermissions(allPermissions, userPermissions []string) []string {
+	sort.Strings(allPermissions)
+	sort.Strings(userPermissions)
+
+	if slices.Equal(allPermissions, userPermissions) {
+		prefix := findCommonPrefix(allPermissions[0], allPermissions[len(allPermissions)-1])
+		return []string{prefix + "*"}
+	}
+
+	var result []string
+	i := 0
+
+	for i < len(userPermissions) {
+		if i == len(userPermissions)-1 {
+			result = append(result, userPermissions[i])
+			break
+		}
+
+		prefix := findCommonPrefix(userPermissions[i], userPermissions[i+1])
+		expandedWithWildcard := false
+
+		for _, perm := range allPermissions {
+			if strings.HasPrefix(perm, prefix) && !contains(userPermissions, perm) {
+				expandedWithWildcard = true
+				break
+			}
+		}
+
+		if expandedWithWildcard {
+			result = append(result, userPermissions[i])
+			i++
+		} else {
+			result = append(result, prefix+"*")
+			i += 2
+		}
+	}
+
+	return result
+}
+
+func findCommonPrefix(a, b string) string {
+	i := 0
+	for i < len(a) && i < len(b) && a[i] == b[i] {
+		i++
+	}
+
+	return a[:i]
+}
+
+func contains(slice []string, val string) bool {
+	for _, item := range slice {
+		if item == val {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
