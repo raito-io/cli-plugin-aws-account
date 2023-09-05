@@ -328,9 +328,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		if action == CreateAction {
 			logger.Info(fmt.Sprintf("Creating policy %s", name))
 
-			p, err := a.repo.CreateManagedPolicy(ctx, name, statements)
-			if err != nil {
-				return err
+			p, err2 := a.repo.CreateManagedPolicy(ctx, name, statements)
+			if err2 != nil {
+				return err2
 			}
 
 			if p == nil {
