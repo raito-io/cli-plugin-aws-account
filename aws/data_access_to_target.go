@@ -179,7 +179,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 			if apType == string(Role) {
 				// Roles don't support assignment to groups, so we take the users in the groups and add those directly.
-				for _, user := range ap.Who.UsersInGroups {
+				for _, user := range ap.Who.Users {
 					key := PolicyBinding{
 						Type:         UserResourceType,
 						ResourceName: user,
