@@ -191,7 +191,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 	return resultErr
 }
 
-func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context) (*ds.MetaData, error) {
+func (s *DataSourceSyncer) GetDataSourceMetaData(_ context.Context, _ *config.ConfigMap) (*ds.MetaData, error) {
 	logger.Debug("Returning meta data for AWS S3 data source")
 
 	return GetS3MetaData(), nil
