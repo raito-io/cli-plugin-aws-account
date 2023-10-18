@@ -121,7 +121,6 @@ Note: if you have multiple targets configured in your configuration file, you ca
 ## To Do
 
 * Access from Raito to AWS
-  * When writing policy statements we are running into the sizing limits very quickly due to the expansion of all the permissions. We should have a smart system that looks for the most optimal prefixes to use e.g. s3:*
   * Access-as-code
   * Limit the data we fetch and possibly don't need
   * No support for aws_sso_role yet (organization)
