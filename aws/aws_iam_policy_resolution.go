@@ -273,7 +273,7 @@ func getExistingOrNewBindings(existingBindings map[string]set.Set[PolicyBinding]
 
 func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string],
 	newRoleWhoBindings map[string]set.Set[PolicyBinding], newPolicyWhoBindings map[string]set.Set[PolicyBinding],
-	existingRoleWhoBindings map[string]set.Set[PolicyBinding], existingPolicyWhoBindings map[string]set.Set[PolicyBinding]) error {
+	existingRoleWhoBindings map[string]set.Set[PolicyBinding], existingPolicyWhoBindings map[string]set.Set[PolicyBinding]) {
 	// First we run over the role inheritance map and for each role add the inherited who from the dependant roles
 	for k := range roleInheritanceMap {
 		// A role can only have other roles as descendants
@@ -334,8 +334,6 @@ func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 			newPolicyWhoBindings[k].AddSet(getExistingOrNewBindings(existingPolicyWhoBindings, newPolicyWhoBindings, descendant))
 		}
 	}
-
-	return nil
 }
 
 func getDescendants(childMap map[string]set.Set[string], apName string) set.Set[string] {

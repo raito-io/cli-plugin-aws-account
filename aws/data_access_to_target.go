@@ -3,10 +3,11 @@ package aws
 import (
 	"context"
 	"fmt"
-	"github.com/hashicorp/go-multierror"
 	"slices"
 	"sort"
 	"strings"
+
+	"github.com/hashicorp/go-multierror"
 
 	ds "github.com/raito-io/cli/base/data_source"
 
@@ -232,10 +233,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	logger.Debug(fmt.Sprintf("existingPolicyWhoBindings: %+v", existingPolicyWhoBindings))
 	logger.Debug(fmt.Sprintf("existingRoleWhoBindings: %+v", existingRoleWhoBindings))
 
-	err = processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
-	if err != nil {
-		return err
-	}
+	processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
 
 	logger.Debug(fmt.Sprintf("New policy bindings: %+v", newPolicyWhoBindings))
 	logger.Debug(fmt.Sprintf("New role bindings: %+v", newRoleWhoBindings))
@@ -356,6 +354,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			if err2 != nil {
 				logFeedbackError(feedbackMap[ap.Id], fmt.Sprintf("failed to create managed policy %q: %s", name, err2.Error()))
 				skippedPolicies.Add(name)
+
 				continue
 			}
 
