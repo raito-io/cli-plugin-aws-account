@@ -102,12 +102,29 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		apFeedback.ActualName = name
 
+		if ap.Action != sync_to_target.Grant && ap.Action != sync_to_target.Purpose {
+			logFeedbackError(&apFeedback, fmt.Sprintf("unsupported access provider action: %s", string(ap.Action)))
+			continue
+		}
+
 		apType := string(Policy)
 
-		if ap.Type == nil {
-			logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
+		if ap.Action == sync_to_target.Purpose {
+			// TODO look at all other APs to see what the incoming WHO links are.
+			// How do we handle this with external APs? Do we have this information in the existingRoleWhoBindings and existingPolicyWhoBindings ?
+			// If so, do we already know if the role is an SSO role or not?
+
+			// If this is linked to an SSO role (can only be 1): we just add the sso role as actual name and add the WHO from
+			//    How to handle Purpose inheritance?
+			//    How to handle partial syncs? (can we even support this?) Possibly need a metadata indication that we always need to export the purposes and SSO roles?
+			// If this is linked to a role (or multiple?): we handle it the same way as a normal role (or do the same as for SSO roles?)
+			// If this is linked to a policy (or multiple?): we need to add the WHO to the policy (= act as normal policy?)
 		} else {
-			apType = *ap.Type
+			if ap.Type == nil {
+				logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
+			} else {
+				apType = *ap.Type
+			}
 		}
 
 		var apActionMap map[string]string
@@ -631,7 +648,7 @@ func contains(slice []string, val string) bool {
 }
 
 func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
-	logger.Info("Fetching roles")
+	logger.Info("Fetching existing roles")
 
 	roles, err := a.repo.GetRoles(ctx)
 	if err != nil {
@@ -662,11 +679,15 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 		}
 	}
 
+	logger.Info(fmt.Sprintf("Fetched existing %d roles", len(roleMap)))
+
 	return roleMap, existingRoleAssumptions, nil
 }
 
 func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
-	managedPolicies, err := a.repo.GetManagedPolicies(ctx, true)
+	logger.Info("Fetching existing managed policies")
+
+	managedPolicies, err := a.repo.GetManagedPolicies(ctx)
 	if err != nil {
 		return nil, nil, fmt.Errorf("error fetching existing managed policies: %w", err)
 	}
@@ -687,6 +708,8 @@ func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[st
 		existingPolicyBindings[policy.Name].Add(removeArn(policy.GroupBindings)...)
 		existingPolicyBindings[policy.Name].Add(removeArn(policy.RoleBindings)...)
 	}
+
+	logger.Info(fmt.Sprintf("Fetched existing %d managed policies", len(policyMap)))
 
 	return policyMap, existingPolicyBindings, nil
 }

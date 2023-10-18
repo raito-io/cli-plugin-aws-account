@@ -21,6 +21,8 @@ import (
 	awspolicy "github.com/n4ch04/aws-policy"
 )
 
+var rolesCache []RoleEntity
+
 func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
@@ -165,6 +167,10 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, err
 }
 
 func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error) {
+	if rolesCache != nil {
+		return rolesCache, nil
+	}
+
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
@@ -271,7 +277,9 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 
 	logger.Info(fmt.Sprintf("A total of %d roles have been found", len(result)))
 
-	return result, resultErr
+	rolesCache = result
+
+	return rolesCache, resultErr
 }
 
 // CreateRole creates an AWS Role. Every role needs a non-empty policy document (otherwise the Role is useless).
