@@ -103,7 +103,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		apFeedback.ActualName = name
 
 		if ap.Action != sync_to_target.Grant && ap.Action != sync_to_target.Purpose {
-			logFeedbackError(&apFeedback, fmt.Sprintf("unsupported access provider action: %s", string(ap.Action)))
+			logFeedbackError(&apFeedback, fmt.Sprintf("unsupported access provider action: %d", ap.Action))
 			continue
 		}
 
