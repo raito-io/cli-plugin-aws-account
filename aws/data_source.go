@@ -24,7 +24,7 @@ type dataSourceRepository interface {
 }
 
 type DataSourceSyncer struct {
-	configMap *config.ConfigMap
+	config *ds.DataSourceSyncConfig
 }
 
 func NewDataSourceSyncer() *DataSourceSyncer {
@@ -33,7 +33,7 @@ func NewDataSourceSyncer() *DataSourceSyncer {
 
 func (s *DataSourceSyncer) provideRepo() dataSourceRepository {
 	return &AwsS3Repository{
-		configMap: s.configMap,
+		configMap: s.config.ConfigMap,
 	}
 }
 
@@ -127,13 +127,13 @@ func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3E
 	return filteredBuckets, nil
 }
 
-func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap) error {
-	s.configMap = configMap
+func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, config *ds.DataSourceSyncConfig) error {
+	s.config = config
 
 	// add AWS S3 as DataObject of type DataSource
 	fileLock := new(sync.Mutex)
 
-	err := s.addAwsAsDataSource(dataSourceHandler, configMap, nil)
+	err := s.addAwsAsDataSource(dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
@@ -144,20 +144,20 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 		return err
 	}
 
-	buckets, err = filterBuckets(configMap, buckets)
+	buckets, err = filterBuckets(config.ConfigMap, buckets)
 	if err != nil {
 		return err
 	}
 
 	logger.Info(fmt.Sprintf("Found %d buckets to handle: %+v", len(buckets), buckets))
 
-	err = s.addS3Entities(buckets, dataSourceHandler, configMap, nil)
+	err = s.addS3Entities(buckets, dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
 
 	// handle files
-	workerPool := workerpool.New(getConcurrency(configMap))
+	workerPool := workerpool.New(getConcurrency(config.ConfigMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -175,7 +175,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 				return
 			}
 
-			err2 = s.addS3Entities(files, dataSourceHandler, configMap, fileLock)
+			err2 = s.addS3Entities(files, dataSourceHandler, fileLock)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -197,8 +197,8 @@ func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context) (*ds.MetaD
 	return GetS3MetaData(), nil
 }
 
-func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {
-	awsAccount := configMap.GetString(AwsAccountId)
+func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
+	awsAccount := s.config.ConfigMap.GetString(AwsAccountId)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -217,9 +217,9 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 	})
 }
 
-func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {
-	awsAccount := configMap.GetString(AwsAccountId)
-	emulateFolders := configMap.GetBoolWithDefault(AwsS3EmulateFolderStructure, true)
+func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
+	awsAccount := s.config.ConfigMap.GetString(AwsAccountId)
+	emulateFolders := s.config.ConfigMap.GetBoolWithDefault(AwsS3EmulateFolderStructure, true)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -246,7 +246,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
-				maxFolderDepth := configMap.GetIntWithDefault(AwsS3MaxFolderDepth, 20)
+				maxFolderDepth := s.config.ConfigMap.GetIntWithDefault(AwsS3MaxFolderDepth, 20)
 
 				parts := strings.Split(entity.Key, "/")
 				parentExternalId := entity.ParentKey
