@@ -154,7 +154,7 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 
 func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
 	logger.Info("Get all managed policies")
-	policies, err := a.repo.GetManagedPolicies(ctx, true)
+	policies, err := a.repo.GetManagedPolicies(ctx)
 
 	if err != nil {
 		return nil, err

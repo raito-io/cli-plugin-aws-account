@@ -10,7 +10,7 @@ import (
 )
 
 type dataAccessRepository interface {
-	GetManagedPolicies(ctx context.Context, withAttachedEntities bool) ([]PolicyEntity, error)
+	GetManagedPolicies(ctx context.Context) ([]PolicyEntity, error)
 	CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error)
 	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error
 	DeleteManagedPolicy(ctx context.Context, policyName string, awsManaged bool) error

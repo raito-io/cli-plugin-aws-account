@@ -24,7 +24,7 @@ func NewIdentityStoreSyncer() *IdentityStoreSyncer {
 	return &IdentityStoreSyncer{repoProvider: newRepoProvider}
 }
 
-func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context) (*is.MetaData, error) {
+func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context, configParams *config.ConfigMap) (*is.MetaData, error) {
 	logger.Debug("Returning meta data for AWS identity store")
 
 	return &is.MetaData{
