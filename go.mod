@@ -16,7 +16,6 @@ require (
 	github.com/hashicorp/go-hclog v1.5.0
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/n4ch04/aws-policy v1.0.1
-	github.com/pkg/errors v0.9.1
 	github.com/raito-io/cli v0.54.0
 	github.com/raito-io/golang-set v0.0.4
 	github.com/stretchr/testify v1.8.4

@@ -28,7 +28,13 @@ const (
 	RoleResourceType  string = "role"
 )
 
-func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttachedEntities bool) ([]PolicyEntity, error) {
+var managedPoliciesCache []PolicyEntity
+
+func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyEntity, error) {
+	if managedPoliciesCache != nil {
+		return managedPoliciesCache, nil
+	}
+
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
@@ -111,17 +117,15 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttach
 					PolicyParsed:    policyDoc,
 				}
 
-				if withAttachedEntities {
-					err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &raitoPolicy)
-					if err != nil {
-						logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
+				err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &raitoPolicy)
+				if err != nil {
+					logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
 
-						smu.Lock()
-						resultErr = multierror.Append(resultErr, err)
-						smu.Unlock()
+					smu.Lock()
+					resultErr = multierror.Append(resultErr, err)
+					smu.Unlock()
 
-						return
-					}
+					return
 				}
 
 				smu.Lock()
@@ -144,7 +148,9 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context, withAttach
 
 	logger.Info(fmt.Sprintf("A total of %d policies have been found", len(result)))
 
-	return result, nil
+	managedPoliciesCache = result
+
+	return managedPoliciesCache, nil
 }
 
 func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Context, client iam.Client, policy *PolicyEntity) error {

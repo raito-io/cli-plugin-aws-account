@@ -3,6 +3,7 @@ package aws
 import (
 	"context"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	"reflect"
 	"slices"
 	"sort"
@@ -35,7 +36,7 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	managedPolicies, err := getObjects[PolicyEntity]("testdata/aws/test_managed_policies.json")
 	require.Nil(t, err)
 
-	repoMock.EXPECT().GetManagedPolicies(mock.Anything, true).Return(managedPolicies, nil).Once()
+	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
 
 	return repoMock, syncer
@@ -125,8 +126,8 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -193,14 +194,14 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []awspolicy.Statement{{
 		Effect: "Allow",
-		Action: []string{"p1", "p2"},
+		Action: []string{"p*"},
 		Resource: []string{
 			"arn:aws:s3:::test_file",
 		},
 	}}).Return(nil).Once()
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -255,7 +256,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 							FullName: "file1",
 							Type:     "file",
 						},
-						Permissions: []string{"p1", "p2"},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
 					},
 				},
 			},
@@ -278,7 +279,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 							FullName: "folder1",
 							Type:     "folder",
 						},
-						Permissions: []string{"p3"},
+						Permissions: []string{"s3:GetObjectAttributes"},
 					},
 				},
 			},
@@ -297,11 +298,11 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 		for _, statement := range statements {
 			if statement.Resource[0] == "arn:aws:s3:::file1" {
 				file = true
-				assert.True(t, slices.Contains(statement.Action, "p1"))
-				assert.True(t, slices.Contains(statement.Action, "p2"))
+				assert.True(t, slices.Contains(statement.Action, "s3:GetObject"))
+				assert.True(t, slices.Contains(statement.Action, "s3:GetObjectAcl"))
 			} else if statement.Resource[0] == "arn:aws:s3:::folder1" {
 				folder = true
-				assert.True(t, slices.Contains(statement.Action, "p3"))
+				assert.True(t, slices.Contains(statement.Action, "s3:GetObjectAttributes"))
 			}
 		}
 
@@ -311,13 +312,13 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "another_role", "Raito_Inline_another_role", []awspolicy.Statement{{
 		Effect:   "Allow",
-		Action:   []string{"p3"},
+		Action:   []string{"s3:GetObjectAttributes"},
 		Resource: []string{"arn:aws:s3:::folder1"},
 	}}).Return(nil).Once()
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("another", sync_to_target.AccessSyncFeedbackInformation{AccessId: "another", ActualName: "another_role", ExternalId: ptr.String(RoleTypePrefix + "another_role")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_role", ExternalId: ptr.String(RoleTypePrefix + "another_role")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -374,8 +375,8 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().DeleteRoleInlinePolicies(ctx, "data_engineering_sync").Return(nil).Once()
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "data_engineering_sync", ExternalId: ptr.String(RoleTypePrefix + "data_engineering_sync")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "data_engineering_sync", ExternalId: ptr.String(RoleTypePrefix + "data_engineering_sync")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -428,7 +429,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	repoMock.EXPECT().DeleteRole(ctx, "data_engineering_sync").Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -488,7 +489,7 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 							FullName: "test_file",
 							Type:     "file",
 						},
-						Permissions: []string{"p1", "p2"},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
 					},
 				},
 			},
@@ -496,12 +497,13 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	}
 
 	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", []awspolicy.Statement{{
-		Effect: "Allow",
-		Action: []string{"p1", "p2"},
+		StatementID: "",
+		Effect:      "Allow",
+		Action:      []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Resource: []string{
 			"arn:aws:s3:::test_file",
 		},
-	}}).Return(nil, nil).Once()
+	}}).Return(&types.Policy{}, nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().GetPolicyArn("test_policy", false, mock.Anything).Return("arn:test_policy").Twice()
 	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline1", "userke", UserResourceType).Return(nil).Once()
@@ -509,8 +511,8 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().AttachGroupToManagedPolicy(ctx, "arn:test_policy", []string{"g1"}).Return(nil).Once()
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_policy", ExternalId: ptr.String(PolicyTypePrefix + "test_policy")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", ExternalId: ptr.String(PolicyTypePrefix + "test_policy")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -574,8 +576,8 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 		},
 	}
 
-	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", mock.Anything).Return(nil, nil).Once()
-	repoMock.EXPECT().CreateManagedPolicy(ctx, "another_policy", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", mock.Anything).Return(&types.Policy{}, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "another_policy", mock.Anything).Return(&types.Policy{}, nil).Once()
 	repoMock.EXPECT().GetPolicyArn("test_policy", false, mock.Anything).Return("arn:test_policy")
 	repoMock.EXPECT().GetPolicyArn("another_policy", false, mock.Anything).Return("arn:another_policy").Twice()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
@@ -583,9 +585,9 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("something", sync_to_target.AccessSyncFeedbackInformation{AccessId: "something", ActualName: "test_policy", ExternalId: ptr.String(PolicyTypePrefix + "test_policy")})
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("another", sync_to_target.AccessSyncFeedbackInformation{AccessId: "another", ActualName: "another_policy", ExternalId: ptr.String(PolicyTypePrefix + "another_policy")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", ExternalId: ptr.String(PolicyTypePrefix + "test_policy")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_policy", ExternalId: ptr.String(PolicyTypePrefix + "another_policy")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -694,9 +696,9 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateManagedPolicy(ctx, "p1", mock.Anything).Return(nil, nil).Once()
-	repoMock.EXPECT().CreateManagedPolicy(ctx, "p2", mock.Anything).Return(nil, nil).Once()
-	repoMock.EXPECT().CreateManagedPolicy(ctx, "p3", mock.Anything).Return(nil, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "p1", mock.Anything).Return(&types.Policy{}, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "p2", mock.Anything).Return(&types.Policy{}, nil).Once()
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "p3", mock.Anything).Return(&types.Policy{}, nil).Once()
 	repoMock.EXPECT().GetPolicyArn("p1", false, mock.Anything).Return("arn:p1")
 	repoMock.EXPECT().GetPolicyArn("p2", false, mock.Anything).Return("arn:p2")
 	repoMock.EXPECT().GetPolicyArn("p3", false, mock.Anything).Return("arn:p3")
@@ -718,12 +720,12 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("p1", sync_to_target.AccessSyncFeedbackInformation{AccessId: "p1", ActualName: "p1", ExternalId: ptr.String(PolicyTypePrefix + "p1")})
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("p2", sync_to_target.AccessSyncFeedbackInformation{AccessId: "p2", ActualName: "p2", ExternalId: ptr.String(PolicyTypePrefix + "p2")})
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("p3", sync_to_target.AccessSyncFeedbackInformation{AccessId: "p3", ActualName: "p3", ExternalId: ptr.String(PolicyTypePrefix + "p3")})
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("r1", sync_to_target.AccessSyncFeedbackInformation{AccessId: "r1", ActualName: "r1", ExternalId: ptr.String(RoleTypePrefix + "r1")})
-	feedbackHandler.EXPECT().AddAccessProviderFeedback("r2", sync_to_target.AccessSyncFeedbackInformation{AccessId: "r2", ActualName: "r2", ExternalId: ptr.String(RoleTypePrefix + "r2")})
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p1", ActualName: "p1", ExternalId: ptr.String(PolicyTypePrefix + "p1")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p2", ActualName: "p2", ExternalId: ptr.String(PolicyTypePrefix + "p2")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p3", ActualName: "p3", ExternalId: ptr.String(PolicyTypePrefix + "p3")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r1", ActualName: "r1", ExternalId: ptr.String(RoleTypePrefix + "r1")})
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r2", ActualName: "r2", ExternalId: ptr.String(RoleTypePrefix + "r2")})
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -778,7 +780,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 	repoMock.EXPECT().DeleteManagedPolicy(ctx, "HumanResourcesReadS3Policy", false).Return(nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -830,7 +832,7 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t, len(exportedAps.AccessProviders))
+	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)

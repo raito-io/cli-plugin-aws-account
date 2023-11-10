@@ -31,12 +31,4 @@ func printDebugAp(ap importer.AccessProvider) {
 	if ap.Who.InheritFrom != nil {
 		logger.Debug(fmt.Sprintf("AP %s inherit from: %s", ap.Name, ap.Who.InheritFrom))
 	}
-
-	if ap.Who.UsersInGroups != nil {
-		logger.Debug(fmt.Sprintf("AP %s users in groups: %s", ap.Name, ap.Who.UsersInGroups))
-	}
-
-	if ap.Who.UsersInherited != nil {
-		logger.Debug(fmt.Sprintf("AP %s users inherited: %s", ap.Name, ap.Who.UsersInherited))
-	}
 }
