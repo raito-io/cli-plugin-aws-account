@@ -87,10 +87,11 @@ func TestSimplifyPermissions(t *testing.T) {
 
 	for i, test := range tests {
 		simplified := optimizePermissions(test.allPermissions, test.userPermissions)
-		if reflect.DeepEqual(simplified, test.expectedSimplify) {
+		if (len(simplified) == 0 && len(test.expectedSimplify) == 0) || reflect.DeepEqual(simplified, test.expectedSimplify) {
 			fmt.Printf("Test case %d passed\n", i+1)
 		} else {
 			fmt.Printf("Test case %d failed. Got %v but expected %v\n", i+1, simplified, test.expectedSimplify)
+			t.Fail()
 		}
 	}
 }
@@ -183,7 +184,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 							FullName: "test_file",
 							Type:     "file",
 						},
-						Permissions: []string{"p1", "p2"},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
 					},
 				},
 			},
@@ -194,7 +195,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []awspolicy.Statement{{
 		Effect: "Allow",
-		Action: []string{"p*"},
+		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Resource: []string{
 			"arn:aws:s3:::test_file",
 		},

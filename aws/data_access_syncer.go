@@ -42,6 +42,7 @@ type dataAccessRepository interface {
 type AccessSyncer struct {
 	repo            dataAccessRepository
 	managedPolicies []PolicyEntity
+	userGroupMap    map[string][]string
 }
 
 func NewDataAccessSyncer() *AccessSyncer {

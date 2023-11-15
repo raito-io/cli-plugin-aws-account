@@ -164,9 +164,25 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 	for i := range buckets {
 		bucket := buckets[i]
 
+		if !s.shouldGoInto(bucket.Key) {
+			continue
+		}
+
 		workerPool.Submit(func() {
 			bucketName := bucket.Key
-			files, err2 := s.provideRepo().ListFiles(ctx, bucketName, nil)
+
+			var prefix *string
+			if p, f := strings.CutPrefix(config.DataObjectParent, bucketName+"/"); f {
+				if !strings.HasSuffix(p, "/") {
+					p += "/"
+				}
+				prefix = &p
+				logger.Info(fmt.Sprintf("Handling files with prefix '%s' in bucket %s ", p, bucketName))
+			} else {
+				logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketName))
+			}
+
+			files, err2 := s.provideRepo().ListFiles(ctx, bucketName, prefix)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -204,6 +220,10 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 		lock = new(sync.Mutex)
 	}
 
+	if !s.shouldHandle(awsAccount) {
+		return nil
+	}
+
 	lock.Lock()
 	defer lock.Unlock()
 
@@ -229,13 +249,16 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 
 	for _, entity := range entities {
 		if strings.EqualFold(entity.Type, ds.Bucket) {
+			if !s.shouldHandle(entity.Key) {
+				continue
+			}
+
 			lock.Lock()
 			err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 				ExternalId:       entity.Key,
 				Name:             entity.Key,
 				FullName:         entity.Key,
 				Type:             ds.Bucket,
-				Description:      fmt.Sprintf("AWS bucket %s:%s", awsAccount, entity.Key),
 				ParentExternalId: awsAccount,
 			})
 
@@ -252,6 +275,11 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 				parentExternalId := entity.ParentKey
 
 				for ind := range parts {
+					// In case we found a folder, the path ended with a slash and so the last part will be empty and so can be skipped.
+					if ind == len(parts)-1 && parts[ind] == "" {
+						break
+					}
+
 					if ind >= maxFolderDepth {
 						continue
 					}
@@ -271,13 +299,17 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 						}
 					}
 
+					if !s.shouldHandle(fullName) {
+						parentExternalId = fullName
+						continue
+					}
+
 					lock.Lock()
 					err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 						ExternalId:       fullName,
 						Name:             parts[ind],
 						FullName:         fullName,
 						Type:             doType,
-						Description:      fmt.Sprintf("AWS file %s %s", awsAccount, entity.Type),
 						ParentExternalId: parentExternalId,
 					})
 					lock.Unlock()
@@ -285,9 +317,18 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 						return err
 					}
 
+					// If we don't need to go deeper
+					if doType == ds.Folder && !s.shouldGoInto(fullName) {
+						break
+					}
+
 					parentExternalId = fullName
 				}
 			} else {
+				if !s.shouldHandle(entity.Key) {
+					continue
+				}
+
 				lock.Lock()
 				err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 					ExternalId:       entity.Key,
@@ -306,4 +347,44 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 	}
 
 	return nil
+}
+
+// shouldHandle determines if this data object needs to be handled by the syncer or not. It does this by looking at the configuration options to only sync a part.
+func (s *DataSourceSyncer) shouldHandle(fullName string) (ret bool) {
+	/*defer func() {
+		logger.Debug(fmt.Sprintf("shouldHandle %s: %t", fullName, ret))
+	}()*/
+
+	// No partial sync specified, so do everything
+	if s.config.DataObjectParent == "" {
+		return true
+	}
+
+	// Check if the data object is under the data object to start from
+	if !strings.HasPrefix(fullName, s.config.DataObjectParent) || s.config.DataObjectParent == fullName {
+		return false
+	}
+
+	// Check if we hit any excludes
+	for _, exclude := range s.config.DataObjectExcludes {
+		if strings.HasPrefix(fullName, s.config.DataObjectParent+"/"+exclude) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// shouldGoInto checks if we need to go deeper into this data object or not.
+func (s *DataSourceSyncer) shouldGoInto(fullName string) (ret bool) {
+	defer func() {
+		logger.Debug(fmt.Sprintf("shouldGoInto %s: %t", fullName, ret))
+	}()
+
+	// No partial sync specified, so do everything
+	if s.config.DataObjectParent == "" || strings.HasPrefix(s.config.DataObjectParent, fullName) || strings.HasPrefix(fullName, s.config.DataObjectParent) {
+		return true
+	}
+
+	return false
 }
