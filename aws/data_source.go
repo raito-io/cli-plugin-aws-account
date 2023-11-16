@@ -351,9 +351,9 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 
 // shouldHandle determines if this data object needs to be handled by the syncer or not. It does this by looking at the configuration options to only sync a part.
 func (s *DataSourceSyncer) shouldHandle(fullName string) (ret bool) {
-	/*defer func() {
+	defer func() {
 		logger.Debug(fmt.Sprintf("shouldHandle %s: %t", fullName, ret))
-	}()*/
+	}()
 
 	// No partial sync specified, so do everything
 	if s.config.DataObjectParent == "" {
