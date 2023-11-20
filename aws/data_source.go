@@ -24,7 +24,7 @@ type dataSourceRepository interface {
 }
 
 type DataSourceSyncer struct {
-	configMap *config.ConfigMap
+	config *ds.DataSourceSyncConfig
 }
 
 func NewDataSourceSyncer() *DataSourceSyncer {
@@ -33,7 +33,7 @@ func NewDataSourceSyncer() *DataSourceSyncer {
 
 func (s *DataSourceSyncer) provideRepo() dataSourceRepository {
 	return &AwsS3Repository{
-		configMap: s.configMap,
+		configMap: s.config.ConfigMap,
 	}
 }
 
@@ -127,13 +127,13 @@ func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3E
 	return filteredBuckets, nil
 }
 
-func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap) error {
-	s.configMap = configMap
+func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, config *ds.DataSourceSyncConfig) error {
+	s.config = config
 
 	// add AWS S3 as DataObject of type DataSource
 	fileLock := new(sync.Mutex)
 
-	err := s.addAwsAsDataSource(dataSourceHandler, configMap, nil)
+	err := s.addAwsAsDataSource(dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
@@ -144,29 +144,45 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 		return err
 	}
 
-	buckets, err = filterBuckets(configMap, buckets)
+	buckets, err = filterBuckets(config.ConfigMap, buckets)
 	if err != nil {
 		return err
 	}
 
 	logger.Info(fmt.Sprintf("Found %d buckets to handle: %+v", len(buckets), buckets))
 
-	err = s.addS3Entities(buckets, dataSourceHandler, configMap, nil)
+	err = s.addS3Entities(buckets, dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
 
 	// handle files
-	workerPool := workerpool.New(getConcurrency(configMap))
+	workerPool := workerpool.New(getConcurrency(config.ConfigMap))
 	var smu sync.Mutex
 	var resultErr error
 
 	for i := range buckets {
 		bucket := buckets[i]
 
+		if !s.shouldGoInto(bucket.Key) {
+			continue
+		}
+
 		workerPool.Submit(func() {
 			bucketName := bucket.Key
-			files, err2 := s.provideRepo().ListFiles(ctx, bucketName, nil)
+
+			var prefix *string
+			if p, f := strings.CutPrefix(config.DataObjectParent, bucketName+"/"); f {
+				if !strings.HasSuffix(p, "/") {
+					p += "/"
+				}
+				prefix = &p
+				logger.Info(fmt.Sprintf("Handling files with prefix '%s' in bucket %s ", p, bucketName))
+			} else {
+				logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketName))
+			}
+
+			files, err2 := s.provideRepo().ListFiles(ctx, bucketName, prefix)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -175,7 +191,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 				return
 			}
 
-			err2 = s.addS3Entities(files, dataSourceHandler, configMap, fileLock)
+			err2 = s.addS3Entities(files, dataSourceHandler, fileLock)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -197,11 +213,15 @@ func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context, configPara
 	return GetS3MetaData(), nil
 }
 
-func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {
-	awsAccount := configMap.GetString(AwsAccountId)
+func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
+	awsAccount := s.config.ConfigMap.GetString(AwsAccountId)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
+	}
+
+	if !s.shouldHandle(awsAccount) {
+		return nil
 	}
 
 	lock.Lock()
@@ -217,9 +237,9 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 	})
 }
 
-func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, configMap *config.ConfigMap, lock *sync.Mutex) error {
-	awsAccount := configMap.GetString(AwsAccountId)
-	emulateFolders := configMap.GetBoolWithDefault(AwsS3EmulateFolderStructure, true)
+func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
+	awsAccount := s.config.ConfigMap.GetString(AwsAccountId)
+	emulateFolders := s.config.ConfigMap.GetBoolWithDefault(AwsS3EmulateFolderStructure, true)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -229,13 +249,16 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 
 	for _, entity := range entities {
 		if strings.EqualFold(entity.Type, ds.Bucket) {
+			if !s.shouldHandle(entity.Key) {
+				continue
+			}
+
 			lock.Lock()
 			err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 				ExternalId:       entity.Key,
 				Name:             entity.Key,
 				FullName:         entity.Key,
 				Type:             ds.Bucket,
-				Description:      fmt.Sprintf("AWS bucket %s:%s", awsAccount, entity.Key),
 				ParentExternalId: awsAccount,
 			})
 
@@ -246,12 +269,17 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
-				maxFolderDepth := configMap.GetIntWithDefault(AwsS3MaxFolderDepth, 20)
+				maxFolderDepth := s.config.ConfigMap.GetIntWithDefault(AwsS3MaxFolderDepth, 20)
 
 				parts := strings.Split(entity.Key, "/")
 				parentExternalId := entity.ParentKey
 
 				for ind := range parts {
+					// In case we found a folder, the path ended with a slash and so the last part will be empty and so can be skipped.
+					if ind == len(parts)-1 && parts[ind] == "" {
+						break
+					}
+
 					if ind >= maxFolderDepth {
 						continue
 					}
@@ -271,13 +299,17 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 						}
 					}
 
+					if !s.shouldHandle(fullName) {
+						parentExternalId = fullName
+						continue
+					}
+
 					lock.Lock()
 					err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 						ExternalId:       fullName,
 						Name:             parts[ind],
 						FullName:         fullName,
 						Type:             doType,
-						Description:      fmt.Sprintf("AWS file %s %s", awsAccount, entity.Type),
 						ParentExternalId: parentExternalId,
 					})
 					lock.Unlock()
@@ -285,9 +317,18 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 						return err
 					}
 
+					// If we don't need to go deeper
+					if doType == ds.Folder && !s.shouldGoInto(fullName) {
+						break
+					}
+
 					parentExternalId = fullName
 				}
 			} else {
+				if !s.shouldHandle(entity.Key) {
+					continue
+				}
+
 				lock.Lock()
 				err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 					ExternalId:       entity.Key,
@@ -306,4 +347,44 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 	}
 
 	return nil
+}
+
+// shouldHandle determines if this data object needs to be handled by the syncer or not. It does this by looking at the configuration options to only sync a part.
+func (s *DataSourceSyncer) shouldHandle(fullName string) (ret bool) {
+	defer func() {
+		logger.Debug(fmt.Sprintf("shouldHandle %s: %t", fullName, ret))
+	}()
+
+	// No partial sync specified, so do everything
+	if s.config.DataObjectParent == "" {
+		return true
+	}
+
+	// Check if the data object is under the data object to start from
+	if !strings.HasPrefix(fullName, s.config.DataObjectParent) || s.config.DataObjectParent == fullName {
+		return false
+	}
+
+	// Check if we hit any excludes
+	for _, exclude := range s.config.DataObjectExcludes {
+		if strings.HasPrefix(fullName, s.config.DataObjectParent+"/"+exclude) {
+			return false
+		}
+	}
+
+	return true
+}
+
+// shouldGoInto checks if we need to go deeper into this data object or not.
+func (s *DataSourceSyncer) shouldGoInto(fullName string) (ret bool) {
+	defer func() {
+		logger.Debug(fmt.Sprintf("shouldGoInto %s: %t", fullName, ret))
+	}()
+
+	// No partial sync specified, so do everything
+	if s.config.DataObjectParent == "" || strings.HasPrefix(s.config.DataObjectParent, fullName) || strings.HasPrefix(fullName, s.config.DataObjectParent) {
+		return true
+	}
+
+	return false
 }

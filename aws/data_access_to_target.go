@@ -39,6 +39,45 @@ func logFeedbackError(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg
 	apFeedback.Errors = append(apFeedback.Errors, msg)
 }
 
+func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error) {
+	if a.userGroupMap != nil {
+		return a.userGroupMap, nil
+	}
+
+	iamRepo := AwsIamRepository{
+		ConfigMap: configMap,
+	}
+
+	groups, err := iamRepo.GetGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	a.userGroupMap = make(map[string][]string)
+
+	users, err := iamRepo.GetUsers(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+
+	userMap := make(map[string]string)
+	for _, u := range users {
+		userMap[u.ExternalId] = u.Name
+	}
+
+	for _, g := range groups {
+		for _, m := range g.Members {
+			if userName, f := userMap[m]; f {
+				a.userGroupMap[g.Name] = append(a.userGroupMap[g.Name], userName)
+			} else {
+				logger.Warn(fmt.Sprintf("Could not find member %s for group %s", m, g.Name))
+			}
+		}
+	}
+
+	return a.userGroupMap, nil
+}
+
 func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) (err error) {
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
 		logger.Info("No access providers to sync from Raito to AWS")
@@ -113,12 +152,12 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			// TODO look at all other APs to see what the incoming WHO links are.
 			// How do we handle this with external APs? Do we have this information in the existingRoleWhoBindings and existingPolicyWhoBindings ?
 			// If so, do we already know if the role is an SSO role or not?
-
 			// If this is linked to an SSO role (can only be 1): we just add the sso role as actual name and add the WHO from
 			//    How to handle Purpose inheritance?
 			//    How to handle partial syncs? (can we even support this?) Possibly need a metadata indication that we always need to export the purposes and SSO roles?
 			// If this is linked to a role (or multiple?): we handle it the same way as a normal role (or do the same as for SSO roles?)
 			// If this is linked to a policy (or multiple?): we need to add the WHO to the policy (= act as normal policy?)
+			logFeedbackError(&apFeedback, "currently purposes are not supported yet")
 		} else {
 			if ap.Type == nil {
 				logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
@@ -126,6 +165,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				apType = *ap.Type
 			}
 		}
+
+		apFeedback.Type = &apType
 
 		var apActionMap map[string]string
 		var inheritanceMap map[string]set.Set[string]
@@ -219,9 +260,25 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			}
 
 			if apType == string(Role) {
-				// Roles don't support assignment to groups, so we take the users in the groups and add those directly.
+				if len(ap.Who.Groups) > 0 {
+					userGroupMap, err3 := a.getUserGroupMap(ctx, configMap)
+					if err3 != nil {
+						return err3
+					}
 
-				// TODO: unpack the groups
+					// Roles don't support assignment to groups, so we take the users in the groups and add those directly.
+					for _, group := range ap.Who.Groups {
+						if users, f := userGroupMap[group]; f {
+							for _, user := range users {
+								key := PolicyBinding{
+									Type:         UserResourceType,
+									ResourceName: user,
+								}
+								whoBindings[name].Add(key)
+							}
+						}
+					}
+				}
 
 				// For roles we also build the reverse inheritance map
 				for _, inheritFrom := range apInheritFromNames {
@@ -266,13 +323,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		logger.Info(fmt.Sprintf("Processing role %s with action %s", roleName, roleAction))
 
-		if roleAction == UpdateAction || roleAction == CreateAction {
-			logger.Info(fmt.Sprintf("Existing bindings for %s: %s", roleName, existingRoleWhoBindings[roleName]))
-			logger.Info(fmt.Sprintf("Export bindings for %s: %s", roleName, newRoleWhoBindings[roleName]))
-
-			assumeRoles[roleName] = set.NewSet(newRoleWhoBindings[roleName].Slice()...)
-		}
-
 		if roleAction == DeleteAction {
 			logger.Info(fmt.Sprintf("Removing role %s", roleName))
 
@@ -282,6 +332,11 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				continue
 			}
 		} else if roleAction == CreateAction || roleAction == UpdateAction {
+			logger.Info(fmt.Sprintf("Existing bindings for %s: %s", roleName, existingRoleWhoBindings[roleName]))
+			logger.Info(fmt.Sprintf("Export bindings for %s: %s", roleName, newRoleWhoBindings[roleName]))
+
+			assumeRoles[roleName] = set.NewSet(newRoleWhoBindings[roleName].Slice()...)
+
 			// Getting the who (for roles, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
 			userNames := make([]string, 0, len(assumeRoles[roleName]))
 			for _, binding := range assumeRoles[roleName].Slice() {
@@ -601,27 +656,60 @@ func optimizePermissions(allPermissions, userPermissions []string) []string {
 	i := 0
 
 	for i < len(userPermissions) {
+		if !contains(allPermissions, userPermissions[i]) {
+			i++
+			continue
+		}
+
 		if i == len(userPermissions)-1 {
 			result = append(result, userPermissions[i])
 			break
 		}
 
-		prefix := findCommonPrefix(userPermissions[i], userPermissions[i+1])
-		expandedWithWildcard := false
+		coveredPermissions := set.NewSet[string]()
+		untilI := i
+
+		// Find a common prefix with the next permission in the list
+		prefixWithNext := findCommonPrefix(userPermissions[i], userPermissions[i+1])
+
+		// If there is a common prefix, we see if the following permissions have that same prefix
+		if len(prefixWithNext) > 0 {
+			coveredPermissions.Add(userPermissions[i], userPermissions[i+1])
+
+			untilI += 2
+
+			for untilI < len(userPermissions) {
+				if strings.HasPrefix(userPermissions[untilI], prefixWithNext) {
+					coveredPermissions.Add(userPermissions[untilI])
+					untilI++
+				} else {
+					break
+				}
+			}
+		} else {
+			result = append(result, userPermissions[i])
+			i++
+			continue
+		}
+
+		// Now that we found the prefix and all user permissions that have it, we check if there are no other permissions possible with this prefix
+		match := true
 
 		for _, perm := range allPermissions {
-			if strings.HasPrefix(perm, prefix) && !contains(userPermissions, perm) {
-				expandedWithWildcard = true
+			// When there is a permission in the list that starts with the same prefix, but isn't in the user permission list
+			if strings.HasPrefix(perm, prefixWithNext) && !coveredPermissions.Contains(perm) {
+				match = false
 				break
 			}
 		}
 
-		if expandedWithWildcard {
+		if match {
+			// If we found a match, we add this prefix + wildcard and skip all the hits we found.
+			result = append(result, prefixWithNext+"*")
+			i = untilI
+		} else {
 			result = append(result, userPermissions[i])
 			i++
-		} else {
-			result = append(result, prefix+"*")
-			i += 2
 		}
 	}
 

@@ -29,8 +29,9 @@ func GetS3MetaData() *ds.MetaData {
 		objectPermissions := getPermissionsForResourceType(allPermissions, []string{"", "bucket", "object"})
 
 		metaData = &ds.MetaData{
-			Type:              "aws-account",
-			SupportedFeatures: []string{""},
+			Type:                  "aws-account",
+			SupportedFeatures:     []string{""},
+			SupportsApInheritance: true,
 			DataObjectTypes: []*ds.DataObjectType{
 				{
 					Name:        ds.Datasource,
