@@ -172,6 +172,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 			bucketName := bucket.Key
 
 			var prefix *string
+
 			if p, f := strings.CutPrefix(config.DataObjectParent, bucketName+"/"); f {
 				if !strings.HasSuffix(p, "/") {
 					p += "/"
@@ -313,6 +314,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 						ParentExternalId: parentExternalId,
 					})
 					lock.Unlock()
+
 					if err != nil {
 						return err
 					}
@@ -339,6 +341,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 					ParentExternalId: entity.ParentKey,
 				})
 				lock.Unlock()
+
 				if err != nil {
 					return err
 				}

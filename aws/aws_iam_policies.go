@@ -130,6 +130,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 
 				smu.Lock()
 				defer smu.Unlock()
+
 				result = append(result, raitoPolicy)
 			})
 		}
@@ -973,6 +974,7 @@ func (repo *AwsIamRepository) getEntityPolicy(ctx context.Context, client *iam.C
 			GroupName:  &entityName,
 		}
 		resp, err := client.GetGroupPolicy(ctx, &input)
+
 		if err != nil {
 			logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
 			return nil, err
@@ -990,6 +992,7 @@ func (repo *AwsIamRepository) getEntityPolicy(ctx context.Context, client *iam.C
 			RoleName:   &entityName,
 		}
 		resp, err := client.GetRolePolicy(ctx, &input)
+
 		if err != nil {
 			logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
 			return nil, err

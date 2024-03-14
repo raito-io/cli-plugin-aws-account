@@ -86,6 +86,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 			smu.Lock()
 			defer smu.Unlock()
+
 			result = append(result, UserEntity{
 				ExternalId: *user.UserId,
 				ARN:        *user.Arn,
@@ -260,6 +261,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 
 			smu.Lock()
 			defer smu.Unlock()
+
 			result = append(result, RoleEntity{
 				ARN:                      Arn,
 				Id:                       Id,
