@@ -161,6 +161,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 			} else {
 				logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
 				incomplete = true
+
 				continue
 			}
 
@@ -220,10 +221,12 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 			} else if action == "*" {
 				// For wildcard actions, just add all permission from the data object type. Mark as incomplete as go from wildcard to explicit permissions
 				incomplete = true
+
 				mappedActions = append(mappedActions, perm)
 			} else if strings.HasSuffix(action, "*") {
 				// Action ending in a wildcard, so only add the permissions that have the right prefix + mark incomplete
 				incomplete = true
+
 				if strings.HasPrefix(perm, action[:len(action)-1]) {
 					mappedActions = append(mappedActions, perm)
 				}

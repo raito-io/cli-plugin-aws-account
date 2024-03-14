@@ -285,6 +285,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 					if _, f := inverseRoleInheritanceMap[inheritFrom]; !f {
 						inverseRoleInheritanceMap[inheritFrom] = set.NewSet[string]()
 					}
+
 					inverseRoleInheritanceMap[inheritFrom].Add(name)
 				}
 			} else {
@@ -436,6 +437,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		} else if action == UpdateAction && !managedPolicies.Contains(name) {
 			logger.Info(fmt.Sprintf("Updating policy %s", name))
 			err = a.repo.UpdateManagedPolicy(ctx, name, false, statements)
+
 			if err != nil {
 				logFeedbackError(feedbackMap[ap.Id], fmt.Sprintf("failed to update managed policy %q: %s", name, err.Error()))
 				continue
@@ -673,7 +675,7 @@ func optimizePermissions(allPermissions, userPermissions []string) []string {
 		prefixWithNext := findCommonPrefix(userPermissions[i], userPermissions[i+1])
 
 		// If there is a common prefix, we see if the following permissions have that same prefix
-		if len(prefixWithNext) > 0 {
+		if prefixWithNext != "" {
 			coveredPermissions.Add(userPermissions[i], userPermissions[i+1])
 
 			untilI += 2
@@ -681,6 +683,7 @@ func optimizePermissions(allPermissions, userPermissions []string) []string {
 			for untilI < len(userPermissions) {
 				if strings.HasPrefix(userPermissions[untilI], prefixWithNext) {
 					coveredPermissions.Add(userPermissions[untilI])
+
 					untilI++
 				} else {
 					break
@@ -689,6 +692,7 @@ func optimizePermissions(allPermissions, userPermissions []string) []string {
 		} else {
 			result = append(result, userPermissions[i])
 			i++
+
 			continue
 		}
 
