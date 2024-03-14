@@ -93,7 +93,7 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 			return nil, err
 		}
 
-		moreObjectsAvailable = response.IsTruncated
+		moreObjectsAvailable = response.IsTruncated != nil && *response.IsTruncated
 		continuationToken = response.NextContinuationToken
 
 		for _, object := range response.Contents {
