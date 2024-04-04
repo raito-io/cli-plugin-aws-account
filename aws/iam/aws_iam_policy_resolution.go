@@ -1,10 +1,14 @@
-package aws
+package iam
 
 import (
 	"fmt"
 	"strings"
 
 	"github.com/aws/smithy-go/ptr"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
 	"github.com/raito-io/cli/base/util/config"
 
@@ -15,12 +19,12 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
-func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, configMap *config.ConfigMap) (*sync_from_target.WhoItem, bool) {
+func CreateWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, configMap *config.ConfigMap) (*sync_from_target.WhoItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
 
-	awsAccount := configMap.GetString(AwsAccountId)
+	awsAccount := configMap.GetString(constants.AwsAccountId)
 	incomplete := false
 	policyStatements := policy.Statements
 	whoItem := sync_from_target.WhoItem{}
@@ -33,14 +37,14 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 
 		effect := statement.Effect
 		if !strings.EqualFold(effect, "allow") {
-			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q has unknown effect statement %q.", role, effect))
+			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q has unknown effect statement %q.", role, effect))
 			incomplete = true
 
 			continue
 		}
 
 		if len(statement.NotResource) > 0 || len(statement.NotPrincipal) > 0 || len(statement.NotAction) > 0 {
-			logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements.", role))
+			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements.", role))
 			incomplete = true
 
 			continue
@@ -52,9 +56,9 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 				for principalType, principals := range statement.Principal {
 					if principalType == "AWS" {
 						for _, principal := range principals {
-							resource, err := parseAndValidateArn(principal, &awsAccount, ptr.String("iam"))
+							resource, err := utils.ParseAndValidateArn(principal, &awsAccount, ptr.String("iam"))
 							if err != nil {
-								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements.", role))
+								utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains not-statements.", role))
 								incomplete = true
 
 								continue
@@ -64,23 +68,23 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 
 							if len(parts) == 2 {
 								if parts[1] == "*" {
-									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains wildcard IAM resource %q.", role, resource))
+									utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains wildcard IAM resource %q.", role, resource))
 									incomplete = true
 								} else if strings.EqualFold(parts[0], "user") {
 									users.Add(parts[1])
 								} else if strings.EqualFold(parts[0], "group") {
 									groups.Add(parts[1])
 								} else {
-									logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q.", role, resource))
+									utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q.", role, resource))
 									incomplete = true
 								}
 							} else {
-								logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q.", role, resource))
+								utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unknown IAM resource %q.", role, resource))
 								incomplete = true
 							}
 						}
 					} else {
-						logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q.", role, principalType))
+						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy document for role %q contains unrecognized principal type %q.", role, principalType))
 						incomplete = true
 
 						continue
@@ -89,7 +93,7 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 
 				break
 			} else {
-				logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized.", action, role))
+				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized.", action, role))
 				incomplete = true
 			}
 		}
@@ -101,12 +105,12 @@ func createWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 	return &whoItem, incomplete
 }
 
-func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
+func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
 
-	awsAccount := configMap.GetString(AwsAccountId)
+	awsAccount := configMap.GetString(constants.AwsAccountId)
 	incomplete := false
 	policyStatements := policy.Statements
 	whatMap := make(map[string]set.Set[string])
@@ -117,14 +121,14 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 		effect := statement.Effect
 
 		if !strings.EqualFold(effect, "allow") {
-			logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q has unknown effect statement %q.", policyName, effect))
+			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q has unknown effect statement %q.", policyName, effect))
 			incomplete = true
 
 			continue
 		}
 
 		if len(statement.NotResource) > 0 || len(statement.NotPrincipal) > 0 || len(statement.NotAction) > 0 {
-			logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains not-statements.", policyName))
+			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains not-statements.", policyName))
 			incomplete = true
 
 			continue
@@ -142,10 +146,10 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 			var resourceActions []string
 			var fullName string
 
-			_, err := parseAndValidateArn(resource, nil, ptr.String("s3"))
+			_, err := utils.ParseAndValidateArn(resource, nil, ptr.String("s3"))
 
 			if err == nil {
-				fullName = removeEndingWildcards(convertArnToFullname(resource))
+				fullName = utils.RemoveEndingWildcards(utils.ConvertArnToFullname(resource))
 				fullName = strings.TrimSuffix(fullName, "")
 
 				isBucket := !strings.Contains(fullName, "/")
@@ -159,7 +163,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 				fullName = awsAccount
 				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource)
 			} else {
-				logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
+				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
 				incomplete = true
 
 				continue
@@ -174,7 +178,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 			permissionSet.Add(resourceActions...)
 
 			if !incomplete && incompleteResource {
-				logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown actions (%v).", policyName, actions))
+				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown actions (%v).", policyName, actions))
 				incomplete = true
 			}
 		}
@@ -207,7 +211,7 @@ func createWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 func mapResourceActions(actions []string, resourceType string) ([]string, bool) {
 	mappedActions := make([]string, 0, len(actions))
 
-	dot := GetDataObjectType(resourceType)
+	dot := data_source2.GetDataObjectType(resourceType)
 	dotPermissions := dot.GetPermissions()
 	incomplete := false
 
@@ -240,7 +244,7 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 	return mappedActions, incomplete
 }
 
-func resolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...string) []string {
+func ResolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...string) []string {
 	result := make([]string, 0, len(aps))
 
 	for _, ap := range aps {
@@ -257,7 +261,7 @@ func resolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...stri
 		apID := parts[1]
 		for _, ap2 := range exportedAps {
 			if ap2 != nil && ap2.Id == apID {
-				apName, _ := generateName(ap2)
+				apName, _ := utils.GenerateName(ap2)
 				result = append(result, apName)
 			}
 		}
@@ -266,7 +270,7 @@ func resolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...stri
 	return result
 }
 
-func getExistingOrNewBindings(existingBindings map[string]set.Set[PolicyBinding], newBindings map[string]set.Set[PolicyBinding], name string) set.Set[PolicyBinding] {
+func getExistingOrNewBindings(existingBindings map[string]set.Set[model.PolicyBinding], newBindings map[string]set.Set[model.PolicyBinding], name string) set.Set[model.PolicyBinding] {
 	if b, f := newBindings[name]; f {
 		return b
 	}
@@ -274,9 +278,9 @@ func getExistingOrNewBindings(existingBindings map[string]set.Set[PolicyBinding]
 	return existingBindings[name]
 }
 
-func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string],
-	newRoleWhoBindings map[string]set.Set[PolicyBinding], newPolicyWhoBindings map[string]set.Set[PolicyBinding],
-	existingRoleWhoBindings map[string]set.Set[PolicyBinding], existingPolicyWhoBindings map[string]set.Set[PolicyBinding]) {
+func ProcessApInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string],
+	newRoleWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding],
+	existingRoleWhoBindings map[string]set.Set[model.PolicyBinding], existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding]) {
 	// First we run over the role inheritance map and for each role add the inherited who from the dependant roles
 	for k := range roleInheritanceMap {
 		// A role can only have other roles as descendants
@@ -321,7 +325,7 @@ func processApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 
 		// For descendants that are roles, we need to add that role as a binding for this policy
 		for _, descendant := range roleDescendants.Slice() {
-			roleBinding := PolicyBinding{
+			roleBinding := model.PolicyBinding{
 				Type:         RoleResourceType,
 				ResourceName: descendant,
 			}

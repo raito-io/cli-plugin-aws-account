@@ -12,6 +12,10 @@ import (
 	"time"
 
 	"github.com/gammazero/workerpool"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/data_usage"
@@ -23,7 +27,7 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=dataUsageRepository --with-expecter --inpackage
 type dataUsageRepository interface {
-	ListFiles(ctx context.Context, bucket string, prefix *string) ([]AwsS3Entity, error)
+	ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error)
 	GetFile(ctx context.Context, bucket string, key string) (io.ReadCloser, error)
 }
 
@@ -36,9 +40,7 @@ func NewDataUsageSyncer() *DataUsageSyncer {
 }
 
 func (s *DataUsageSyncer) provideRepo() dataUsageRepository {
-	return &AwsS3Repository{
-		configMap: s.configMap,
-	}
+	return data_source2.NewAwsS3Repository(s.configMap)
 }
 
 func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandler wrappers.DataUsageStatementHandler, configMap *config.ConfigMap) error {
@@ -46,10 +48,10 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 
 	repo := s.provideRepo()
 
-	bucket := configMap.GetString(AwsS3CloudTrailBucket)
+	bucket := configMap.GetString(constants.AwsS3CloudTrailBucket)
 
 	if bucket == "" {
-		logger.Warn("No usage cloud trail bucket specified.")
+		utils.Logger.Warn("No usage cloud trail bucket specified.")
 
 		return nil
 	}
@@ -59,7 +61,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 		return fmt.Errorf("error while reading usage files from S3 bucket: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("A total of %d usage files found in bucket %s", len(allUsageFiles), bucket))
+	utils.Logger.Info(fmt.Sprintf("A total of %d usage files found in bucket %s", len(allUsageFiles), bucket))
 
 	numberOfDays := 90
 	startDate := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -numberOfDays)
@@ -71,7 +73,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 		}
 	}
 
-	logger.Info(fmt.Sprintf("using start date %s", startDate.Format(time.RFC3339)))
+	utils.Logger.Info(fmt.Sprintf("using start date %s", startDate.Format(time.RFC3339)))
 
 	usageFiles := []string{}
 
@@ -94,10 +96,10 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 		}
 	}
 
-	logger.Info(fmt.Sprintf("%d files to process", len(usageFiles)))
+	utils.Logger.Info(fmt.Sprintf("%d files to process", len(usageFiles)))
 
 	fileChan := make(chan string)
-	workerPool := workerpool.New(getConcurrency(configMap))
+	workerPool := workerpool.New(utils.GetConcurrency(configMap))
 	fileLock := new(sync.Mutex)
 	numWorkers := 16
 
@@ -119,7 +121,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 
 func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan string, repo dataUsageRepository,
 	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex) {
-	logger.Info("Starting data usage worker")
+	utils.Logger.Info("Starting data usage worker")
 
 	for fileKey := range fileChan {
 		parts := strings.Split(fileKey, "/")
@@ -129,15 +131,15 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 
 		contents, err := getFileContents(ctx, repo, bucketName, fileKey)
 		if err != nil {
-			logger.Error(err.Error())
+			utils.Logger.Error(err.Error())
 			return
 		}
 
-		var result CloudTrailLog
+		var result model.CloudTrailLog
 
 		err = json.Unmarshal([]byte(contents), &result)
 		if err != nil {
-			logger.Error(err.Error())
+			utils.Logger.Error(err.Error())
 			return
 		}
 
@@ -154,10 +156,10 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 					break
 				}
 
-				permission := fmt.Sprintf("%s:%s", S3PermissionPrefix, *record.EventName)
+				permission := fmt.Sprintf("%s:%s", constants.S3PermissionPrefix, *record.EventName)
 
 				if resource.Type != nil && resource.Arn != nil && strings.EqualFold(*resource.Type, "AWS::S3::Object") {
-					object := convertArnToFullname(*resource.Arn)
+					object := utils.ConvertArnToFullname(*resource.Arn)
 					accessedObjects = append(accessedObjects, ap.WhatItem{
 						DataObject: &data_source.DataObjectReference{
 							FullName: object,
@@ -172,7 +174,7 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 			// TODO: investigate what the different possibilities are, this has been figured out by just looking
 			// at the logs so far
 			if record.UserIdentity == nil || record.UserIdentity.Type == nil {
-				logger.Warn("user identity is nil")
+				utils.Logger.Warn("user identity is nil")
 				continue
 			} else if *record.UserIdentity.Type == "IAMUser" {
 				userName = *record.UserIdentity.UserName
@@ -201,12 +203,12 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 		if len(statements) > 0 {
 			err = addStatementsToDataUsageHandler(dataUsageFileHandler, statements, fileLock)
 			if err != nil {
-				logger.Error(err.Error())
+				utils.Logger.Error(err.Error())
 				return
 			}
 		}
 
-		logger.Info(fmt.Sprintf("%d records fetched and processed in %d ms from %s", len(result.Records), time.Since(start).Milliseconds(), fileKeyShort))
+		utils.Logger.Info(fmt.Sprintf("%d records fetched and processed in %d ms from %s", len(result.Records), time.Since(start).Milliseconds(), fileKeyShort))
 	}
 }
 

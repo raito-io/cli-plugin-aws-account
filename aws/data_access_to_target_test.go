@@ -3,7 +3,12 @@ package aws
 import (
 	"context"
 	"fmt"
+
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+
 	"reflect"
 	"slices"
 	"sort"
@@ -31,9 +36,9 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 		managedPolicies: nil,
 	}
 
-	roles, err := getObjects[RoleEntity]("testdata/aws/test_roles.json")
+	roles, err := getObjects[model.RoleEntity]("testdata/aws/test_roles.json")
 	require.Nil(t, err)
-	managedPolicies, err := getObjects[PolicyEntity]("testdata/aws/test_managed_policies.json")
+	managedPolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_managed_policies.json")
 	require.Nil(t, err)
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
@@ -103,7 +108,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -113,7 +118,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 				Name:        "TestRole",
 				Description: "a test role",
 				NamingHint:  "test role",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -128,7 +133,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(RoleTypePrefix + "test_role"), Type: ptr.String(string(Role))}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(constants.RoleTypePrefix + "test_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -160,7 +165,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -170,7 +175,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 				Name:        "TestRole",
 				Description: "a test role",
 				NamingHint:  "test role",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -202,7 +207,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	}}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", Type: ptr.String(string(Role)), ExternalId: ptr.String(RoleTypePrefix + "test_role")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "test_role")}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -234,7 +239,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -244,7 +249,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 				Name:        "TestRole",
 				Description: "a test role",
 				NamingHint:  "test role",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -266,7 +271,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 				Name:        "AnotherRole",
 				Description: "another role",
 				NamingHint:  "another role",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -318,8 +323,8 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	}}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", Type: ptr.String(string(Role)), ExternalId: ptr.String(RoleTypePrefix + "test_role")}).Return(nil).Once()
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_role", Type: ptr.String(string(Role)), ExternalId: ptr.String(RoleTypePrefix + "another_role")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "test_role")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_role", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "another_role")}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -351,7 +356,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -361,7 +366,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 				Name:        "Data Engineering Sync",
 				Description: "a test role",
 				NamingHint:  "data engineering sync",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -377,7 +382,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	repoMock.EXPECT().DeleteRoleInlinePolicies(ctx, "data_engineering_sync").Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "data_engineering_sync", Type: ptr.String(string(Role)), ExternalId: ptr.String(RoleTypePrefix + "data_engineering_sync")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "data_engineering_sync", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "data_engineering_sync")}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -407,7 +412,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -418,7 +423,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 				Description: "a test role",
 				Delete:      true,
 				NamingHint:  "data_engineering_sync",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -461,19 +466,19 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
 		AccessProviders: []*sync_to_target.AccessProvider{
 			{
 				// To fake that this is an internalized AP that was representing the inline policies of a user called 'userke'
-				ExternalId:  ptr.String(UserTypePrefix + "userke|" + InlinePrefix + "inline1|inline2"),
+				ExternalId:  ptr.String(constants.UserTypePrefix + "userke|" + constants.InlinePrefix + "inline1|inline2"),
 				Id:          "something",
 				Name:        "TestPolicy",
 				Description: "a test policy",
 				NamingHint:  "test_policy",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -507,13 +512,13 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	}}).Return(&types.Policy{}, nil).Once()
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().GetPolicyArn("test_policy", false, mock.Anything).Return("arn:test_policy").Twice()
-	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline1", "userke", UserResourceType).Return(nil).Once()
-	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline2", "userke", UserResourceType).Return(nil).Once()
+	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline1", "userke", iam.UserResourceType).Return(nil).Once()
+	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline2", "userke", iam.UserResourceType).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().AttachGroupToManagedPolicy(ctx, "arn:test_policy", []string{"g1"}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", Type: ptr.String(string(Policy)), ExternalId: ptr.String(PolicyTypePrefix + "test_policy")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "test_policy")}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -542,7 +547,7 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -552,7 +557,7 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 				Name:        "TestPolicy",
 				Description: "a test policy",
 				NamingHint:  "test policy",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -565,7 +570,7 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 				Name:        "AnotherPolicy",
 				Description: "another policy",
 				NamingHint:  "another policy",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -587,8 +592,8 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", Type: ptr.String(string(Policy)), ExternalId: ptr.String(PolicyTypePrefix + "test_policy")}).Return(nil).Once()
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_policy", Type: ptr.String(string(Policy)), ExternalId: ptr.String(PolicyTypePrefix + "another_policy")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "test_policy")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_policy", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "another_policy")}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -620,7 +625,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -630,7 +635,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 				Name:        "P1",
 				Description: "test policy1",
 				NamingHint:  "p1",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -644,7 +649,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 				Name:        "P2",
 				Description: "test policy2",
 				NamingHint:  "p2",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -658,7 +663,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 				Name:        "P3",
 				Description: "test policy3",
 				NamingHint:  "p3",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -672,7 +677,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 				Name:        "r1",
 				Description: "test role1",
 				NamingHint:  "r1",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -686,7 +691,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 				Name:        "r2",
 				Description: "test role2",
 				NamingHint:  "r2",
-				Type:        aws.String(string(Role)),
+				Type:        aws.String(string(model.Role)),
 
 				Action: sync_to_target.Grant,
 
@@ -722,11 +727,11 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p1", ActualName: "p1", Type: ptr.String(string(Policy)), ExternalId: ptr.String(PolicyTypePrefix + "p1")}).Return(nil).Once()
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p2", ActualName: "p2", Type: ptr.String(string(Policy)), ExternalId: ptr.String(PolicyTypePrefix + "p2")}).Return(nil).Once()
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p3", ActualName: "p3", Type: ptr.String(string(Policy)), ExternalId: ptr.String(PolicyTypePrefix + "p3")}).Return(nil).Once()
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r1", ActualName: "r1", Type: ptr.String(string(Role)), ExternalId: ptr.String(RoleTypePrefix + "r1")}).Return(nil).Once()
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r2", ActualName: "r2", Type: ptr.String(string(Role)), ExternalId: ptr.String(RoleTypePrefix + "r2")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p1", ActualName: "p1", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "p1")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p2", ActualName: "p2", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "p2")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p3", ActualName: "p3", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "p3")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r1", ActualName: "r1", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "r1")}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r2", ActualName: "r2", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "r2")}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
@@ -758,7 +763,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -769,7 +774,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 				Description: "a test policy",
 				Delete:      true,
 				NamingHint:  "HumanResourcesReadS3Policy",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 
@@ -811,7 +816,7 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -822,7 +827,7 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 				Description: "a test policy",
 				Delete:      true,
 				NamingHint:  "test_policy",
-				Type:        aws.String(string(Policy)),
+				Type:        aws.String(string(model.Policy)),
 
 				Action: sync_to_target.Grant,
 

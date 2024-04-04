@@ -8,6 +8,10 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
 	"github.com/gammazero/workerpool"
 
@@ -19,8 +23,8 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=dataSourceRepository --with-expecter --inpackage
 type dataSourceRepository interface {
-	ListBuckets(ctx context.Context) ([]AwsS3Entity, error)
-	ListFiles(ctx context.Context, bucket string, prefix *string) ([]AwsS3Entity, error)
+	ListBuckets(ctx context.Context) ([]model.AwsS3Entity, error)
+	ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error)
 }
 
 type DataSourceSyncer struct {
@@ -32,9 +36,7 @@ func NewDataSourceSyncer() *DataSourceSyncer {
 }
 
 func (s *DataSourceSyncer) provideRepo() dataSourceRepository {
-	return &AwsS3Repository{
-		configMap: s.config.ConfigMap,
-	}
+	return data_source.NewAwsS3Repository(s.config.ConfigMap)
 }
 
 func getRegExList(input string) ([]*regexp.Regexp, error) {
@@ -70,25 +72,25 @@ func getRegExList(input string) ([]*regexp.Regexp, error) {
 	return ret, nil
 }
 
-func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3Entity, error) {
-	logger.Debug(fmt.Sprintf("Input buckets: %+v", buckets))
+func filterBuckets(configMap *config.ConfigMap, buckets []model.AwsS3Entity) ([]model.AwsS3Entity, error) {
+	utils.Logger.Debug(fmt.Sprintf("Input buckets: %+v", buckets))
 
-	included, err := getRegExList(configMap.GetString(AwsS3IncludeBuckets))
+	included, err := getRegExList(configMap.GetString(constants.AwsS3IncludeBuckets))
 	if err != nil {
 		return nil, err
 	}
 
-	excluded, err := getRegExList(configMap.GetString(AwsS3ExcludeBuckets))
+	excluded, err := getRegExList(configMap.GetString(constants.AwsS3ExcludeBuckets))
 	if err != nil {
 		return nil, err
 	}
 
 	if len(included) == 0 && len(excluded) == 0 {
-		logger.Debug("No buckets to include or exclude, so using all buckets.")
+		utils.Logger.Debug("No buckets to include or exclude, so using all buckets.")
 		return buckets, nil
 	}
 
-	filteredBuckets := make([]AwsS3Entity, 0, len(buckets))
+	filteredBuckets := make([]model.AwsS3Entity, 0, len(buckets))
 
 	for i := range buckets {
 		bucket := buckets[i]
@@ -100,7 +102,7 @@ func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3E
 
 			for _, includedBucket := range included {
 				if includedBucket.MatchString(bucket.Key) {
-					logger.Debug(fmt.Sprintf("Including bucket %s", bucket.Key))
+					utils.Logger.Debug(fmt.Sprintf("Including bucket %s", bucket.Key))
 					include = true
 
 					break
@@ -111,7 +113,7 @@ func filterBuckets(configMap *config.ConfigMap, buckets []AwsS3Entity) ([]AwsS3E
 		if include && len(excluded) > 0 {
 			for _, excludedBucket := range excluded {
 				if excludedBucket.MatchString(bucket.Key) {
-					logger.Debug(fmt.Sprintf("Excluding bucket %s", bucket.Key))
+					utils.Logger.Debug(fmt.Sprintf("Excluding bucket %s", bucket.Key))
 					include = false
 
 					break
@@ -149,7 +151,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Found %d buckets to handle: %+v", len(buckets), buckets))
+	utils.Logger.Info(fmt.Sprintf("Found %d buckets to handle: %+v", len(buckets), buckets))
 
 	err = s.addS3Entities(buckets, dataSourceHandler, nil)
 	if err != nil {
@@ -157,7 +159,7 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 	}
 
 	// handle files
-	workerPool := workerpool.New(getConcurrency(config.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(config.ConfigMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -178,9 +180,9 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 					p += "/"
 				}
 				prefix = &p
-				logger.Info(fmt.Sprintf("Handling files with prefix '%s' in bucket %s ", p, bucketName))
+				utils.Logger.Info(fmt.Sprintf("Handling files with prefix '%s' in bucket %s ", p, bucketName))
 			} else {
-				logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketName))
+				utils.Logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketName))
 			}
 
 			files, err2 := s.provideRepo().ListFiles(ctx, bucketName, prefix)
@@ -209,13 +211,13 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 }
 
 func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context, configParams *config.ConfigMap) (*ds.MetaData, error) {
-	logger.Debug("Returning meta data for AWS S3 data source")
+	utils.Logger.Debug("Returning meta data for AWS S3 data source")
 
-	return GetS3MetaData(), nil
+	return data_source.GetS3MetaData(), nil
 }
 
 func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
-	awsAccount := s.config.ConfigMap.GetString(AwsAccountId)
+	awsAccount := s.config.ConfigMap.GetString(constants.AwsAccountId)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -238,9 +240,9 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 	})
 }
 
-func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
-	awsAccount := s.config.ConfigMap.GetString(AwsAccountId)
-	emulateFolders := s.config.ConfigMap.GetBoolWithDefault(AwsS3EmulateFolderStructure, true)
+func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
+	awsAccount := s.config.ConfigMap.GetString(constants.AwsAccountId)
+	emulateFolders := s.config.ConfigMap.GetBoolWithDefault(constants.AwsS3EmulateFolderStructure, true)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -270,7 +272,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
-				maxFolderDepth := s.config.ConfigMap.GetIntWithDefault(AwsS3MaxFolderDepth, 20)
+				maxFolderDepth := s.config.ConfigMap.GetIntWithDefault(constants.AwsS3MaxFolderDepth, 20)
 
 				parts := strings.Split(entity.Key, "/")
 				parentExternalId := entity.ParentKey
@@ -355,7 +357,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []AwsS3Entity, dataSourceHandl
 // shouldHandle determines if this data object needs to be handled by the syncer or not. It does this by looking at the configuration options to only sync a part.
 func (s *DataSourceSyncer) shouldHandle(fullName string) (ret bool) {
 	defer func() {
-		logger.Debug(fmt.Sprintf("shouldHandle %s: %t", fullName, ret))
+		utils.Logger.Debug(fmt.Sprintf("shouldHandle %s: %t", fullName, ret))
 	}()
 
 	// No partial sync specified, so do everything
@@ -381,7 +383,7 @@ func (s *DataSourceSyncer) shouldHandle(fullName string) (ret bool) {
 // shouldGoInto checks if we need to go deeper into this data object or not.
 func (s *DataSourceSyncer) shouldGoInto(fullName string) (ret bool) {
 	defer func() {
-		logger.Debug(fmt.Sprintf("shouldGoInto %s: %t", fullName, ret))
+		utils.Logger.Debug(fmt.Sprintf("shouldGoInto %s: %t", fullName, ret))
 	}()
 
 	// No partial sync specified, so do everything

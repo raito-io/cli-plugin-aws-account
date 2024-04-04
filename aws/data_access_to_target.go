@@ -8,10 +8,13 @@ import (
 	"strings"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
 	ds "github.com/raito-io/cli/base/data_source"
-
-	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
@@ -27,7 +30,7 @@ const (
 )
 
 func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
-	a.repo = &AwsIamRepository{
+	a.repo = &iam.AwsIamRepository{
 		ConfigMap: configMap,
 	}
 
@@ -35,7 +38,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 }
 
 func logFeedbackError(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
-	logger.Error(msg)
+	utils.Logger.Error(msg)
 	apFeedback.Errors = append(apFeedback.Errors, msg)
 }
 
@@ -44,7 +47,7 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.Co
 		return a.userGroupMap, nil
 	}
 
-	iamRepo := AwsIamRepository{
+	iamRepo := iam.AwsIamRepository{
 		ConfigMap: configMap,
 	}
 
@@ -70,7 +73,7 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.Co
 			if userName, f := userMap[m]; f {
 				a.userGroupMap[g.Name] = append(a.userGroupMap[g.Name], userName)
 			} else {
-				logger.Warn(fmt.Sprintf("Could not find member %s for group %s", m, g.Name))
+				utils.Logger.Warn(fmt.Sprintf("Could not find member %s for group %s", m, g.Name))
 			}
 		}
 	}
@@ -80,11 +83,11 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.Co
 
 func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) (err error) {
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
-		logger.Info("No access providers to sync from Raito to AWS")
+		utils.Logger.Info("No access providers to sync from Raito to AWS")
 		return nil
 	}
 
-	logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
+	utils.Logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
 	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx)
 	if err != nil {
@@ -99,10 +102,10 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// Need to separate roles and policies as they can have the same name
 	policyAps := map[string]*sync_to_target.AccessProvider{}
 	roleAps := map[string]*sync_to_target.AccessProvider{}
-	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{}
+	newRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 	roleInheritanceMap := map[string]set.Set[string]{}
 	inverseRoleInheritanceMap := map[string]set.Set[string]{}
-	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{}
+	newPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 	policyInheritanceMap := map[string]set.Set[string]{}
 
 	inlineUserPoliciesToDelete := map[string][]string{}
@@ -133,7 +136,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 		feedbackMap[ap.Id] = &apFeedback
 
-		name, err2 := generateName(ap)
+		name, err2 := utils.GenerateName(ap)
 		if err2 != nil {
 			logFeedbackError(&apFeedback, fmt.Sprintf("failed to generate actual name for access provider %q: %s", ap.Name, err2.Error()))
 			continue
@@ -146,7 +149,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			continue
 		}
 
-		apType := string(Policy)
+		apType := string(model.Policy)
 
 		if ap.Action == sync_to_target.Purpose {
 			// TODO look at all other APs to see what the incoming WHO links are.
@@ -160,7 +163,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			logFeedbackError(&apFeedback, "currently purposes are not supported yet")
 		} else {
 			if ap.Type == nil {
-				logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
+				utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
 			} else {
 				apType = *ap.Type
 			}
@@ -170,16 +173,16 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		var apActionMap map[string]string
 		var inheritanceMap map[string]set.Set[string]
-		var whoBindings map[string]set.Set[PolicyBinding]
+		var whoBindings map[string]set.Set[model.PolicyBinding]
 		var aps map[string]*sync_to_target.AccessProvider
 
 		switch apType {
-		case string(Role):
+		case string(model.Role):
 			apActionMap = roleActionMap
 			inheritanceMap = roleInheritanceMap
 			whoBindings = newRoleWhoBindings
 			aps = roleAps
-		case string(Policy):
+		case string(model.Policy):
 			apActionMap = policyActionMap
 			inheritanceMap = policyInheritanceMap
 			whoBindings = newPolicyWhoBindings
@@ -192,27 +195,27 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		printDebugAp(*ap)
 
 		// Check the incoming external ID to see if there is a list of inline policies defined
-		if ap.ExternalId != nil && strings.Contains(*ap.ExternalId, InlinePrefix) {
+		if ap.ExternalId != nil && strings.Contains(*ap.ExternalId, constants.InlinePrefix) {
 			eId := *ap.ExternalId
 
-			logger.Info(fmt.Sprintf("Processing externalId %q for access provider %q", eId, ap.Name))
+			utils.Logger.Info(fmt.Sprintf("Processing externalId %q for access provider %q", eId, ap.Name))
 
-			inlineString := eId[strings.Index(eId, InlinePrefix)+len(InlinePrefix):]
+			inlineString := eId[strings.Index(eId, constants.InlinePrefix)+len(constants.InlinePrefix):]
 			inlinePolicies := strings.Split(inlineString, "|")
 
 			// Note: for roles we currently don't do this as we simply remove/replace all the inline policies
-			if strings.HasPrefix(eId, UserTypePrefix) {
-				entityName := eId[len(UserTypePrefix):strings.Index(eId, "|")]
+			if strings.HasPrefix(eId, constants.UserTypePrefix) {
+				entityName := eId[len(constants.UserTypePrefix):strings.Index(eId, "|")]
 
 				inlineUserPoliciesToDelete[entityName] = inlinePolicies
 
-				logger.Info(fmt.Sprintf("Handled inline policies for user %q: %v", entityName, inlinePolicies))
-			} else if strings.HasPrefix(eId, GroupTypePrefix) {
-				entityName := eId[len(GroupTypePrefix):strings.Index(eId, "|")]
+				utils.Logger.Info(fmt.Sprintf("Handled inline policies for user %q: %v", entityName, inlinePolicies))
+			} else if strings.HasPrefix(eId, constants.GroupTypePrefix) {
+				entityName := eId[len(constants.GroupTypePrefix):strings.Index(eId, "|")]
 
 				inlineGroupPoliciesToDelete[entityName] = inlinePolicies
 
-				logger.Info(fmt.Sprintf("Handled inline policies for group %q: %v", entityName, inlinePolicies))
+				utils.Logger.Info(fmt.Sprintf("Handled inline policies for group %q: %v", entityName, inlinePolicies))
 			}
 		}
 
@@ -226,10 +229,10 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			continue
 		} else {
 			externalId := name
-			if apType == string(Role) {
-				externalId = fmt.Sprintf("%s%s", RoleTypePrefix, name)
+			if apType == string(model.Role) {
+				externalId = fmt.Sprintf("%s%s", constants.RoleTypePrefix, name)
 			} else {
-				externalId = fmt.Sprintf("%s%s", PolicyTypePrefix, name)
+				externalId = fmt.Sprintf("%s%s", constants.PolicyTypePrefix, name)
 			}
 
 			apFeedback.ExternalId = &externalId
@@ -245,21 +248,21 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			apActionMap[name] = action
 
 			// Storing the inheritance information to handle every we covered all APs
-			apInheritFromNames := resolveInheritedApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
+			apInheritFromNames := iam.ResolveInheritedApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
 			inheritanceMap[name] = set.NewSet(apInheritFromNames...)
 
 			// Handling the WHO by converting it to policy bindings
-			whoBindings[name] = set.Set[PolicyBinding]{}
+			whoBindings[name] = set.Set[model.PolicyBinding]{}
 
 			for _, user := range ap.Who.Users {
-				key := PolicyBinding{
-					Type:         UserResourceType,
+				key := model.PolicyBinding{
+					Type:         iam.UserResourceType,
 					ResourceName: user,
 				}
 				whoBindings[name].Add(key)
 			}
 
-			if apType == string(Role) {
+			if apType == string(model.Role) {
 				if len(ap.Who.Groups) > 0 {
 					userGroupMap, err3 := a.getUserGroupMap(ctx, configMap)
 					if err3 != nil {
@@ -270,8 +273,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 					for _, group := range ap.Who.Groups {
 						if users, f := userGroupMap[group]; f {
 							for _, user := range users {
-								key := PolicyBinding{
-									Type:         UserResourceType,
+								key := model.PolicyBinding{
+									Type:         iam.UserResourceType,
 									ResourceName: user,
 								}
 								whoBindings[name].Add(key)
@@ -290,8 +293,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				}
 			} else {
 				for _, group := range ap.Who.Groups {
-					key := PolicyBinding{
-						Type:         GroupResourceType,
+					key := model.PolicyBinding{
+						Type:         iam.GroupResourceType,
 						ResourceName: group,
 					}
 
@@ -301,31 +304,31 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 	}
 
-	logger.Debug(fmt.Sprintf("roleInheritanceMap: %+v", roleInheritanceMap))
-	logger.Debug(fmt.Sprintf("policyInheritanceMap: %+v", policyInheritanceMap))
-	logger.Debug(fmt.Sprintf("newRoleWhoBindings: %+v", newRoleWhoBindings))
-	logger.Debug(fmt.Sprintf("newPolicyWhoBindings: %+v", newPolicyWhoBindings))
-	logger.Debug(fmt.Sprintf("existingPolicyWhoBindings: %+v", existingPolicyWhoBindings))
-	logger.Debug(fmt.Sprintf("existingRoleWhoBindings: %+v", existingRoleWhoBindings))
+	utils.Logger.Debug(fmt.Sprintf("roleInheritanceMap: %+v", roleInheritanceMap))
+	utils.Logger.Debug(fmt.Sprintf("policyInheritanceMap: %+v", policyInheritanceMap))
+	utils.Logger.Debug(fmt.Sprintf("newRoleWhoBindings: %+v", newRoleWhoBindings))
+	utils.Logger.Debug(fmt.Sprintf("newPolicyWhoBindings: %+v", newPolicyWhoBindings))
+	utils.Logger.Debug(fmt.Sprintf("existingPolicyWhoBindings: %+v", existingPolicyWhoBindings))
+	utils.Logger.Debug(fmt.Sprintf("existingRoleWhoBindings: %+v", existingRoleWhoBindings))
 
-	processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+	iam.ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
 
-	logger.Debug(fmt.Sprintf("New policy bindings: %+v", newPolicyWhoBindings))
-	logger.Debug(fmt.Sprintf("New role bindings: %+v", newRoleWhoBindings))
+	utils.Logger.Debug(fmt.Sprintf("New policy bindings: %+v", newPolicyWhoBindings))
+	utils.Logger.Debug(fmt.Sprintf("New role bindings: %+v", newRoleWhoBindings))
 
 	// ============================================================
 	// ========================== Roles ===========================
 	// ============================================================
 
-	assumeRoles := map[string]set.Set[PolicyBinding]{}
+	assumeRoles := map[string]set.Set[model.PolicyBinding]{}
 
 	for roleName, roleAction := range roleActionMap {
 		roleAp := roleAps[roleName]
 
-		logger.Info(fmt.Sprintf("Processing role %s with action %s", roleName, roleAction))
+		utils.Logger.Info(fmt.Sprintf("Processing role %s with action %s", roleName, roleAction))
 
 		if roleAction == DeleteAction {
-			logger.Info(fmt.Sprintf("Removing role %s", roleName))
+			utils.Logger.Info(fmt.Sprintf("Removing role %s", roleName))
 
 			err = a.repo.DeleteRole(ctx, roleName)
 			if err != nil {
@@ -333,8 +336,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				continue
 			}
 		} else if roleAction == CreateAction || roleAction == UpdateAction {
-			logger.Info(fmt.Sprintf("Existing bindings for %s: %s", roleName, existingRoleWhoBindings[roleName]))
-			logger.Info(fmt.Sprintf("Export bindings for %s: %s", roleName, newRoleWhoBindings[roleName]))
+			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", roleName, existingRoleWhoBindings[roleName]))
+			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", roleName, newRoleWhoBindings[roleName]))
 
 			assumeRoles[roleName] = set.NewSet(newRoleWhoBindings[roleName].Slice()...)
 
@@ -357,7 +360,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			}
 
 			if roleAction == CreateAction {
-				logger.Info(fmt.Sprintf("Creating role %s", roleName))
+				utils.Logger.Info(fmt.Sprintf("Creating role %s", roleName))
 
 				// Create the new role with the who
 				err = a.repo.CreateRole(ctx, roleName, ap.Description, userNames)
@@ -366,7 +369,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 					continue
 				}
 			} else {
-				logger.Info(fmt.Sprintf("Updating role %s", roleName))
+				utils.Logger.Info(fmt.Sprintf("Updating role %s", roleName))
 
 				// Handle the who
 				err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
@@ -394,7 +397,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				}
 			}
 		} else {
-			logger.Debug(fmt.Sprintf("no action needed for role %q", roleName))
+			utils.Logger.Debug(fmt.Sprintf("no action needed for role %q", roleName))
 		}
 	}
 
@@ -403,7 +406,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// ============================================================
 
 	// create or update policy, overwrite what / policy document
-	logger.Info(fmt.Sprintf("policies to add or update: %v", policyAps))
+	utils.Logger.Info(fmt.Sprintf("policies to add or update: %v", policyAps))
 
 	managedPolicies := set.NewSet[string]()
 
@@ -416,12 +419,12 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		action := policyActionMap[name]
 
-		logger.Info(fmt.Sprintf("Process policy %s, action: %s", name, action))
+		utils.Logger.Info(fmt.Sprintf("Process policy %s, action: %s", name, action))
 
 		statements := createPolicyStatementsFromWhat(ap.What)
 
 		if action == CreateAction {
-			logger.Info(fmt.Sprintf("Creating policy %s", name))
+			utils.Logger.Info(fmt.Sprintf("Creating policy %s", name))
 
 			p, err2 := a.repo.CreateManagedPolicy(ctx, name, statements)
 			if err2 != nil {
@@ -435,7 +438,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				skippedPolicies.Add(name)
 			}
 		} else if action == UpdateAction && !managedPolicies.Contains(name) {
-			logger.Info(fmt.Sprintf("Updating policy %s", name))
+			utils.Logger.Info(fmt.Sprintf("Updating policy %s", name))
 			err = a.repo.UpdateManagedPolicy(ctx, name, false, statements)
 
 			if err != nil {
@@ -449,7 +452,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		ap := policyAps[policy]
 
 		if policyState == DeleteAction {
-			logger.Info(fmt.Sprintf("Deleting managed policy: %s", policy))
+			utils.Logger.Info(fmt.Sprintf("Deleting managed policy: %s", policy))
 
 			err = a.repo.DeleteManagedPolicy(ctx, policy, managedPolicies.Contains(policy))
 			if err != nil {
@@ -460,8 +463,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	// Now handle the WHO of the policies
-	policyBindingsToAdd := map[string]set.Set[PolicyBinding]{}
-	policyBindingsToRemove := map[string]set.Set[PolicyBinding]{}
+	policyBindingsToAdd := map[string]set.Set[model.PolicyBinding]{}
+	policyBindingsToRemove := map[string]set.Set[model.PolicyBinding]{}
 
 	for policy, policyState := range policyActionMap {
 		if skippedPolicies.Contains(policy) {
@@ -484,24 +487,24 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		policyArn := a.repo.GetPolicyArn(policyName, managedPolicies.Contains(policyName), configMap)
 
 		for _, binding := range bindings.Slice() {
-			if binding.Type == UserResourceType {
-				logger.Debug(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
+			if binding.Type == iam.UserResourceType {
+				utils.Logger.Debug(fmt.Sprintf("Attaching policy %s to user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachUserToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					logFeedbackError(feedbackMap[ap.Id], fmt.Sprintf("failed to attach user %q to managed policy %q: %s", binding.ResourceName, policyName, err.Error()))
 					continue
 				}
-			} else if binding.Type == GroupResourceType {
-				logger.Debug(fmt.Sprintf("Attaching policy %s to group: %s", policyName, binding.ResourceName))
+			} else if binding.Type == iam.GroupResourceType {
+				utils.Logger.Debug(fmt.Sprintf("Attaching policy %s to group: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachGroupToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					logFeedbackError(feedbackMap[ap.Id], fmt.Sprintf("failed to attach group %q to managed policy %q: %s", binding.ResourceName, policyName, err.Error()))
 					continue
 				}
-			} else if binding.Type == RoleResourceType {
-				logger.Debug(fmt.Sprintf("Attaching policy %s to role: %s", policyName, binding.ResourceName))
+			} else if binding.Type == iam.RoleResourceType {
+				utils.Logger.Debug(fmt.Sprintf("Attaching policy %s to role: %s", policyName, binding.ResourceName))
 
 				err = a.repo.AttachRoleToManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
@@ -519,24 +522,24 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		policyArn := a.repo.GetPolicyArn(policyName, managedPolicies.Contains(policyName), configMap)
 
 		for _, binding := range bindings.Slice() {
-			if binding.Type == UserResourceType {
-				logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
+			if binding.Type == iam.UserResourceType {
+				utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachUserFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					logFeedbackError(feedbackMap[ap.Id], fmt.Sprintf("failed to deattach user %q from managed policy %q: %s", binding.ResourceName, policyName, err.Error()))
 					continue
 				}
-			} else if binding.Type == GroupResourceType {
-				logger.Debug(fmt.Sprintf("Detaching policy %s from group: %s", policyName, binding.ResourceName))
+			} else if binding.Type == iam.GroupResourceType {
+				utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from group: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachGroupFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
 					logFeedbackError(feedbackMap[ap.Id], fmt.Sprintf("failed to deattach group %q from managed policy %q: %s", binding.ResourceName, policyName, err.Error()))
 					continue
 				}
-			} else if binding.Type == RoleResourceType {
-				logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
+			} else if binding.Type == iam.RoleResourceType {
+				utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", policyName, binding.ResourceName))
 
 				err = a.repo.DetachRoleFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
@@ -549,14 +552,14 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	// Delete old inline policies on users that are not needed anymore
 	for user, inlinePolicies := range inlineUserPoliciesToDelete {
-		logger.Info(fmt.Sprintf("Deleting inline polices for user %q: %v", user, inlinePolicies))
+		utils.Logger.Info(fmt.Sprintf("Deleting inline polices for user %q: %v", user, inlinePolicies))
 
 		for _, inlinePolicy := range inlinePolicies {
 			inlinePolicy = strings.TrimSpace(inlinePolicy)
 			if inlinePolicy != "" {
-				err2 := a.repo.DeleteInlinePolicy(ctx, inlinePolicy, user, UserResourceType)
+				err2 := a.repo.DeleteInlinePolicy(ctx, inlinePolicy, user, iam.UserResourceType)
 				if err2 != nil {
-					logger.Warn(fmt.Sprintf("error while deleting inline policy %q for user %q: %s", inlinePolicy, user, err2.Error()))
+					utils.Logger.Warn(fmt.Sprintf("error while deleting inline policy %q for user %q: %s", inlinePolicy, user, err2.Error()))
 				}
 			}
 		}
@@ -567,9 +570,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		for _, inlinePolicy := range inlinePolicies {
 			inlinePolicy = strings.TrimSpace(inlinePolicy)
 			if inlinePolicy != "" {
-				err2 := a.repo.DeleteInlinePolicy(ctx, inlinePolicy, group, GroupResourceType)
+				err2 := a.repo.DeleteInlinePolicy(ctx, inlinePolicy, group, iam.GroupResourceType)
 				if err2 != nil {
-					logger.Warn(fmt.Sprintf("error while deleting inline policy %q for group %q: %s", inlinePolicy, group, err2.Error()))
+					utils.Logger.Warn(fmt.Sprintf("error while deleting inline policy %q for group %q: %s", inlinePolicy, group, err2.Error()))
 				}
 			}
 		}
@@ -612,7 +615,7 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspo
 		}
 
 		if _, found := policyInfo[what.DataObject.FullName]; !found {
-			dot := GetDataObjectType(what.DataObject.Type)
+			dot := data_source.GetDataObjectType(what.DataObject.Type)
 			allPermissions := what.Permissions
 
 			if dot != nil {
@@ -626,7 +629,7 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspo
 	statements := make([]awspolicy.Statement, 0, len(policyInfo))
 	for resource, actions := range policyInfo {
 		statements = append(statements, awspolicy.Statement{
-			Resource: []string{convertFullnameToArn(resource, "s3")},
+			Resource: []string{utils.ConvertFullnameToArn(resource, "s3")},
 			Action:   actions,
 			Effect:   "Allow",
 		})
@@ -739,8 +742,8 @@ func contains(slice []string, val string) bool {
 	return false
 }
 
-func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
-	logger.Info("Fetching existing roles")
+func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
+	utils.Logger.Info("Fetching existing roles")
 
 	roles, err := a.repo.GetRoles(ctx)
 	if err != nil {
@@ -748,7 +751,7 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 	}
 
 	roleMap := map[string]string{}
-	existingRoleAssumptions := map[string]set.Set[PolicyBinding]{}
+	existingRoleAssumptions := map[string]set.Set[model.PolicyBinding]{}
 
 	for _, role := range roles {
 		roleMap[role.Name] = "existing"
@@ -760,24 +763,24 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 			return nil, nil, fmt.Errorf("error fetching existing roles: %w", err)
 		}
 
-		existingRoleAssumptions[role.Name] = set.Set[PolicyBinding]{}
+		existingRoleAssumptions[role.Name] = set.Set[model.PolicyBinding]{}
 
 		for _, userName := range userBindings {
-			key := PolicyBinding{
-				Type:         UserResourceType,
+			key := model.PolicyBinding{
+				Type:         iam.UserResourceType,
 				ResourceName: userName,
 			}
 			existingRoleAssumptions[role.Name].Add(key)
 		}
 	}
 
-	logger.Info(fmt.Sprintf("Fetched existing %d roles", len(roleMap)))
+	utils.Logger.Info(fmt.Sprintf("Fetched existing %d roles", len(roleMap)))
 
 	return roleMap, existingRoleAssumptions, nil
 }
 
-func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[string]string, map[string]set.Set[PolicyBinding], error) {
-	logger.Info("Fetching existing managed policies")
+func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
+	utils.Logger.Info("Fetching existing managed policies")
 
 	managedPolicies, err := a.repo.GetManagedPolicies(ctx)
 	if err != nil {
@@ -787,27 +790,27 @@ func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[st
 	a.managedPolicies = managedPolicies
 
 	policyMap := map[string]string{}
-	existingPolicyBindings := map[string]set.Set[PolicyBinding]{}
+	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
 
 	for ind := range managedPolicies {
 		policy := managedPolicies[ind]
 
 		policyMap[policy.Name] = "managed"
 
-		existingPolicyBindings[policy.Name] = set.Set[PolicyBinding]{}
+		existingPolicyBindings[policy.Name] = set.Set[model.PolicyBinding]{}
 
 		existingPolicyBindings[policy.Name].Add(removeArn(policy.UserBindings)...)
 		existingPolicyBindings[policy.Name].Add(removeArn(policy.GroupBindings)...)
 		existingPolicyBindings[policy.Name].Add(removeArn(policy.RoleBindings)...)
 	}
 
-	logger.Info(fmt.Sprintf("Fetched existing %d managed policies", len(policyMap)))
+	utils.Logger.Info(fmt.Sprintf("Fetched existing %d managed policies", len(policyMap)))
 
 	return policyMap, existingPolicyBindings, nil
 }
 
-func removeArn(input []PolicyBinding) []PolicyBinding {
-	result := []PolicyBinding{}
+func removeArn(input []model.PolicyBinding) []model.PolicyBinding {
+	result := []model.PolicyBinding{}
 
 	for _, val := range input {
 		val.ResourceId = ""
@@ -815,20 +818,4 @@ func removeArn(input []PolicyBinding) []PolicyBinding {
 	}
 
 	return result
-}
-
-func generateName(ap *sync_to_target.AccessProvider) (string, error) {
-	uniqueRoleNameGenerator, err := naming_hint.NewUniqueNameGenerator(logger, "", &naming_hint.NamingConstraints{
-		UpperCaseLetters:  true,
-		LowerCaseLetters:  true,
-		Numbers:           true,
-		SpecialCharacters: "+_",
-		MaxLength:         64,
-	})
-
-	if err != nil {
-		return "", err
-	}
-
-	return uniqueRoleNameGenerator.Generate(ap)
 }

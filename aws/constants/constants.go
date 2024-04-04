@@ -1,4 +1,4 @@
-package aws
+package constants
 
 const (
 	AwsAccountId = "aws-account-id"

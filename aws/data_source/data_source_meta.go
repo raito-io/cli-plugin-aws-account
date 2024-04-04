@@ -1,10 +1,12 @@
-package aws
+package data_source
 
 import (
 	"fmt"
 	"strings"
 	"sync"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	ds "github.com/raito-io/cli/base/data_source"
 )
 
@@ -69,17 +71,17 @@ func GetS3MetaData() *ds.MetaData {
 			},
 			AccessProviderTypes: []*ds.AccessProviderType{
 				{
-					Type:                          string(Role),
+					Type:                          string(model.Role),
 					Label:                         "AWS Role",
 					Icon:                          "",
 					IsNamedEntity:                 true,
 					CanBeCreated:                  true,
 					CanBeAssumed:                  true,
 					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(Role)},
+					AllowedWhoAccessProviderTypes: []string{string(model.Role)},
 				},
 				{
-					Type:                          string(SSORole),
+					Type:                          string(model.SSORole),
 					Label:                         "AWS SSO Role",
 					Icon:                          "",
 					IsNamedEntity:                 true,
@@ -90,14 +92,14 @@ func GetS3MetaData() *ds.MetaData {
 					IdentityStoreTypeForWho:       "aws-organization",
 				},
 				{
-					Type:                          string(Policy),
+					Type:                          string(model.Policy),
 					Label:                         "AWS Policy",
 					Icon:                          "",
 					IsNamedEntity:                 true,
 					CanBeCreated:                  true,
 					CanBeAssumed:                  false,
 					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(Policy), string(Role), string(SSORole)},
+					AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role), string(model.SSORole)},
 				},
 			},
 		}
@@ -112,7 +114,7 @@ func GetS3MetaData() *ds.MetaData {
 	return metaData
 }
 
-func getPermissionsForResourceType(input []ActionMetadata, resourceTypes []string) []*ds.DataObjectTypePermission {
+func getPermissionsForResourceType(input []model.ActionMetadata, resourceTypes []string) []*ds.DataObjectTypePermission {
 	result := []*ds.DataObjectTypePermission{}
 
 	accessLevelMap := map[string][]string{}
@@ -133,7 +135,7 @@ func getPermissionsForResourceType(input []ActionMetadata, resourceTypes []strin
 	for _, actionMetadata := range input {
 		if isPermissionForResourceTypes(actionMetadata, resourceTypes) {
 			result = append(result, &ds.DataObjectTypePermission{
-				Permission:             fmt.Sprintf("%s:%s", S3PermissionPrefix, actionMetadata.Action),
+				Permission:             fmt.Sprintf("%s:%s", constants.S3PermissionPrefix, actionMetadata.Action),
 				Description:            actionMetadata.Description,
 				GlobalPermissions:      accessLevelMap[strings.ToLower(actionMetadata.AccessLevel)],
 				UsageGlobalPermissions: usageLevelMap[strings.ToLower(actionMetadata.AccessLevel)],
@@ -144,7 +146,7 @@ func getPermissionsForResourceType(input []ActionMetadata, resourceTypes []strin
 	return result
 }
 
-func isPermissionForResourceTypes(actionMetaData ActionMetadata, resourceTypes []string) bool {
+func isPermissionForResourceTypes(actionMetaData model.ActionMetadata, resourceTypes []string) bool {
 	for _, resourceType := range resourceTypes {
 		if strings.HasPrefix(actionMetaData.ResourceTypes, strings.ToLower(resourceType)) ||
 			strings.EqualFold(actionMetaData.ResourceTypes, resourceType) {
@@ -155,10 +157,10 @@ func isPermissionForResourceTypes(actionMetaData ActionMetadata, resourceTypes [
 	return false
 }
 
-func getActionMetadataFromDocs() []ActionMetadata {
+func getActionMetadataFromDocs() []model.ActionMetadata {
 	// taken from https://docs.aws.amazon.com/AmazonS3/latest/userguide/list_amazons3.html#amazons3-resources-for-iam-policies
 	// the following access levels are available: read, write, list, permissions management, tagging
-	return []ActionMetadata{
+	return []model.ActionMetadata{
 		{
 			Action:        "AbortMultipartUpload",
 			Description:   "Grants permission to abort a multipart upload",

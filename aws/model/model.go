@@ -1,29 +1,13 @@
-package aws
+package model
 
 import (
 	"time"
 
-	"github.com/raito-io/cli/base/tag"
-
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	"github.com/raito-io/cli/base/tag"
 )
-
-type GroupEntity struct {
-	ARN        string
-	ExternalId string
-	Name       string
-	Members    []string
-}
-
-type UserEntity struct {
-	ARN        string
-	ExternalId string
-	Name       string
-	Email      string //not natively used in AWS
-	Tags       []*tag.Tag
-}
 
 type AccessProviderType string
 
@@ -75,6 +59,31 @@ type PolicyBinding struct {
 	PolicyName   string
 }
 
+type UserIdentity struct {
+	Type          *string     `json:"type"`
+	InvokedBy     *string     `json:"invokedBy"`
+	Arn           *string     `json:"arn"`
+	PrincipalId   *string     `json:"principalId"`
+	AccountId     *string     `json:"accountId"`
+	UserName      *string     `json:"userName"`
+	SessionIssuer interface{} `json:"sessionIssuer"`
+}
+
+type GroupEntity struct {
+	ARN        string
+	ExternalId string
+	Name       string
+	Members    []string
+}
+
+type UserEntity struct {
+	ARN        string
+	ExternalId string
+	Name       string
+	Email      string //not natively used in AWS
+	Tags       []*tag.Tag
+}
+
 type ActionMetadata struct {
 	Action        string
 	Description   string
@@ -86,22 +95,6 @@ type AccessWithWho struct {
 	Name string
 	What []sync_to_target.WhatItem
 	Who  sync_to_target.WhoItem
-}
-
-type AwsS3Entity struct {
-	Type      string
-	Key       string
-	ParentKey string
-}
-
-type UserIdentity struct {
-	Type          *string     `json:"type"`
-	InvokedBy     *string     `json:"invokedBy"`
-	Arn           *string     `json:"arn"`
-	PrincipalId   *string     `json:"principalId"`
-	AccountId     *string     `json:"accountId"`
-	UserName      *string     `json:"userName"`
-	SessionIssuer interface{} `json:"sessionIssuer"`
 }
 
 type EventBytes struct {
@@ -137,4 +130,10 @@ type CloudtrailRecord struct {
 
 type CloudTrailLog struct {
 	Records []CloudtrailRecord `json:"Records"`
+}
+
+type AwsS3Entity struct {
+	Type      string
+	Key       string
+	ParentKey string
 }

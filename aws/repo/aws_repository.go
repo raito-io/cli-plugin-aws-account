@@ -1,19 +1,20 @@
-package aws
+package repo
 
 import (
 	"context"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	aws2 "github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli/base/util/config"
 )
 
 func GetAWSConfig(ctx context.Context, configMap *config.ConfigMap, region *string) (aws.Config, error) {
-	return getAWSConfig(ctx, configMap, AwsProfile, AwsRegion, region)
+	return getAWSConfig(ctx, configMap, aws2.AwsProfile, aws2.AwsRegion, region)
 }
 
 func GetAWSOrgConfig(ctx context.Context, configMap *config.ConfigMap, region *string) (aws.Config, error) {
-	return getAWSConfig(ctx, configMap, AwsOrganizationProfile, AwsOrganizationRegion, region)
+	return getAWSConfig(ctx, configMap, aws2.AwsOrganizationProfile, aws2.AwsOrganizationRegion, region)
 }
 
 func getAWSConfig(ctx context.Context, configMap *config.ConfigMap, profileParam, regionParam string, region *string) (aws.Config, error) {

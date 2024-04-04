@@ -9,6 +9,10 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/cli/base/util/config"
 )
 
@@ -32,22 +36,22 @@ func newRoleEnricher(ctx context.Context, configMap *config.ConfigMap) *roleEnri
 	}
 }
 
-func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
-	orgProfile := e.configMap.GetString(AwsOrganizationProfile)
+func (e *roleEnricher) enrich(aps []model.AccessProviderInputExtended) error {
+	orgProfile := e.configMap.GetString(constants.AwsOrganizationProfile)
 	if orgProfile == "" {
-		logger.Info("No organization profile specified. Skipping role enrichment")
+		utils.Logger.Info("No organization profile specified. Skipping role enrichment")
 
 		return nil
 	}
 
-	e.account = e.configMap.GetString(AwsAccountId)
+	e.account = e.configMap.GetString(constants.AwsAccountId)
 	if e.account == "" {
-		logger.Info("No account ID specified. Skipping role enrichment")
+		utils.Logger.Info("No account ID specified. Skipping role enrichment")
 
 		return nil
 	}
 
-	cfg, err := GetAWSOrgConfig(e.ctx, e.configMap, nil)
+	cfg, err := repo.GetAWSOrgConfig(e.ctx, e.configMap, nil)
 
 	if err != nil {
 		return fmt.Errorf("failed to get AWS organization config: %s", err.Error())
@@ -55,28 +59,28 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 
 	e.orgConfig = cfg
 
-	logger.Info("Fetching SSO identityStores from organization")
+	utils.Logger.Info("Fetching SSO identityStores from organization")
 
 	err = e.fetchSSOInstances()
 	if err != nil {
 		return fmt.Errorf("failed to fetch SSO identityStores: %s", err.Error())
 	}
 
-	logger.Info("Fetching users from organization")
+	utils.Logger.Info("Fetching users from organization")
 
 	err = e.fetchUserMap()
 	if err != nil {
 		return fmt.Errorf("failed to fetch users: %s", err.Error())
 	}
 
-	logger.Info("Fetching groups from organization")
+	utils.Logger.Info("Fetching groups from organization")
 
 	err = e.fetchGroupMap()
 	if err != nil {
 		return fmt.Errorf("failed to fetch groups: %s", err.Error())
 	}
 
-	logger.Info("Fetching permission sets from organization")
+	utils.Logger.Info("Fetching permission sets from organization")
 
 	permissionSets, err := e.fetchPermissionSets()
 	if err != nil {
@@ -87,7 +91,7 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 		ap := aps[i]
 
 		if ap.ApInput == nil {
-			logger.Warn(fmt.Sprintf("Access provider input is nil for ap of type: %s", ap.PolicyType))
+			utils.Logger.Warn(fmt.Sprintf("Access provider input is nil for ap of type: %s", ap.PolicyType))
 			continue
 		}
 
@@ -97,12 +101,12 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 				return fmt.Errorf("failed to get permission set name for role %q", ap.ApInput.Name)
 			}
 
-			logger.Info(fmt.Sprintf("Handling SSO Role %s: %s", ap.ApInput.Name, permissionSet))
+			utils.Logger.Info(fmt.Sprintf("Handling SSO Role %s: %s", ap.ApInput.Name, permissionSet))
 
 			// Changing the (display) name of the role to the permission set name. Leaving actualName and others to the original as they are used to match on.
 			ap.ApInput.Name = permissionSet
 
-			ap.ApInput.Type = aws.String(string(SSORole))
+			ap.ApInput.Type = aws.String(string(model.SSORole))
 			ap.ApInput.WhatLocked = aws.Bool(true)
 			ap.ApInput.WhatLockedReason = aws.String("This policy is managed by AWS")
 			ap.ApInput.NameLocked = aws.Bool(true)
@@ -119,7 +123,7 @@ func (e *roleEnricher) enrich(aps []AccessProviderInputExtended) error {
 					}
 				}
 			} else {
-				logger.Warn(fmt.Sprintf("permission set %q not found", permissionSet))
+				utils.Logger.Warn(fmt.Sprintf("permission set %q not found", permissionSet))
 			}
 		}
 	}
@@ -229,7 +233,7 @@ func (e *roleEnricher) fetchPermissionSets() (map[string][]Assignee, error) {
 	for i := range e.instanceArns {
 		instance := e.instanceArns[i]
 
-		logger.Info(fmt.Sprintf("Fetching permission sets for SSO instance %s", instance))
+		utils.Logger.Info(fmt.Sprintf("Fetching permission sets for SSO instance %s", instance))
 
 		moreObjectsAvailable := true
 		var nextToken *string
@@ -285,13 +289,13 @@ func (e *roleEnricher) fetchPermissionSetAssignees(client *ssoadmin.Client, inst
 			if user, f := e.userMap[principal]; f {
 				ret = append(ret, Assignee{User: &user})
 			} else {
-				logger.Warn(fmt.Sprintf("unable to find user with id %q", principal))
+				utils.Logger.Warn(fmt.Sprintf("unable to find user with id %q", principal))
 			}
 		} else if aa.PrincipalType == types.PrincipalTypeGroup {
 			if group, f := e.groupMap[principal]; f {
 				ret = append(ret, Assignee{Group: &group})
 			} else {
-				logger.Warn(fmt.Sprintf("unable to find group with id %q", principal))
+				utils.Logger.Warn(fmt.Sprintf("unable to find group with id %q", principal))
 			}
 		}
 	}

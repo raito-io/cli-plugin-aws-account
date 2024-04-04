@@ -3,32 +3,33 @@ package aws
 import (
 	"fmt"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	importer "github.com/raito-io/cli/base/access_provider/sync_to_target"
 )
 
 func printDebugAp(ap importer.AccessProvider) {
-	logger.Debug(fmt.Sprintf("=================  ap name: %v =================  ", ap.Name))
+	utils.Logger.Debug(fmt.Sprintf("=================  ap name: %v =================  ", ap.Name))
 
 	if ap.ActualName != nil {
-		logger.Debug(fmt.Sprintf("=================  ap actual name: %v =================  ", *ap.ActualName))
+		utils.Logger.Debug(fmt.Sprintf("=================  ap actual name: %v =================  ", *ap.ActualName))
 	}
 
 	if ap.ExternalId != nil {
-		logger.Debug(fmt.Sprintf("=================  ap external id: %v =================  ", *ap.ExternalId))
+		utils.Logger.Debug(fmt.Sprintf("=================  ap external id: %v =================  ", *ap.ExternalId))
 	}
 
-	logger.Debug(fmt.Sprintf("=================  ap naming hint: %v =================  ", ap.NamingHint))
-	logger.Debug(fmt.Sprintf("=================  ap ID: %v =================  ", ap.Id))
+	utils.Logger.Debug(fmt.Sprintf("=================  ap naming hint: %v =================  ", ap.NamingHint))
+	utils.Logger.Debug(fmt.Sprintf("=================  ap ID: %v =================  ", ap.Id))
 
 	if ap.Who.Users != nil {
-		logger.Debug(fmt.Sprintf("AP %s users: %s", ap.Name, ap.Who.Users))
+		utils.Logger.Debug(fmt.Sprintf("AP %s users: %s", ap.Name, ap.Who.Users))
 	}
 
 	if ap.Who.Groups != nil {
-		logger.Debug(fmt.Sprintf("AP %s groups: %s", ap.Name, ap.Who.Groups))
+		utils.Logger.Debug(fmt.Sprintf("AP %s groups: %s", ap.Name, ap.Who.Groups))
 	}
 
 	if ap.Who.InheritFrom != nil {
-		logger.Debug(fmt.Sprintf("AP %s inherit from: %s", ap.Name, ap.Who.InheritFrom))
+		utils.Logger.Debug(fmt.Sprintf("AP %s inherit from: %s", ap.Name, ap.Who.InheritFrom))
 	}
 }

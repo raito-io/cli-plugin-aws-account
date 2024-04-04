@@ -5,12 +5,15 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	awspolicy "github.com/n4ch04/aws-policy"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 )
 
+//go:generate go run github.com/vektra/mockery/v2 --name=dataAccessRepository --with-expecter --inpackage
+
 type dataAccessRepository interface {
-	GetManagedPolicies(ctx context.Context) ([]PolicyEntity, error)
+	GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error)
 	CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error)
 	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error
 	DeleteManagedPolicy(ctx context.Context, policyName string, awsManaged bool) error
@@ -22,15 +25,15 @@ type dataAccessRepository interface {
 	DetachUserFromManagedPolicy(ctx context.Context, policyArn string, userNames []string) error
 	DetachGroupFromManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error
 	DetachRoleFromManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error
-	GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error)
-	GetGroups(ctx context.Context) ([]GroupEntity, error)
-	GetRoles(ctx context.Context) ([]RoleEntity, error)
+	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
+	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
+	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) error
 	DeleteRole(ctx context.Context, name string) error
 	GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error)
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	// RemoveAssumeRole(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames ...string) error
-	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]PolicyEntity, error)
+	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
 	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
 	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
 	GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error)
@@ -41,7 +44,7 @@ type dataAccessRepository interface {
 }
 type AccessSyncer struct {
 	repo            dataAccessRepository
-	managedPolicies []PolicyEntity
+	managedPolicies []model.PolicyEntity
 	userGroupMap    map[string][]string
 }
 
