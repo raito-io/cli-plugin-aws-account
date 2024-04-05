@@ -13,11 +13,15 @@ const (
 
 	AwsOrganizationRegion = "aws-organization-region"
 
+	AwsS3Enabled                = "aws-s3-enabled"
 	AwsS3EmulateFolderStructure = "aws-s3-emulate-folder-structure"
 	AwsS3MaxFolderDepth         = "aws-s3-max-folder-depth"
-	AwsS3CloudTrailBucket       = "aws-s3-cloudtrail-bucket"
 	AwsS3IncludeBuckets         = "aws-s3-include-buckets"
 	AwsS3ExcludeBuckets         = "aws-s3-exclude-buckets"
+
+	AwsGlueEnabled = "aws-glue-enabled"
+
+	AwsS3CloudTrailBucket = "aws-s3-cloudtrail-bucket"
 
 	// To make a distinct difference between policies and roles when reading ACs from the target, we'll prefix policy names with this value.
 	PolicyPrefix = "policy/"

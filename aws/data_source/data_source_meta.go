@@ -44,18 +44,21 @@ func GetS3MetaData() *ds.MetaData {
 				{
 					Name:        ds.Bucket,
 					Type:        ds.Bucket,
+					Label:       "S3 Bucket",
 					Permissions: bucketPermissions,
 					Children:    []string{ds.Folder, ds.File},
 				},
 				{
 					Name:        ds.Folder,
 					Type:        ds.Folder,
+					Label:       "S3 Folder",
 					Permissions: objectPermissions,
 					Children:    []string{ds.Folder, ds.File},
 				},
 				{
 					Name:        ds.File,
 					Type:        ds.File,
+					Label:       "S3 File",
 					Permissions: objectPermissions,
 					Children:    []string{},
 				},

@@ -16,7 +16,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers"
 )
@@ -50,7 +49,7 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 }
 
 func filterApImportList(importList []model.AccessProviderInputExtended) []model.AccessProviderInputExtended {
-	toKeep := map[string]struct{}{}
+	toKeep := set.NewSet[string]()
 
 	utils.Logger.Debug("Start filtering for relevant access providers")
 
@@ -60,7 +59,7 @@ func filterApImportList(importList []model.AccessProviderInputExtended) []model.
 			if len(apInput.ApInput.What) > 0 {
 				utils.Logger.Debug(fmt.Sprintf("Keeping role %q", apInput.ApInput.ActualName))
 
-				toKeep[apInput.ApInput.ActualName] = struct{}{}
+				toKeep.Add(apInput.ApInput.ActualName)
 			} else {
 				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it has no WHAT elements", apInput.ApInput.ActualName))
 			}
@@ -86,11 +85,11 @@ func filterApImportList(importList []model.AccessProviderInputExtended) []model.
 
 			if hasS3Actions {
 				utils.Logger.Debug(fmt.Sprintf("Keeping policy %q", apInput.ApInput.ActualName))
-				toKeep[apInput.ApInput.ActualName] = struct{}{}
+				toKeep.Add(apInput.ApInput.ActualName)
 
 				for _, who := range apInput.ApInput.Who.AccessProviders {
 					utils.Logger.Debug(fmt.Sprintf("Re-adding role %q", who))
-					toKeep[who] = struct{}{}
+					toKeep.Add(who)
 				}
 			} else {
 				utils.Logger.Debug(fmt.Sprintf("Skipping policy %q as it has no relevant permissions/resources", apInput.ApInput.ActualName))
@@ -101,7 +100,7 @@ func filterApImportList(importList []model.AccessProviderInputExtended) []model.
 	result := make([]model.AccessProviderInputExtended, 0, len(toKeep))
 
 	for _, apInput := range importList {
-		if _, ok := toKeep[apInput.ApInput.ActualName]; ok {
+		if toKeep.Contains(apInput.ApInput.ActualName) {
 			result = append(result, apInput)
 		}
 	}
@@ -499,9 +498,4 @@ func getProperFormatForImport(input []model.AccessProviderInputExtended) []*sync
 	}
 
 	return result
-}
-
-func (a *AccessSyncer) SyncAccessAsCodeToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, prefix string, configMap *config.ConfigMap) error {
-	// TODO implement
-	return nil
 }

@@ -1,0 +1,103 @@
+package data_source
+
+import (
+	"context"
+	"fmt"
+	"log"
+
+	"github.com/aws/aws-sdk-go-v2/service/glue"
+	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
+	"github.com/raito-io/cli/base/util/config"
+)
+
+type AwsGlueRepository struct {
+	configMap *config.ConfigMap
+}
+
+func NewAwsGlueRepository(configMap *config.ConfigMap) *AwsGlueRepository {
+	return &AwsGlueRepository{
+		configMap: configMap,
+	}
+}
+
+func (repo *AwsGlueRepository) GetGlueClient(ctx context.Context, region *string) (*glue.Client, error) {
+	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, region)
+
+	if err != nil {
+		log.Fatalf("failed to load configuration, %v", err)
+	}
+
+	client := glue.NewFromConfig(cfg)
+
+	return client, nil
+}
+
+func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accountId string, database string) (map[string]string, error) {
+	client, err := repo.GetGlueClient(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	moreObjectsAvailable := true
+	var nextToken *string
+
+	tableMap := make(map[string]string)
+
+	for moreObjectsAvailable {
+		tbls, err2 := client.GetTables(ctx, &glue.GetTablesInput{
+			NextToken:    nextToken,
+			CatalogId:    &accountId,
+			DatabaseName: &database,
+		})
+
+		if err2 != nil {
+			return nil, fmt.Errorf("failed to list tables for database %q: %w", database, err2)
+		}
+
+		// TODO table filtering based on config
+		for i := range tbls.TableList {
+			tbl := tbls.TableList[i]
+			if tbl.StorageDescriptor != nil && tbl.StorageDescriptor.Location != nil {
+				tableMap[*tbl.Name] = *tbl.StorageDescriptor.Location
+			}
+		}
+
+		nextToken = tbls.NextToken
+		moreObjectsAvailable = nextToken != nil
+	}
+
+	return tableMap, nil
+}
+
+func (repo *AwsGlueRepository) ListDatabases(ctx context.Context, accountId string) ([]string, error) {
+	client, err := repo.GetGlueClient(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	moreObjectsAvailable := true
+	var nextToken *string
+
+	databases := make([]string, 0, 10)
+
+	for moreObjectsAvailable {
+		dbs, err2 := client.GetDatabases(ctx, &glue.GetDatabasesInput{
+			NextToken: nextToken,
+			CatalogId: &accountId,
+		})
+
+		if err2 != nil {
+			return nil, fmt.Errorf("failed to list databases: %w", err2)
+		}
+
+		// TODO database filtering based on config
+		for _, db := range dbs.DatabaseList {
+			databases = append(databases, *db.Name)
+		}
+
+		nextToken = dbs.NextToken
+		moreObjectsAvailable = nextToken != nil
+	}
+
+	return databases, nil
+}
