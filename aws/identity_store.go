@@ -36,9 +36,7 @@ func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context, conf
 }
 
 func newRepoProvider(configMap *config.ConfigMap) identityStoreRepository {
-	return &iam.AwsIamRepository{
-		ConfigMap: configMap,
-	}
+	return iam.NewAwsIamRepository(configMap)
 }
 
 func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHandler wrappers.IdentityStoreIdentityHandler, configMap *config.ConfigMap) error {

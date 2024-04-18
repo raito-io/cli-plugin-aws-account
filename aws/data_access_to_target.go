@@ -30,9 +30,7 @@ const (
 )
 
 func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
-	a.repo = &iam.AwsIamRepository{
-		ConfigMap: configMap,
-	}
+	a.repo = iam.NewAwsIamRepository(configMap)
 
 	return a.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler, configMap)
 }
@@ -47,9 +45,7 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.Co
 		return a.userGroupMap, nil
 	}
 
-	iamRepo := iam.AwsIamRepository{
-		ConfigMap: configMap,
-	}
+	iamRepo := iam.NewAwsIamRepository(configMap)
 
 	groups, err := iamRepo.GetGroups(ctx)
 	if err != nil {

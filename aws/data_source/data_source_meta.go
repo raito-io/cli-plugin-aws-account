@@ -104,6 +104,16 @@ func GetS3MetaData() *ds.MetaData {
 					CanAssumeMultiple:             false,
 					AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role), string(model.SSORole)},
 				},
+				{
+					Type:                          string(model.AccessPoint),
+					Label:                         "AWS S3 Access Point",
+					Icon:                          "",
+					IsNamedEntity:                 true,
+					CanBeCreated:                  true,
+					CanBeAssumed:                  false,
+					CanAssumeMultiple:             false,
+					AllowedWhoAccessProviderTypes: []string{string(model.Role), string(model.SSORole)},
+				},
 			},
 		}
 

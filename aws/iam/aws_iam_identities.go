@@ -53,7 +53,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 	result := make([]model.UserEntity, 0, len(allUsers))
 
-	workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 
 	var resultErr error
@@ -202,7 +202,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity,
 
 	result := make([]model.RoleEntity, 0, len(allRoles))
 
-	workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -365,7 +365,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 	newPrincipals := []string{}
 
 	for _, userName := range userNames {
-		newPrincipals = append(newPrincipals, utils.GetTrustPolicyArn(userName, repo.ConfigMap))
+		newPrincipals = append(newPrincipals, utils.GetTrustPolicyArn(userName, repo.configMap))
 	}
 
 	var policy *awspolicy.Policy

@@ -46,6 +46,11 @@ func main() {
 					{Name: constants.AwsS3CloudTrailBucket, Description: "The name of the bucket where the usage data for S3 is stored by AWS Cloud Trail. This is necessary to fetch usage data. If not set, no usage data is gathered", Mandatory: false},
 					// AWS Glue parameters
 					{Name: constants.AwsGlueEnabled, Description: fmt.Sprintf("If set to true, AWS Glue Catalog will be used to fetch data objects. This approach is recommended instead of using S3 directly, because Glue allows you to define your data on a more logical level. The imported data objects will still be represented as S3 objects. This cannot be enabled together with the %q parameter.", constants.AwsS3Enabled), Mandatory: false},
+					// Access parameters
+					{Name: constants.AwsAccessSkipIAM, Description: "If set to true, all IAM access entities (roles and policies) will not be read to import into Raito Cloud as access controls.", Mandatory: false},
+					{Name: constants.AwsAccessSkipUserInlinePolicies, Description: "If set to true, inline policies on users will not be read to import into Raito Cloud as access controls.", Mandatory: false},
+					{Name: constants.AwsAccessSkipGroupInlinePolicies, Description: "If set to true, inline policies on groups will not be read to import into Raito Cloud as access controls.", Mandatory: false},
+					{Name: constants.AwsAccessSkipS3AccessPoints, Description: "If set to true, S3 access points will not be read to import into Raito Cloud as access controls.", Mandatory: false},
 				},
 			},
 		})

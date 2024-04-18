@@ -21,9 +21,7 @@ import (
 )
 
 func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, accessProviderHandler wrappers.AccessProviderHandler, configMap *config.ConfigMap) error {
-	a.repo = &iam.AwsIamRepository{
-		ConfigMap: configMap,
-	}
+	a.repo = iam.NewAwsIamRepository(configMap)
 
 	return a.doSyncAccessProvidersFromTarget(ctx, accessProviderHandler, configMap)
 }
@@ -306,7 +304,7 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	return whatItems
 }
 
-func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, roles []model.RoleEntity, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	userPolicies, err := a.getInlinePoliciesOnUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -342,6 +340,10 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			}})
 	}
 
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx)
 	if err != nil {
 		return nil, err
@@ -377,6 +379,10 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			}})
 	}
 
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, roles []model.RoleEntity, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	rolePolicies, err := a.getInlinePoliciesOnRoles(ctx, roles)
 	if err != nil {
 		return nil, err
@@ -413,31 +419,87 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 	return aps, nil
 }
 
+func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+	accessPoints, err := a.repo.ListAccessPoints(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, accessPoint := range accessPoints {
+		newAp := model.AccessProviderInputExtended{
+			PolicyType: model.AccessPoint,
+			ApInput: &sync_from_target.AccessProvider{
+				// As internal policies don't have an ID we use the policy ARN
+				ExternalId: accessPoint.Arn,
+				Name:       accessPoint.Name,
+				Type:       aws.String(string(model.AccessPoint)),
+				NamingHint: "",
+				ActualName: accessPoint.Name,
+				Action:     sync_from_target.Grant,
+			}}
+
+		if accessPoint.PolicyDocument != nil {
+			newAp.ApInput.Policy = *accessPoint.PolicyDocument
+		}
+
+		incomplete := false
+		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, configMap)
+		if incomplete {
+			newAp.ApInput.Incomplete = ptr.Bool(true)
+		}
+
+		aps = append(aps, newAp)
+	}
+
+	return aps, nil
+}
+
 func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *config.ConfigMap) ([]model.AccessProviderInputExtended, error) {
 	var apImportList []model.AccessProviderInputExtended
 
-	roles, err := a.repo.GetRoles(ctx)
-	if err != nil {
-		return nil, err
+	if !configMap.GetBool(constants.AwsAccessSkipIAM) {
+		roles, err := a.repo.GetRoles(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Adding access providers to the list for the roles
+		apImportList = a.fetchRoleAccessProviders(configMap, roles, apImportList)
+
+		// Adding access providers to the list for the managed policies
+		apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
+		if err != nil {
+			return nil, err
+		}
+
+		if !configMap.GetBool(constants.AwsAccessSkipUserInlinePolicies) {
+			apImportList, err = a.fetchInlineUserPolicyAccessProviders(ctx, configMap, apImportList)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if !configMap.GetBool(constants.AwsAccessSkipGroupInlinePolicies) {
+			apImportList, err = a.fetchInlineGroupPolicyAccessProviders(ctx, configMap, apImportList)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Adding access providers to the list for the inline policies (existing role access providers will be enriched with inline policies it may have)
+		apImportList, err = a.fetchInlineRolePolicyAccessProviders(ctx, configMap, roles, apImportList)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Adding access providers to the list for the roles
-	apImportList = a.fetchRoleAccessProviders(configMap, roles, apImportList)
+	if !configMap.GetBool(constants.AwsAccessSkipS3AccessPoints) {
+		var err error
 
-	if err != nil {
-		return nil, err
-	}
-
-	// Adding access providers to the list for the managed policies
-	apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
-	if err != nil {
-		return nil, err
-	}
-
-	// Adding access providers to the list for the inline policies (existing role access providers will be enriched with inline policies it may have)
-	apImportList, err = a.fetchInlinePolicyAccessProviders(ctx, configMap, roles, apImportList)
-	if err != nil {
-		return nil, err
+		apImportList, err = a.FetchS3AccessPointAccessProviders(ctx, configMap, apImportList)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return apImportList, nil

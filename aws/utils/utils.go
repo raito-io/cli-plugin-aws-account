@@ -86,16 +86,11 @@ func ConvertArnToFullname(arn string) string {
 }
 
 func ConvertFullnameToArn(fullName string, service string) string {
-	// arn:aws:s3:::testing-app-server-shared-data-usage-eu-central-1-012457373382/demo/SnowflakeDataSource/*
 	return fmt.Sprintf("arn:aws:%s:::%s", service, fullName)
 }
 
 func RemoveEndingWildcards(name string) string {
-	if strings.HasSuffix(name, "/*") && len(name) > 2 {
-		name = name[:len(name)-2]
-	}
-
-	return name
+	return strings.TrimSuffix(name, "/*")
 }
 
 func GetTrustPolicyArn(user string, configMap *config.ConfigMap) string {

@@ -4,14 +4,17 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
 	"github.com/gammazero/workerpool"
@@ -58,7 +61,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 			return nil, err
 		}
 
-		workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+		workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 		var smu sync.Mutex
 		var resultErr error
 
@@ -346,7 +349,7 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.ConfigMap)
+	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.configMap)
 
 	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {
@@ -431,7 +434,7 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.ConfigMap)
+	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.configMap)
 
 	emptyPolicy := model.PolicyEntity{
 		ARN: policyArn,
@@ -726,7 +729,7 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 		}
 	}
 
-	workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var mut sync.Mutex
 	var resultErr error
 
@@ -802,7 +805,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	entityType := UserResourceType
 
-	workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -854,7 +857,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 
 	entityType := GroupResourceType
 
-	workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -906,7 +909,7 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 
 	entityType := RoleResourceType
 
-	workerPool := workerpool.New(utils.GetConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -1032,4 +1035,71 @@ func (repo *AwsIamRepository) parsePolicyDocument(policyDoc *string, entityName,
 	}
 
 	return &policy, &policyDocument, err
+}
+
+func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *string) (*s3control.Client, error) {
+	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, region)
+
+	if err != nil {
+		log.Fatalf("failed to load configuration, %v", err)
+	}
+
+	client := s3control.NewFromConfig(cfg, func(o *s3control.Options) {})
+
+	return client, nil
+}
+
+func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error) {
+	client, err := repo.getS3ControlClient(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	moreObjectsAvailable := true
+	var nextToken *string
+
+	aps := make([]model.AwsS3AccessPoint, 0, 100)
+
+	for moreObjectsAvailable {
+		lapo, err2 := client.ListAccessPoints(ctx, &s3control.ListAccessPointsInput{
+			NextToken: nextToken,
+			AccountId: &repo.account,
+		})
+
+		if err2 != nil {
+			return nil, fmt.Errorf("listing access points: %w", err2)
+		}
+
+		moreObjectsAvailable = lapo.NextToken != nil
+		nextToken = lapo.NextToken
+
+		for _, sourceAp := range lapo.AccessPointList {
+			if sourceAp.Name != nil && sourceAp.AccessPointArn != nil {
+				ap := model.AwsS3AccessPoint{
+					Name: *sourceAp.Name,
+					Arn:  *sourceAp.AccessPointArn,
+				}
+
+				if sourceAp.Bucket != nil {
+					ap.Bucket = *sourceAp.Bucket
+				}
+
+				policy, err3 := client.GetAccessPointPolicy(ctx, &s3control.GetAccessPointPolicyInput{Name: sourceAp.Name, AccountId: &repo.account})
+				if err3 != nil {
+					return nil, fmt.Errorf("fetching access point policy: %w", err3)
+				}
+
+				if policy.Policy != nil {
+					ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *sourceAp.Name, *sourceAp.Name)
+					if err3 != nil {
+						return nil, err3
+					}
+				}
+
+				aps = append(aps, ap)
+			}
+		}
+	}
+
+	return aps, nil
 }

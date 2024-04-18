@@ -12,9 +12,10 @@ import (
 type AccessProviderType string
 
 const (
-	Role    AccessProviderType = "aws_role"
-	SSORole AccessProviderType = "aws_sso_role"
-	Policy  AccessProviderType = "aws_policy"
+	Role        AccessProviderType = "aws_role"
+	SSORole     AccessProviderType = "aws_sso_role"
+	Policy      AccessProviderType = "aws_policy"
+	AccessPoint AccessProviderType = "aws_access_point"
 )
 
 type AccessProviderInputExtended struct {
@@ -136,4 +137,12 @@ type AwsS3Entity struct {
 	Type      string
 	Key       string
 	ParentKey string
+}
+
+type AwsS3AccessPoint struct {
+	Name           string
+	Arn            string
+	Bucket         string
+	PolicyDocument *string
+	PolicyParsed   *awspolicy.Policy
 }

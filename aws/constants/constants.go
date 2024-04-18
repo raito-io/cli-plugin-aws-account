@@ -21,6 +21,11 @@ const (
 
 	AwsGlueEnabled = "aws-glue-enabled"
 
+	AwsAccessSkipIAM                 = "aws-access-skip-iam"
+	AwsAccessSkipUserInlinePolicies  = "aws-access-skip-user-inline-policies"
+	AwsAccessSkipGroupInlinePolicies = "aws-access-skip-group-inline-policies"
+	AwsAccessSkipS3AccessPoints      = "aws-access-skip-s3-access-points"
+
 	AwsS3CloudTrailBucket = "aws-s3-cloudtrail-bucket"
 
 	// To make a distinct difference between policies and roles when reading ACs from the target, we'll prefix policy names with this value.
