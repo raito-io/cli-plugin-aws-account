@@ -93,9 +93,11 @@ jobs:
         env:
           AWS_S3_TERRAFORM_BUCKET: ${{ secrets.AWS_S3_TERRAFORM_BUCKET }}
           AWS_S3_TERRAFORM_KEY: ${{ secrets.AWS_S3_TERRAFORM_KEY }}
+          TF_VAR_aws_access_key_id: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
+          TF_VAR_aws_secret_access_key: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}
 
       - name: Generate infra
-        run: echo ${TF_VAR_aws_access_key_id}; make gen-test-infra
+        run: make gen-test-infra
         env:
           TF_VAR_aws_access_key_id: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
           TF_VAR_aws_secret_access_key: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}
