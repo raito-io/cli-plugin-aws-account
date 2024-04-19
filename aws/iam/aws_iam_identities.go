@@ -42,7 +42,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 		response, err2 := client.ListUsers(ctx, &input)
 		if err2 != nil {
-			return nil, err
+			return nil, err2
 		}
 
 		allUsers = append(allUsers, response.Users...)
