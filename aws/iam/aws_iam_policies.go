@@ -1037,7 +1037,7 @@ func (repo *AwsIamRepository) parsePolicyDocument(policyDoc *string, entityName,
 	return &policy, &policyDocument, err
 }
 
-func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *string) (*s3control.Client, error) {
+func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *string) *s3control.Client {
 	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, region)
 
 	if err != nil {
@@ -1046,14 +1046,11 @@ func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *st
 
 	client := s3control.NewFromConfig(cfg, func(o *s3control.Options) {})
 
-	return client, nil
+	return client
 }
 
 func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error) {
-	client, err := repo.getS3ControlClient(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
+	client := repo.getS3ControlClient(ctx, nil)
 
 	moreObjectsAvailable := true
 	var nextToken *string
@@ -1074,30 +1071,32 @@ func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.Aws
 		nextToken = lapo.NextToken
 
 		for _, sourceAp := range lapo.AccessPointList {
-			if sourceAp.Name != nil && sourceAp.AccessPointArn != nil {
-				ap := model.AwsS3AccessPoint{
-					Name: *sourceAp.Name,
-					Arn:  *sourceAp.AccessPointArn,
-				}
-
-				if sourceAp.Bucket != nil {
-					ap.Bucket = *sourceAp.Bucket
-				}
-
-				policy, err3 := client.GetAccessPointPolicy(ctx, &s3control.GetAccessPointPolicyInput{Name: sourceAp.Name, AccountId: &repo.account})
-				if err3 != nil {
-					return nil, fmt.Errorf("fetching access point policy: %w", err3)
-				}
-
-				if policy.Policy != nil {
-					ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *sourceAp.Name, *sourceAp.Name)
-					if err3 != nil {
-						return nil, err3
-					}
-				}
-
-				aps = append(aps, ap)
+			if sourceAp.Name == nil || sourceAp.AccessPointArn == nil {
+				continue
 			}
+
+			ap := model.AwsS3AccessPoint{
+				Name: *sourceAp.Name,
+				Arn:  *sourceAp.AccessPointArn,
+			}
+
+			if sourceAp.Bucket != nil {
+				ap.Bucket = *sourceAp.Bucket
+			}
+
+			policy, err3 := client.GetAccessPointPolicy(ctx, &s3control.GetAccessPointPolicyInput{Name: sourceAp.Name, AccountId: &repo.account})
+			if err3 != nil {
+				return nil, fmt.Errorf("fetching access point policy: %w", err3)
+			}
+
+			if policy.Policy != nil {
+				ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *sourceAp.Name, *sourceAp.Name)
+				if err3 != nil {
+					return nil, err3
+				}
+			}
+
+			aps = append(aps, ap)
 		}
 	}
 

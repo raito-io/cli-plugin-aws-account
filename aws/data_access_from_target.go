@@ -304,7 +304,7 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	return whatItems
 }
 
-func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
 	userPolicies, err := a.getInlinePoliciesOnUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -343,7 +343,7 @@ func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context,
 	return aps, nil
 }
 
-func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
 	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx)
 	if err != nil {
 		return nil, err
@@ -444,6 +444,7 @@ func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, co
 
 		incomplete := false
 		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, configMap)
+
 		if incomplete {
 			newAp.ApInput.Incomplete = ptr.Bool(true)
 		}

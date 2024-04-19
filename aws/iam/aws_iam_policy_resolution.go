@@ -130,6 +130,7 @@ func CreateWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 	incomplete := handleStatements(policy, role, func(statement awspolicy.Statement) bool {
 		localIncomplete := false
 		actions := statement.Action
+
 		for _, action := range actions {
 			if strings.EqualFold(action, "sts:AssumeRole") {
 				principalIncomplete := handlePrincipal(statement.Principal, awsAccount, fmt.Sprintf("Trusted Policy document for role %q", role), users, groups, nil)
