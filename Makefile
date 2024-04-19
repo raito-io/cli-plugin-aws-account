@@ -1,5 +1,7 @@
 GO := go
 
+gotestsum := go run gotest.tools/gotestsum@latest
+
 generate:
 	go generate ./...
 
