@@ -1,0 +1,105 @@
+name: Manual - Generate infra
+on:
+  workflow_call:
+    inputs:
+      targetEnvironment:
+        required: true
+        type: string
+      demo-infra:
+        required: true
+        type: boolean
+      testing-infra:
+        required: true
+        type: boolean
+    secrets:
+      AWS_OIDC_DEPLOY_ROLE:
+        required: true
+      AWS_TF_REGION:
+        required: true
+      AWS_TF_S3_BUCKET:
+        required: true
+      AWS_TF_S3_KEY:
+        required: true
+      AWS_TF_ACCESS_KEY_ID:
+        required: true
+      AWS_TF_SECRECT_ACCESS_KEY:
+        required: true
+      AWS_ACCOUNT:
+        required: true
+      AWS_ACCESS_KEY_ID:
+        required: true
+      AWS_SECRET_ACCESS_KEY:
+        required: true
+  workflow_dispatch:
+    inputs:
+      targetEnvironment:
+        type: choice
+        description: Please select a target environment
+        required: true
+        default: 'integration_testing'
+        options:
+          - integration_testing
+          - testing
+      demo-infra:
+        type: boolean
+        description: Indicate if demo infrastructure should be generated
+        required: false
+        default: true
+      testing-infra:
+        type: boolean
+        description: Indicate if testing infrastructure should be generated
+        required: false
+        default: false
+permissions:
+  id-token: write
+  contents: read
+jobs:
+  generate-infra:
+    environment: ${{ inputs.targetEnvironment }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Assume role using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Install Terraform
+        uses: hashicorp/setup-terraform@v3
+
+      - name: Format terraform
+        run: terraform fmt -check -recursive
+        working-directory: .infra/infra
+
+      - name: Terraform backend
+        run: |
+          cat <<EOF > .infra/infra/backend_override.tf
+          terraform {
+            backend "s3" {
+            }
+          }
+          EOF
+
+      - name: Terraform init
+        run: |
+          terraform init \
+            -backend-config=bucket=${AWS_S3_TERRAFORM_BUCKET} \
+            -backend-config=key=${AWS_S3_TERRAFORM_KEY} \
+            -backend-config=region=${AWS_REGION} \
+            -backend-config=access_key=${AWS_ACCESS_KEY_ID} \
+            -backend-config=secret_key=${AWS_SECRET_ACCESS_KEY} \
+        working-directory: .infra/infra
+        env:
+          AWS_S3_TERRAFORM_BUCKET: ${{ secrets.AWS_S3_TERRAFORM_BUCKET }}
+          AWS_S3_TERRAFORM_KEY: ${{ secrets.AWS_S3_TERRAFORM_KEY }}
+
+      - name: Generate infra
+        run: make gen-test-infra
+        env:
+          TF_VAR_aws_access_key_id: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
+          TF_VAR_aws_secret_access_key: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}
+          TF_VAR_testing_dataset: ${{ inputs.testing-infra }}
+          TF_VAR_demo_dataset: ${{ inputs.demo-infra }}

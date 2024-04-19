@@ -37,8 +37,9 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 	err := syncer.SyncDataSource(context.Background(), &dsHandler, &ds2.DataSourceSyncConfig{ConfigMap: config})
 
 	s.Require().NoError(err)
-	s.Require().Len(dsHandler.DataObjects, 6)
+
 	doMap := map[string]string{
+		config.Parameters[constants.AwsAccountId]:   "datasource",
 		"raito-corporate-data":                      "bucket",
 		"raito-corporate-data/operations":           "folder",
 		"raito-corporate-data/marketing":            "folder",
@@ -46,18 +47,12 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 		"raito-corporate-data/sales":                "folder",
 	}
 
-	datasourceFound := false
-	for _, do := range dsHandler.DataObjects {
-		if do.Type == "datasource" {
-			datasourceFound = true
-			continue
-		}
+	s.Require().Len(dsHandler.DataObjects, len(doMap))
 
+	for _, do := range dsHandler.DataObjects {
 		s.Require().Contains(doMap, do.FullName)
 		s.Require().Equal(doMap[do.FullName], do.Type)
 	}
-
-	s.Require().True(datasourceFound)
 }
 
 type DummyDataSourceHandler struct {
