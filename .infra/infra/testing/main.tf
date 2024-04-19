@@ -317,7 +317,7 @@ data "aws_iam_policy_document" "operations_access_point_policy_document" {
     actions = ["s3:GetObject"]
     principals {
       type        = "AWS"
-      identifiers = [aws_iam_user.m_carissa_user.arn, aws_iam_role.sales_role.arn]
+      identifiers = [aws_iam_role.sales_role.arn]
     }
     resources = ["${aws_s3_access_point.operations_access_point.arn}/object/operations/*"]
   }
