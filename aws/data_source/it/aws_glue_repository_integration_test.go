@@ -39,12 +39,11 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 	s.Require().NoError(err)
 
 	doMap := map[string]string{
-		config.Parameters[constants.AwsAccountId]:   "datasource",
-		"raito-corporate-data":                      "bucket",
-		"raito-corporate-data/operations":           "folder",
-		"raito-corporate-data/marketing":            "folder",
-		"raito-corporate-data/marketing/passengers": "folder",
-		"raito-corporate-data/sales":                "folder",
+		config.Parameters[constants.AwsAccountId]: "datasource",
+		"raito-corporate-data":                    "bucket",
+		"raito-corporate-data/operations":         "folder",
+		"raito-corporate-data/marketing":          "folder",
+		"raito-corporate-data/sales":              "folder",
 	}
 
 	s.Require().Len(dsHandler.DataObjects, len(doMap))

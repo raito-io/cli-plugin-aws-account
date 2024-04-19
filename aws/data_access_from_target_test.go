@@ -83,6 +83,7 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, roleNames, iam.RoleResourceType).Return(roleInlineMap, nil).Once()
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, userNames, iam.UserResourceType).Return(userInlineMap, nil).Once()
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, groupNames, iam.GroupResourceType).Return(groupInlineMap, nil).Once()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything).Return([]model.AwsS3AccessPoint{}, nil).Once()
 
 	return repoMock, syncer
 }
