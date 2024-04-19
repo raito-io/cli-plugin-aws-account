@@ -14,21 +14,19 @@ on:
     secrets:
       AWS_OIDC_DEPLOY_ROLE:
         required: true
-      AWS_TF_REGION:
+      AWS_REGION:
         required: true
-      AWS_TF_S3_BUCKET:
+      AWS_S3_TERRAFORM_BUCKET:
         required: true
-      AWS_TF_S3_KEY:
+      AWS_S3_TERRAFORM_KEY:
         required: true
-      AWS_TF_ACCESS_KEY_ID:
+      AWS_TEST_REGION:
         required: true
-      AWS_TF_SECRECT_ACCESS_KEY:
+      AWS_TEST_ACCOUNT:
         required: true
-      AWS_ACCOUNT:
+      AWS_TEST_ACCESS_KEY_ID:
         required: true
-      AWS_ACCESS_KEY_ID:
-        required: true
-      AWS_SECRET_ACCESS_KEY:
+      AWS_TEST_SECRET_ACCESS_KEY:
         required: true
   workflow_dispatch:
     inputs:
