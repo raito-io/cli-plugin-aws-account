@@ -4,10 +4,12 @@ package it
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/golang-set/set"
 	"github.com/stretchr/testify/suite"
 )
@@ -97,4 +99,77 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchRoles() {
 
 	s.Require().True(marketingFound)
 	s.Require().True(salesFound)
+}
+
+func (s *IAMIdentitiesTestSuite) TestIAMIdentities_CreatePolicy() {
+	s.repo.ClearRolesCache()
+	name := "INT_TestRole1"
+
+	err := s.repo.CreateRole(context.Background(), name, "Some description", []string{"m_carissa"})
+	s.Assert().NoError(err)
+
+	defer func() {
+		err = s.repo.DeleteRole(context.Background(), name)
+		s.Assert().NoError(err)
+	}()
+
+	roles, err := s.repo.GetRoles(context.Background())
+	s.Assert().NoError(err)
+	s.Assert().NotNil(roles)
+	found := false
+	for _, role := range roles {
+		if role.Name == name {
+			found = true
+
+			s.checkRole(role, name, []string{"m_carissa"})
+
+			break
+		}
+	}
+	s.Assert().True(found)
+}
+
+func (s *IAMIdentitiesTestSuite) TestIAMIdentities_UpdateRole() {
+	s.repo.ClearRolesCache()
+	name := "INT_UpdateTestRole1"
+
+	err := s.repo.CreateRole(context.Background(), name, "Some description", []string{"m_carissa"})
+	s.Assert().NoError(err)
+
+	defer func() {
+		err = s.repo.DeleteRole(context.Background(), name)
+		s.Assert().NoError(err)
+	}()
+
+	err = s.repo.UpdateAssumeEntities(context.Background(), name, []string{"d_hayden"})
+	s.Assert().NoError(err)
+
+	roles, err := s.repo.GetRoles(context.Background())
+	s.Assert().NoError(err)
+	s.Assert().NotNil(roles)
+	found := false
+	for _, role := range roles {
+		fmt.Println(role.Name)
+		if role.Name == name {
+			found = true
+
+			s.checkRole(role, name, []string{"d_hayden"})
+
+			break
+		}
+	}
+	s.Assert().True(found)
+}
+
+func (s *IAMIdentitiesTestSuite) checkRole(role model.RoleEntity, expectedName string, expectedUsers []string) {
+	s.Assert().Equal(expectedName, role.Name)
+
+	s.Assert().Len(role.Tags, 1)
+	s.Assert().Equal("creator", role.Tags[0].Key)
+	s.Assert().Equal("RAITO", role.Tags[0].Value)
+
+	whoItem, incomplete := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, s.GetConfig())
+	s.Assert().False(incomplete)
+	s.Assert().Len(whoItem.Users, len(expectedUsers))
+	s.Assert().ElementsMatch(expectedUsers, whoItem.Users)
 }

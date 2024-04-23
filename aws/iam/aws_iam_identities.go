@@ -169,6 +169,10 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]model.GroupEntit
 	return result, nil
 }
 
+func (repo *AwsIamRepository) ClearRolesCache() {
+	rolesCache = nil
+}
+
 func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity, error) {
 	if rolesCache != nil {
 		return rolesCache, nil
