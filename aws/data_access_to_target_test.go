@@ -130,7 +130,6 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	}
 
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(constants.RoleTypePrefix + "test_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
@@ -197,7 +196,6 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	}
 
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -294,7 +292,6 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).RunAndReturn(func(ctx context.Context, s string, s2 string, statements []awspolicy.Statement) error {
 		assert.Equal(t, 2, len(statements))
@@ -378,7 +375,6 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	}
 
 	repoMock.EXPECT().UpdateAssumeEntities(ctx, "data_engineering_sync", []string{"n_nguyen", "stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().DeleteRoleInlinePolicies(ctx, "data_engineering_sync").Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
@@ -433,7 +429,6 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	}
 
 	repoMock.EXPECT().DeleteRole(ctx, "data_engineering_sync").Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
@@ -510,7 +505,6 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 			"arn:aws:s3:::test_file",
 		},
 	}}).Return(&types.Policy{}, nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 	repoMock.EXPECT().GetPolicyArn("test_policy", false, mock.Anything).Return("arn:test_policy").Twice()
 	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline1", "userke", iam.UserResourceType).Return(nil).Once()
 	repoMock.EXPECT().DeleteInlinePolicy(ctx, "inline2", "userke", iam.UserResourceType).Return(nil).Once()
@@ -589,7 +583,6 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:test_policy", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"nick_n"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:another_policy", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "test_policy")}).Return(nil).Once()
@@ -724,8 +717,6 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p2", []string{"r2"}).Return(nil).Once()
 	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p3", []string{"r2"}).Return(nil).Once()
 
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
-
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p1", ActualName: "p1", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "p1")}).Return(nil).Once()
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "p2", ActualName: "p2", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "p2")}).Return(nil).Once()
@@ -784,7 +775,6 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 	}
 
 	repoMock.EXPECT().DeleteManagedPolicy(ctx, "HumanResourcesReadS3Policy", false).Return(nil).Once()
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
@@ -835,8 +825,6 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 			},
 		},
 	}
-
-	repoMock.EXPECT().GetPrincipalsFromAssumeRolePolicyDocument(mock.Anything).Return([]string{}, nil)
 
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 

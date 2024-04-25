@@ -755,12 +755,14 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config
 		who, _ := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, configMap)
 		existingRoleAssumptions[role.Name] = set.Set[model.PolicyBinding]{}
 
-		for _, userName := range who.Users {
-			key := model.PolicyBinding{
-				Type:         iam.UserResourceType,
-				ResourceName: userName,
+		if who != nil {
+			for _, userName := range who.Users {
+				key := model.PolicyBinding{
+					Type:         iam.UserResourceType,
+					ResourceName: userName,
+				}
+				existingRoleAssumptions[role.Name].Add(key)
 			}
-			existingRoleAssumptions[role.Name].Add(key)
 		}
 	}
 

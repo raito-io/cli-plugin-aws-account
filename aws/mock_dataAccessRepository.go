@@ -12,8 +12,6 @@ import (
 
 	model "github.com/raito-io/cli-plugin-aws-account/aws/model"
 
-	sync_to_target "github.com/raito-io/cli/base/access_provider/sync_to_target"
-
 	types "github.com/aws/aws-sdk-go-v2/service/iam/types"
 )
 
@@ -663,69 +661,6 @@ func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) Return(_a0 
 }
 
 func (_c *mockDataAccessRepository_DetachUserFromManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []string) error) *mockDataAccessRepository_DetachUserFromManagedPolicy_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
-// GetAttachedEntity provides a mock function with given fields: ap
-func (_m *mockDataAccessRepository) GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error) {
-	ret := _m.Called(ap)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetAttachedEntity")
-	}
-
-	var r0 string
-	var r1 string
-	var r2 error
-	if rf, ok := ret.Get(0).(func(sync_to_target.AccessProvider) (string, string, error)); ok {
-		return rf(ap)
-	}
-	if rf, ok := ret.Get(0).(func(sync_to_target.AccessProvider) string); ok {
-		r0 = rf(ap)
-	} else {
-		r0 = ret.Get(0).(string)
-	}
-
-	if rf, ok := ret.Get(1).(func(sync_to_target.AccessProvider) string); ok {
-		r1 = rf(ap)
-	} else {
-		r1 = ret.Get(1).(string)
-	}
-
-	if rf, ok := ret.Get(2).(func(sync_to_target.AccessProvider) error); ok {
-		r2 = rf(ap)
-	} else {
-		r2 = ret.Error(2)
-	}
-
-	return r0, r1, r2
-}
-
-// mockDataAccessRepository_GetAttachedEntity_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetAttachedEntity'
-type mockDataAccessRepository_GetAttachedEntity_Call struct {
-	*mock.Call
-}
-
-// GetAttachedEntity is a helper method to define mock.On call
-//   - ap sync_to_target.AccessProvider
-func (_e *mockDataAccessRepository_Expecter) GetAttachedEntity(ap interface{}) *mockDataAccessRepository_GetAttachedEntity_Call {
-	return &mockDataAccessRepository_GetAttachedEntity_Call{Call: _e.mock.On("GetAttachedEntity", ap)}
-}
-
-func (_c *mockDataAccessRepository_GetAttachedEntity_Call) Run(run func(ap sync_to_target.AccessProvider)) *mockDataAccessRepository_GetAttachedEntity_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(sync_to_target.AccessProvider))
-	})
-	return _c
-}
-
-func (_c *mockDataAccessRepository_GetAttachedEntity_Call) Return(_a0 string, _a1 string, _a2 error) *mockDataAccessRepository_GetAttachedEntity_Call {
-	_c.Call.Return(_a0, _a1, _a2)
-	return _c
-}
-
-func (_c *mockDataAccessRepository_GetAttachedEntity_Call) RunAndReturn(run func(sync_to_target.AccessProvider) (string, string, error)) *mockDataAccessRepository_GetAttachedEntity_Call {
 	_c.Call.Return(run)
 	return _c
 }
