@@ -55,11 +55,11 @@ func filterApImportList(importList []model.AccessProviderInputExtended) []model.
 		if apInput.PolicyType == model.Role || apInput.PolicyType == model.SSORole {
 			// Elements in the WHAT here already means that there are relevant permissions
 			if len(apInput.ApInput.What) > 0 {
-				utils.Logger.Debug(fmt.Sprintf("Keeping role %q", apInput.ApInput.ActualName))
+				utils.Logger.Debug(fmt.Sprintf("Keeping role %q", apInput.ApInput.ExternalId))
 
-				toKeep.Add(apInput.ApInput.ActualName)
+				toKeep.Add(apInput.ApInput.ExternalId)
 			} else {
-				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it has no WHAT elements", apInput.ApInput.ActualName))
+				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it has no WHAT elements", apInput.ApInput.ExternalId))
 			}
 
 			continue
@@ -83,22 +83,24 @@ func filterApImportList(importList []model.AccessProviderInputExtended) []model.
 
 			if hasS3Actions {
 				utils.Logger.Debug(fmt.Sprintf("Keeping policy %q", apInput.ApInput.ActualName))
-				toKeep.Add(apInput.ApInput.ActualName)
+				toKeep.Add(apInput.ApInput.ExternalId)
 
 				for _, who := range apInput.ApInput.Who.AccessProviders {
 					utils.Logger.Debug(fmt.Sprintf("Re-adding role %q", who))
 					toKeep.Add(who)
 				}
 			} else {
-				utils.Logger.Debug(fmt.Sprintf("Skipping policy %q as it has no relevant permissions/resources", apInput.ApInput.ActualName))
+				utils.Logger.Debug(fmt.Sprintf("Skipping policy %q as it has no relevant permissions/resources", apInput.ApInput.ExternalId))
 			}
+		} else if apInput.PolicyType == model.AccessPoint {
+			toKeep.Add(apInput.ApInput.ExternalId)
 		}
 	}
 
 	result := make([]model.AccessProviderInputExtended, 0, len(toKeep))
 
 	for _, apInput := range importList {
-		if toKeep.Contains(apInput.ApInput.ActualName) {
+		if toKeep.Contains(apInput.ApInput.ExternalId) {
 			result = append(result, apInput)
 		}
 	}
@@ -197,7 +199,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 		}
 
 		for _, roleBinding := range policy.RoleBindings {
-			roleBindings = append(roleBindings, roleBinding.ResourceName)
+			roleBindings = append(roleBindings, constants.RoleTypePrefix+roleBinding.ResourceName)
 		}
 
 		if len(groupBindings) == 0 && len(userBindings) == 0 && len(roleBindings) == 0 {
