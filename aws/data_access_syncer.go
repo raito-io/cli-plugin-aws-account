@@ -7,7 +7,6 @@ import (
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 )
 
@@ -31,13 +30,11 @@ type dataAccessRepository interface {
 	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) error
 	DeleteRole(ctx context.Context, name string) error
-	GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error)
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
 	ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error)
 	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
 	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
-	GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error)
 	GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string
 }
 

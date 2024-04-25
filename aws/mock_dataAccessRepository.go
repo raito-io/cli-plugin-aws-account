@@ -954,64 +954,6 @@ func (_c *mockDataAccessRepository_GetPolicyArn_Call) RunAndReturn(run func(stri
 	return _c
 }
 
-// GetPrincipalsFromAssumeRolePolicyDocument provides a mock function with given fields: policyDocument
-func (_m *mockDataAccessRepository) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error) {
-	ret := _m.Called(policyDocument)
-
-	if len(ret) == 0 {
-		panic("no return value specified for GetPrincipalsFromAssumeRolePolicyDocument")
-	}
-
-	var r0 []string
-	var r1 error
-	if rf, ok := ret.Get(0).(func(*string) ([]string, error)); ok {
-		return rf(policyDocument)
-	}
-	if rf, ok := ret.Get(0).(func(*string) []string); ok {
-		r0 = rf(policyDocument)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]string)
-		}
-	}
-
-	if rf, ok := ret.Get(1).(func(*string) error); ok {
-		r1 = rf(policyDocument)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
-// mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'GetPrincipalsFromAssumeRolePolicyDocument'
-type mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call struct {
-	*mock.Call
-}
-
-// GetPrincipalsFromAssumeRolePolicyDocument is a helper method to define mock.On call
-//   - policyDocument *string
-func (_e *mockDataAccessRepository_Expecter) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument interface{}) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
-	return &mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call{Call: _e.mock.On("GetPrincipalsFromAssumeRolePolicyDocument", policyDocument)}
-}
-
-func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) Run(run func(policyDocument *string)) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
-	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(*string))
-	})
-	return _c
-}
-
-func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) Return(_a0 []string, _a1 error) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
-	_c.Call.Return(_a0, _a1)
-	return _c
-}
-
-func (_c *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call) RunAndReturn(run func(*string) ([]string, error)) *mockDataAccessRepository_GetPrincipalsFromAssumeRolePolicyDocument_Call {
-	_c.Call.Return(run)
-	return _c
-}
-
 // GetRoles provides a mock function with given fields: ctx
 func (_m *mockDataAccessRepository) GetRoles(ctx context.Context) ([]model.RoleEntity, error) {
 	ret := _m.Called(ctx)

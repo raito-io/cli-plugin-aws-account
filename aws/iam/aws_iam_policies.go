@@ -16,6 +16,8 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
 
 	"github.com/gammazero/workerpool"
 
@@ -24,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	awspolicy "github.com/n4ch04/aws-policy"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 )
 
@@ -36,7 +37,13 @@ const (
 
 var managedPoliciesCache []model.PolicyEntity
 
+func (repo *AwsIamRepository) ClearManagedPoliciesCache() {
+	managedPoliciesCache = nil
+}
+
 func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error) {
+	excludes := slice.ParseCommaSeparatedList(repo.configMap.GetString(constants.AwsAccessManagedPolicyExcludes))
+
 	if managedPoliciesCache != nil {
 		return managedPoliciesCache, nil
 	}
@@ -56,10 +63,16 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 			MaxItems:     aws.Int32(50),
 		}
 
+		if repo.configMap.GetBool(constants.AwsAccessSkipAWSManagedPolicies) {
+			input.Scope = types.PolicyScopeTypeLocal
+		}
+
 		resp, err2 := client.ListPolicies(ctx, &input)
 		if err2 != nil {
 			return nil, err
 		}
+
+		utils.Logger.Info(fmt.Sprintf("Listed %d Policies", len(resp.Policies)))
 
 		workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 		var smu sync.Mutex
@@ -67,6 +80,15 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 
 		for i := range resp.Policies {
 			policy := resp.Policies[i]
+
+			matched, err3 := match.MatchesAny(*policy.PolicyName, excludes)
+			if err3 != nil {
+				return nil, fmt.Errorf("matching policy to exlude: %w", err3)
+			}
+
+			if matched {
+				continue
+			}
 
 			workerPool.Submit(func() {
 				policyInput := iam.GetPolicyInput{
@@ -146,6 +168,10 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 		if resultErr != nil {
 			return nil, resultErr
 		}
+
+		utils.Logger.Info(fmt.Sprintf("Finished processing %d Policies", len(resp.Policies)))
+		utils.Logger.Info(fmt.Sprintf("A total of %d policies have been found so far", len(result)))
+		utils.Logger.Info(fmt.Sprintf("Still more? %v", resp.IsTruncated))
 
 		if !resp.IsTruncated {
 			break
@@ -442,30 +468,30 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 
 	err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &emptyPolicy)
 	if err != nil {
-		return fmt.Errorf("deleting management policy: %w", err)
+		return fmt.Errorf("deleting managed policy: %w", err)
 	}
 
 	utils.Logger.Info(fmt.Sprintf("Detaching %d users from policy %s", len(emptyPolicy.UserBindings), policyArn))
 
 	if localErr := repo.DetachUserFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.UserBindings)); localErr != nil {
-		return fmt.Errorf("deleting management policy: %w", localErr)
+		return fmt.Errorf("deleting managed policy: %w", localErr)
 	}
 
 	utils.Logger.Info(fmt.Sprintf("Detaching %d groups from policy %s", len(emptyPolicy.GroupBindings), policyArn))
 
 	if localErr := repo.DetachGroupFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.GroupBindings)); localErr != nil {
-		return fmt.Errorf("deleting management policy: %w", localErr)
+		return fmt.Errorf("deleting managed policy: %w", localErr)
 	}
 
 	utils.Logger.Info(fmt.Sprintf("Detaching %d roles from policy %s", len(emptyPolicy.RoleBindings), policyArn))
 
 	if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
-		return fmt.Errorf("deleting management policy: %w", localErr)
+		return fmt.Errorf("deleting managed policy: %w", localErr)
 	}
 
 	versions, err := client.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyArn})
 	if err != nil {
-		return fmt.Errorf("deleting management policy: %w", err)
+		return fmt.Errorf("deleting managed policy: %w", err)
 	}
 
 	for _, version := range versions.Versions {
@@ -476,14 +502,14 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 			})
 
 			if err != nil {
-				return fmt.Errorf("deleting management policy: %w", err)
+				return fmt.Errorf("deleting managed policy: %w", err)
 			}
 		}
 	}
 
 	_, err = client.DeletePolicy(ctx, &iam.DeletePolicyInput{PolicyArn: &policyArn})
 	if err != nil {
-		return fmt.Errorf("deleting management policy: %w", err)
+		return fmt.Errorf("deleting managed policy: %w", err)
 	}
 
 	return nil
@@ -673,34 +699,6 @@ func (repo *AwsIamRepository) DeleteInlinePolicy(ctx context.Context, policyName
 	}
 
 	return err
-}
-
-func (repo *AwsIamRepository) GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error) {
-	if ap.ActualName == nil || !strings.HasPrefix(*ap.ActualName, "/inline/") {
-		return "", "", fmt.Errorf("no attached entity found for %s", *ap.ActualName)
-	}
-
-	resourceType := ""
-	resourceName := ""
-	possibleResourceTypes := []string{UserResourceType, GroupResourceType, RoleResourceType}
-
-	for _, rType := range possibleResourceTypes {
-		prefix := fmt.Sprintf("/inline/%s/", rType)
-
-		stripped, ok := strings.CutPrefix(*ap.ActualName, prefix)
-		if !ok {
-			continue
-		}
-
-		parts := strings.Split(stripped, "/")
-		if len(parts) <= 1 {
-			continue
-		}
-
-		return parts[0], rType, nil
-	}
-
-	return resourceName, resourceType, nil
 }
 
 func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error) {

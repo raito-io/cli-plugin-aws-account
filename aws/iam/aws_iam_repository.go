@@ -22,6 +22,10 @@ func NewAwsIamRepository(configMap *config.ConfigMap) *AwsIamRepository {
 	}
 }
 
+func (repo *AwsIamRepository) GetConfig() *config.ConfigMap {
+	return repo.configMap
+}
+
 func (repo *AwsIamRepository) GetIamClient(ctx context.Context) (*iam.Client, error) {
 	cfg, err := repo2.GetAWSConfig(ctx, repo.configMap, nil)
 

@@ -28,6 +28,8 @@ func TestIAMIdentitiesTestSuite(t *testing.T) {
 }
 
 func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchUsers() {
+	s.repo.ClearManagedPoliciesCache()
+
 	users, err := s.repo.GetUsers(context.Background(), true)
 
 	s.Require().NoError(err)

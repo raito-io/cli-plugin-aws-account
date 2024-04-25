@@ -85,7 +85,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	utils.Logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
-	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx)
+	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx, configMap)
 	if err != nil {
 		return err
 	}
@@ -738,7 +738,7 @@ func contains(slice []string, val string) bool {
 	return false
 }
 
-func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
+func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config.ConfigMap) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing roles")
 
 	roles, err := a.repo.GetRoles(ctx)
@@ -752,16 +752,10 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]strin
 	for _, role := range roles {
 		roleMap[role.Name] = "existing"
 
-		var localErr error
-
-		userBindings, localErr := a.repo.GetPrincipalsFromAssumeRolePolicyDocument(role.AssumeRolePolicyDocument)
-		if localErr != nil {
-			return nil, nil, fmt.Errorf("error fetching existing roles: %w", err)
-		}
-
+		who, _ := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, configMap)
 		existingRoleAssumptions[role.Name] = set.Set[model.PolicyBinding]{}
 
-		for _, userName := range userBindings {
+		for _, userName := range who.Users {
 			key := model.PolicyBinding{
 				Type:         iam.UserResourceType,
 				ResourceName: userName,

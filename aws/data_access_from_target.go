@@ -467,10 +467,12 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 		// Adding access providers to the list for the roles
 		apImportList = a.fetchRoleAccessProviders(configMap, roles, apImportList)
 
-		// Adding access providers to the list for the managed policies
-		apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
-		if err != nil {
-			return nil, err
+		if !configMap.GetBool(constants.AwsAccessSkipManagedPolicies) {
+			// Adding access providers to the list for the managed policies
+			apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		if !configMap.GetBool(constants.AwsAccessSkipUserInlinePolicies) {

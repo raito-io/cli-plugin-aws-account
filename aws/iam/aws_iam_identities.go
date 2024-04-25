@@ -18,8 +18,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/raito-io/golang-set/set"
-
 	awspolicy "github.com/n4ch04/aws-policy"
 )
 
@@ -419,44 +417,4 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 	existingPolicyDoc = aws.String(string(bytes))
 
 	return *existingPolicyDoc, nil
-}
-
-func (repo *AwsIamRepository) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error) {
-	// TODO replace with new createWhoFromTrustPolicyDocument method ?
-	principals := set.Set[string]{}
-
-	if policyDocument == nil {
-		return nil, nil
-	}
-
-	policy, _, err := repo.parsePolicyDocument(policyDocument, "", "")
-	if err != nil {
-		return nil, err
-	}
-
-	for ind := range policy.Statements {
-		statement := policy.Statements[ind]
-		containsAssumeRole := false
-
-		for ind := range statement.Action {
-			action := statement.Action[ind]
-			if strings.Contains(action, "sts:AssumeRole") {
-				containsAssumeRole = true
-				break
-			}
-		}
-
-		if containsAssumeRole {
-			for _, principal := range statement.Principal["AWS"] {
-				userName := utils.ConvertArnToFullname(principal)
-				parts := strings.Split(userName, "/")
-
-				if len(parts) == 2 {
-					principals.Add(parts[1])
-				}
-			}
-		}
-	}
-
-	return principals.Slice(), nil
 }

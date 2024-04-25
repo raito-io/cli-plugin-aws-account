@@ -342,28 +342,29 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 	incomplete := false
 
 	for _, action := range actions {
+		found := false
+
 		for _, permission := range dotPermissions {
 			perm := permission.Permission
 
 			if action == perm {
 				// Exact match with a permission from the data object type
 				mappedActions = append(mappedActions, perm)
+				found = true
 			} else if action == "*" {
-				// For wildcard actions, just add all permission from the data object type. Mark as incomplete as go from wildcard to explicit permissions
-				incomplete = true
-
+				// For wildcard actions, just add all permission from the data object type. We don't consider it found as we may not have all.
 				mappedActions = append(mappedActions, perm)
 			} else if strings.HasSuffix(action, "*") {
-				// Action ending in a wildcard, so only add the permissions that have the right prefix + mark incomplete
-				incomplete = true
-
+				// Action ending in a wildcard, so only add the permissions that have the right prefix. We don't consider it found as we may not have all.
 				if strings.HasPrefix(perm, action[:len(action)-1]) {
 					mappedActions = append(mappedActions, perm)
 				}
-			} else {
-				// Unknown permission, so we ignore and mark as incomplete
-				incomplete = true
 			}
+		}
+
+		// If we didn't find the action in the permissions list, we mark this resource as incomplete
+		if !found {
+			incomplete = true
 		}
 	}
 
