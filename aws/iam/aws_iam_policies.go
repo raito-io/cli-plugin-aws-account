@@ -42,6 +42,9 @@ func (repo *AwsIamRepository) ClearManagedPoliciesCache() {
 }
 
 func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error) {
+	repo.globalMutex.Lock()
+	defer repo.globalMutex.Unlock()
+
 	excludes := slice.ParseCommaSeparatedList(repo.configMap.GetString(constants.AwsAccessManagedPolicyExcludes))
 
 	if managedPoliciesCache != nil {
