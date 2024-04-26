@@ -39,6 +39,7 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchUsers() {
 		"m_carissa": "",
 		"d_hayden":  "",
 		"clirunner": "",
+		"root":      "",
 	}
 
 	s.Require().Len(users, len(knownUsers))
