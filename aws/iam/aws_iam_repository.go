@@ -3,7 +3,6 @@ package iam
 import (
 	"context"
 	"log"
-	"sync"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
@@ -12,9 +11,8 @@ import (
 )
 
 type AwsIamRepository struct {
-	configMap   *config.ConfigMap
-	account     string
-	globalMutex sync.Mutex
+	configMap *config.ConfigMap
+	account   string
 }
 
 func NewAwsIamRepository(configMap *config.ConfigMap) *AwsIamRepository {
