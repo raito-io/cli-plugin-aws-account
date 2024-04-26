@@ -35,6 +35,8 @@ const (
 	RoleResourceType  string = "role"
 )
 
+var smu sync.Mutex
+
 var managedPoliciesCache []model.PolicyEntity
 
 func (repo *AwsIamRepository) ClearManagedPoliciesCache() {
@@ -75,7 +77,6 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 		utils.Logger.Info(fmt.Sprintf("Listed %d Policies", len(resp.Policies)))
 
 		workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
-		var smu sync.Mutex
 		var resultErr error
 
 		for i := range resp.Policies {
@@ -156,6 +157,9 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 					return
 				}
 
+				smu.Lock()
+				defer smu.Unlock()
+				
 				result = append(result, raitoPolicy)
 			})
 		}
