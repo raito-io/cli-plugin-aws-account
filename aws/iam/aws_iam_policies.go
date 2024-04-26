@@ -146,19 +146,17 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 					PolicyParsed:    policyDoc,
 				}
 
+				smu.Lock()
+				defer smu.Unlock()
+
 				err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &raitoPolicy)
 				if err != nil {
 					utils.Logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
 
-					smu.Lock()
 					resultErr = multierror.Append(resultErr, err)
-					smu.Unlock()
-
+					
 					return
 				}
-
-				smu.Lock()
-				defer smu.Unlock()
 
 				result = append(result, raitoPolicy)
 			})
