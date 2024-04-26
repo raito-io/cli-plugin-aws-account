@@ -53,9 +53,9 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
 
 	expectedAps := map[string]expectedAP{
 		"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations": {whoUsers: []string{"m_carissa"}, whoAps: []string{"role:SalesRole"}, name: "operations", whatDos: []string{"raito-corporate-data/operations"}, whatPermissions: []string{"s3:GetObject"}, incomplete: false, apType: "aws_access_point"},
-		"role:MarketingRole":                 {whoUsers: []string{"d_hayden"}, name: "MarketingRole", incomplete: false, apType: "aws_role"},
-		"role:SalesRole|inline:SalesPolicy|": {whoUsers: []string{"d_hayden"}, name: "SalesRole", whatDos: []string{"raito-corporate-data/sales"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_role"},
-		"policy:marketing_policy":            {whoAps: []string{"role:MarketingRole"}, name: "marketing_policy", whatDos: []string{"raito-corporate-data/marketing"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_policy"},
+		"role:MarketingRole":      {whoUsers: []string{"d_hayden"}, name: "MarketingRole", incomplete: false, apType: "aws_role"},
+		"role:SalesRole":          {whoUsers: []string{"d_hayden"}, name: "SalesRole", whatDos: []string{"raito-corporate-data/sales"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_role"},
+		"policy:marketing_policy": {whoAps: []string{"role:MarketingRole"}, name: "marketing_policy", whatDos: []string{"raito-corporate-data/marketing"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_policy"},
 	}
 
 	s.NoError(err)

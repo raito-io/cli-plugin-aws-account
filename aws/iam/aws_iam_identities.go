@@ -8,11 +8,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-
-	"github.com/gammazero/workerpool"
 	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/aws"

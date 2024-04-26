@@ -54,6 +54,7 @@ func main() {
 					{Name: constants.AwsAccessSkipAWSManagedPolicies, Description: "If set to true, AWS managed policies are excluded.", Mandatory: false},
 					{Name: constants.AwsAccessManagedPolicyExcludes, Description: "Optional comma-separated list of managed policy names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all managed policies starting with Amazon or AWS).", Mandatory: false},
 					{Name: constants.AwsAccessSkipS3AccessPoints, Description: "If set to true, S3 access points will not be read to import into Raito Cloud as access controls.", Mandatory: false},
+					{Name: constants.AwsAccessRoleExcludes, Description: "Optional comma-separated list of role names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all roles starting with Amazon or AWS)..", Mandatory: false},
 				},
 			},
 		})

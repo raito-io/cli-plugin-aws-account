@@ -28,6 +28,7 @@ const (
 	AwsAccessSkipAWSManagedPolicies  = "aws-access-skip-aws-managed-policies"
 	AwsAccessManagedPolicyExcludes   = "aws-access-managed-policy-excludes"
 	AwsAccessSkipS3AccessPoints      = "aws-access-skip-s3-access-points"
+	AwsAccessRoleExcludes            = "aws-access-role-excludes"
 
 	AwsS3CloudTrailBucket = "aws-s3-cloudtrail-bucket"
 

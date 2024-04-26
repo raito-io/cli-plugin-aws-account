@@ -10,6 +10,8 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
 	"github.com/raito-io/golang-set/set"
 
 	"github.com/aws/smithy-go/ptr"
@@ -32,7 +34,7 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 		return err
 	}
 
-	filteredList := filterApImportList(apImportList)
+	filteredList := filterApImportList(apImportList, configMap)
 
 	utils.Logger.Info(fmt.Sprintf("Keeping %d acces providers after filtering", len(filteredList)))
 
@@ -46,15 +48,25 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 	return err
 }
 
-func filterApImportList(importList []model.AccessProviderInputExtended) []model.AccessProviderInputExtended {
+func filterApImportList(importList []model.AccessProviderInputExtended, configMap *config.ConfigMap) []model.AccessProviderInputExtended {
 	toKeep := set.NewSet[string]()
 
 	utils.Logger.Debug("Start filtering for relevant access providers")
 
+	// Role excluded get filtered out here, because some may be referenced by policies and so need to get included anyway.
+	roleExcludes := slice.ParseCommaSeparatedList(configMap.GetString(constants.AwsAccessRoleExcludes))
+
 	for _, apInput := range importList {
 		if apInput.PolicyType == model.Role || apInput.PolicyType == model.SSORole {
-			// Elements in the WHAT here already means that there are relevant permissions
-			if len(apInput.ApInput.What) > 0 {
+			matched, err := match.MatchesAny(apInput.ApInput.Name, roleExcludes)
+			if err != nil {
+				utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err.Error()))
+			}
+
+			if matched {
+				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it was requested to be skipped", apInput.ApInput.ExternalId))
+			} else if len(apInput.ApInput.What) > 0 {
+				// Elements in the WHAT here already means that there are relevant permissions
 				utils.Logger.Debug(fmt.Sprintf("Keeping role %q", apInput.ApInput.ExternalId))
 
 				toKeep.Add(apInput.ApInput.ExternalId)
@@ -412,7 +424,6 @@ func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context,
 			policyIds.WriteString("|")
 		}
 
-		roleAp.ExternalId = constants.RoleTypePrefix + role + "|" + constants.InlinePrefix + policyIds.String()
 		roleAp.Policy = policyDocuments
 		roleAp.What = whatItems
 		roleAp.Incomplete = ptr.Bool(incomplete || (roleAp.Incomplete != nil && *roleAp.Incomplete))
