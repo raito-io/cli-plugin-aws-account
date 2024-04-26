@@ -100,6 +100,13 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 	utils.Logger.Info(fmt.Sprintf("A total of %d users has been found", len(result)))
 
+	result = append(result, model.UserEntity{
+		ARN:        fmt.Sprintf("arn:aws:iam::%s:user/root", repo.account),
+		ExternalId: fmt.Sprintf("arn:aws:iam::%s:user/root", repo.account),
+		Name:       "root",
+		Email:      "root@" + repo.account,
+	})
+
 	return result, resultErr
 }
 

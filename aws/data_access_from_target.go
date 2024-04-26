@@ -264,7 +264,8 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 }
 
 func convertPoliciesToWhat(policies []model.PolicyEntity, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool, string) {
-	var whatItems []sync_from_target.WhatItem
+	// Making sure to never return nil
+	whatItems := make([]sync_from_target.WhatItem, 0, 10)
 	incomplete := false
 	policyDocuments := ""
 

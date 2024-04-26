@@ -809,6 +809,10 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 	for i := range entityNames {
 		entityName := entityNames[i]
 
+		if entityName == "root" {
+			continue
+		}
+
 		workerPool.Submit(func() {
 			for {
 				userPolicyInput := iam.ListUserPoliciesInput{
