@@ -159,7 +159,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 
 				smu.Lock()
 				defer smu.Unlock()
-				
+
 				result = append(result, raitoPolicy)
 			})
 		}
