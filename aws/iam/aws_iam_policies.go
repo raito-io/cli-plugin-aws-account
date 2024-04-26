@@ -154,7 +154,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 					utils.Logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
 
 					resultErr = multierror.Append(resultErr, err)
-					
+
 					return
 				}
 
