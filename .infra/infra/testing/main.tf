@@ -265,9 +265,9 @@ resource "aws_iam_role_policy_attachment" "raito_marketing_policy_attach" {
 
 // Sales group gets an inline policy providing access to the sales folder in S3
 resource "aws_iam_group_policy" "sales_policy" {
-    name   = "SalesPolicy"
-    group  = aws_iam_group.sales_group.name
-    policy = data.aws_iam_policy_document.sales_policy_document.json
+  name   = "SalesPolicy"
+  group  = aws_iam_group.sales_group.name
+  policy = data.aws_iam_policy_document.sales_policy_document.json
 }
 
 data "aws_iam_policy_document" "sales_policy_document" {
@@ -281,9 +281,9 @@ data "aws_iam_policy_document" "sales_policy_document" {
 
 // Dusting gets an inline policy providing access to the operations folder in S3
 resource "aws_iam_user_policy" "d_hayden_policy" {
-    name   = "DustinPolicy"
-    user   = aws_iam_user.d_hayden_user.name
-    policy = data.aws_iam_policy_document.d_hayden_policy_document.json
+  name   = "DustinPolicy"
+  user   = aws_iam_user.d_hayden_user.name
+  policy = data.aws_iam_policy_document.d_hayden_policy_document.json
 }
 
 data "aws_iam_policy_document" "d_hayden_policy_document" {

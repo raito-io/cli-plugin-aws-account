@@ -24,4 +24,4 @@ gen-test-infra:
 	cd .infra/infra; terraform apply -auto-approve
 
 gen-test-usage:
-	cd .infra/infra; terraform output -json | go run ../usage/testing/usage.go
+	cd .infra/infra; go run ../usage/testing/usage.go
