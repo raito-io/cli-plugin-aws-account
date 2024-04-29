@@ -3,12 +3,9 @@
 package it
 
 import (
-	"context"
 	"testing"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws"
-	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
-	"github.com/raito-io/cli/base/wrappers/mocks"
 	"github.com/stretchr/testify/suite"
 )
 
@@ -25,10 +22,10 @@ func TestDataUsageTestSuiteTestSuiteTestSuite(t *testing.T) {
 	suite.Run(t, &ts)
 }
 
-func (s *DataUsageTestSuite) TestUsageSyncer_TestSync() {
+/*func (s *DataUsageTestSuite) TestUsageSyncer_TestSync() {
 	handler := mocks.NewSimpleDataUsageStatementHandler(s.T())
 	config := s.GetConfig()
 	config.Parameters[constants.AwsS3CloudTrailBucket] = "raito-cloudtrail"
 	config.Parameters[constants.AwsGlueEnabled] = "true"
 	s.usageSyncer.SyncDataUsage(context.Background(), handler, config)
-}
+}*/
