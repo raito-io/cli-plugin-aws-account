@@ -191,7 +191,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().Equal(accessPoints[0].PolicyParsed.Statements[0].Effect, "Allow")
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, accessPoints[0].PolicyParsed.Statements[0].Action)
 	s.Assert().True(strings.HasSuffix(accessPoints[0].PolicyParsed.Statements[0].Resource[0], "/object/operations/*"))
-	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
+	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
 
 	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, s.GetConfig())
 	s.Assert().False(incomplete)
