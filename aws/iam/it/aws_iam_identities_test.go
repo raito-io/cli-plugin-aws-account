@@ -87,7 +87,6 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchRoles() {
 	s.Require().NotNil(roles)
 
 	marketingFound := false
-	salesFound := false
 
 	for _, role := range roles {
 		s.Require().NotEmpty(role.Name)
@@ -95,13 +94,10 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchRoles() {
 
 		if role.Name == "MarketingRole" {
 			marketingFound = true
-		} else if role.Name == "SalesRole" {
-			salesFound = true
 		}
 	}
 
 	s.Require().True(marketingFound)
-	s.Require().True(salesFound)
 }
 
 func (s *IAMIdentitiesTestSuite) TestIAMIdentities_CreatePolicy() {

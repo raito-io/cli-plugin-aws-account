@@ -41,9 +41,9 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 	doMap := map[string]string{
 		config.Parameters[constants.AwsAccountId]: "datasource",
 		"raito-corporate-data":                    "bucket",
-		"raito-corporate-data/operations":         "folder",
-		"raito-corporate-data/marketing":          "folder",
-		"raito-corporate-data/sales":              "folder",
+		"raito-corporate-data/operations":         "glue-table",
+		"raito-corporate-data/marketing":          "glue-table",
+		"raito-corporate-data/sales":              "glue-table",
 	}
 
 	s.Require().Len(dsHandler.DataObjects, len(doMap))

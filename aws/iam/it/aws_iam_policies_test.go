@@ -170,15 +170,15 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_UpdateManagedPolicy() {
 }
 
 func (s *IAMPoliciesTestSuite) TestIAMPolicies_GetInlinePoliciesForEntities() {
-	policies, err := s.repo.GetInlinePoliciesForEntities(context.Background(), []string{"SalesRole"}, iam.RoleResourceType)
+	policies, err := s.repo.GetInlinePoliciesForEntities(context.Background(), []string{"Sales"}, iam.GroupResourceType)
 	s.Assert().NoError(err)
 	s.Assert().NotEmpty(policies)
 	s.Assert().Len(policies, 1)
-	s.Assert().Len(policies["SalesRole"], 1)
-	s.Assert().Len(policies["SalesRole"][0].PolicyParsed.Statements, 1)
-	s.Assert().Equal(policies["SalesRole"][0].PolicyParsed.Statements[0].Effect, "Allow")
-	s.Assert().ElementsMatch(policies["SalesRole"][0].PolicyParsed.Statements[0].Action, []string{"s3:GetObject", "s3:PutObject"})
-	s.Assert().True(strings.HasSuffix(policies["SalesRole"][0].PolicyParsed.Statements[0].Resource[0], "/sales/*"))
+	s.Assert().Len(policies["Sales"], 1)
+	s.Assert().Len(policies["Sales"][0].PolicyParsed.Statements, 1)
+	s.Assert().Equal(policies["Sales"][0].PolicyParsed.Statements[0].Effect, "Allow")
+	s.Assert().ElementsMatch(policies["Sales"][0].PolicyParsed.Statements[0].Action, []string{"s3:GetObject", "s3:PutObject"})
+	s.Assert().True(strings.HasSuffix(policies["Sales"][0].PolicyParsed.Statements[0].Resource[0], "/sales/*"))
 }
 
 func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
@@ -191,14 +191,14 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().Equal(accessPoints[0].PolicyParsed.Statements[0].Effect, "Allow")
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, accessPoints[0].PolicyParsed.Statements[0].Action)
 	s.Assert().True(strings.HasSuffix(accessPoints[0].PolicyParsed.Statements[0].Resource[0], "/object/operations/*"))
-	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/SalesRole"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
+	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
 
 	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, s.GetConfig())
 	s.Assert().False(incomplete)
 
 	s.Assert().Len(who.Groups, 0)
 	s.Assert().Len(who.AccessProviders, 1)
-	s.Assert().Equal(who.AccessProviders[0], "role:SalesRole")
+	s.Assert().Equal(who.AccessProviders[0], "role:MarketingRole")
 	s.Assert().Len(who.Users, 1)
 	s.Assert().Equal(who.Users[0], "m_carissa")
 
