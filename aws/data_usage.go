@@ -86,8 +86,8 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 			continue
 		}
 
-		dt, err := time.Parse(dateFormat, matches[1])
-		if err != nil {
+		dt, err2 := time.Parse(dateFormat, matches[1])
+		if err2 != nil {
 			continue
 		}
 
@@ -105,13 +105,14 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 
 	doSyncer := data_source2.NewDataSourceSyncer()
 	availableObjects, err := doSyncer.GetAvailableObjects(ctx, configMap)
+
 	if err != nil {
 		return fmt.Errorf("error while fetching available objects for data usage: %w", err)
 	}
 
 	for t := 0; t < numWorkers; t++ {
 		workerPool.Submit(func() {
-			readAndParseUsageLog(ctx, bucket, fileChan, repo, dataUsageFileHandler, fileLock, availableObjects, configMap)
+			readAndParseUsageLog(ctx, bucket, fileChan, repo, dataUsageFileHandler, fileLock, availableObjects)
 		})
 	}
 
@@ -126,7 +127,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 }
 
 func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan string, repo dataUsageRepository,
-	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex, availableObjects map[string]interface{}, configMap *config.ConfigMap) {
+	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex, availableObjects map[string]interface{}) {
 	utils.Logger.Info("Starting data usage worker")
 
 	for fileKey := range fileChan {
