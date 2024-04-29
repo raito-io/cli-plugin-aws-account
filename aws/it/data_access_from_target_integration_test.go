@@ -16,19 +16,18 @@ import (
 
 type DataAccessFromTargetTestSuite struct {
 	AWSTestSuite
-	accessSyncer *aws.AccessSyncer
 }
 
 func TestDataAccessFromTargetTestSuiteTestSuite(t *testing.T) {
 	ts := DataAccessFromTargetTestSuite{}
 
-	ts.accessSyncer = aws.NewDataAccessSyncerFromConfig(ts.GetConfig())
-
 	suite.Run(t, &ts)
 }
 
 func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAccessProviders() {
-	aps, err := s.accessSyncer.FetchS3AccessPointAccessProviders(context.Background(), s.GetConfig(), nil)
+	accessSyncer := aws.NewDataAccessSyncerFromConfig(s.GetConfig())
+
+	aps, err := accessSyncer.FetchS3AccessPointAccessProviders(context.Background(), s.GetConfig(), nil)
 	s.NoError(err)
 	s.Len(aps, 1)
 	s.Equal("operations", aps[0].ApInput.Name)
@@ -45,11 +44,13 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAcces
 }
 
 func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
+	accessSyncer := aws.NewDataAccessSyncerFromConfig(s.GetConfig())
+
 	handler := mocks.NewSimpleAccessProviderHandler(s.T(), 100)
 	config := s.GetConfig()
 	// Skipping AWS managed policies for performance reasons
 	config.Parameters[constants.AwsAccessManagedPolicyExcludes] = "Amazon.+,AWS.+"
-	err := s.accessSyncer.SyncAccessProvidersFromTarget(context.Background(), handler, config)
+	err := accessSyncer.SyncAccessProvidersFromTarget(context.Background(), handler, config)
 
 	expectedAps := map[string]expectedAP{
 		"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations": {whoUsers: []string{"m_carissa"}, whoAps: []string{"role:MarketingRole"}, name: "operations", whatDos: []string{"raito-corporate-data/operations"}, whatPermissions: []string{"s3:GetObject"}, incomplete: false, apType: "aws_access_point"},
