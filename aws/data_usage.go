@@ -103,9 +103,15 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	fileLock := new(sync.Mutex)
 	numWorkers := 16
 
+	doSyncer := data_source2.NewDataSourceSyncer()
+	availableObjects, err := doSyncer.GetAvailableObjects(ctx, configMap)
+	if err != nil {
+		return fmt.Errorf("error while fetching available objects for data usage: %w", err)
+	}
+
 	for t := 0; t < numWorkers; t++ {
 		workerPool.Submit(func() {
-			readAndParseUsageLog(ctx, bucket, fileChan, repo, dataUsageFileHandler, fileLock)
+			readAndParseUsageLog(ctx, bucket, fileChan, repo, dataUsageFileHandler, fileLock, availableObjects, configMap)
 		})
 	}
 
@@ -120,7 +126,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 }
 
 func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan string, repo dataUsageRepository,
-	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex) {
+	dataUsageFileHandler wrappers.DataUsageStatementHandler, fileLock *sync.Mutex, availableObjects map[string]interface{}, configMap *config.ConfigMap) {
 	utils.Logger.Info("Starting data usage worker")
 
 	for fileKey := range fileChan {
@@ -160,14 +166,25 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 
 				if resource.Type != nil && resource.Arn != nil && strings.EqualFold(*resource.Type, "AWS::S3::Object") {
 					object := utils.ConvertArnToFullname(*resource.Arn)
+
+					mappedObject := mapToClosedObject(object, availableObjects)
+					if !strings.Contains(mappedObject, "/") {
+						utils.Logger.Info(fmt.Sprintf("Could not map object %q to anything known. Skipping", object))
+						continue
+					}
+
 					accessedObjects = append(accessedObjects, ap.WhatItem{
 						DataObject: &data_source.DataObjectReference{
-							FullName: object,
+							FullName: mappedObject,
 							Type:     data_source.File,
 						},
 						Permissions: []string{permission},
 					})
 				}
+			}
+
+			if isCloudTrailBucket || len(accessedObjects) == 0 {
+				continue
 			}
 
 			userName := ""
@@ -188,7 +205,7 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 				userName = *record.UserIdentity.Arn
 			}
 
-			if !isCloudTrailBucket && len(accessedObjects) > 0 && userName != "" {
+			if userName != "" {
 				statements = append(statements, data_usage.Statement{
 					ExternalId:          *record.EventID,
 					StartTime:           record.EventTime.Unix(),
@@ -210,6 +227,32 @@ func readAndParseUsageLog(ctx context.Context, bucketName string, fileChan chan 
 
 		utils.Logger.Info(fmt.Sprintf("%d records fetched and processed in %d ms from %s", len(result.Records), time.Since(start).Milliseconds(), fileKeyShort))
 	}
+}
+
+// mapToClosedObject maps the object path to the closest available path.
+func mapToClosedObject(object string, availableObjects map[string]interface{}) string {
+	parts := strings.Split(object, "/")
+	path := ""
+	currentMap := availableObjects
+
+	for _, part := range parts {
+		nextElement, found := currentMap[part]
+
+		if !found {
+			break
+		}
+
+		path += part + "/"
+
+		newMap, isMap := nextElement.(map[string]interface{})
+		if isMap {
+			currentMap = newMap
+		}
+	}
+
+	path = strings.TrimSuffix(path, "/")
+
+	return path
 }
 
 func getFileContents(ctx context.Context, repo dataUsageRepository, bucketName string, fileKey string) (string, error) {

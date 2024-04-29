@@ -22,25 +22,49 @@ import (
 )
 
 type DataSourceSyncer struct {
-	config *ds.DataSourceSyncConfig
+	config             *config.ConfigMap
+	dataObjectParent   string
+	dataObjectExcludes []string
 }
 
 func NewDataSourceSyncer() *DataSourceSyncer {
 	return &DataSourceSyncer{}
 }
 
-func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, config *ds.DataSourceSyncConfig) error {
+// GetAvailableObjects is used by the data usage component to fetch all available data objects in a map structure for easy lookup of what is available
+func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, config *config.ConfigMap) (map[string]interface{}, error) {
 	s.config = config
 
-	fileLock := new(sync.Mutex)
+	bucketMap := map[string]interface{}{}
+
+	dataSourceHandler := mapDataSourceHandler{
+		bucketMap: bucketMap,
+	}
+
+	err := s.fetchDataObjects(ctx, dataSourceHandler)
+	if err != nil {
+		return nil, err
+	}
+
+	return bucketMap, nil
+}
+
+func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, config *ds.DataSourceSyncConfig) error {
+	s.config = config.ConfigMap
+	s.dataObjectParent = config.DataObjectParent
+	s.dataObjectExcludes = config.DataObjectExcludes
 
 	err := s.addAwsAsDataSource(dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
 
-	s3Enabled := config.GetConfigMap().GetBoolWithDefault(constants.AwsS3Enabled, false)
-	glueEnabled := config.GetConfigMap().GetBoolWithDefault(constants.AwsGlueEnabled, false)
+	return s.fetchDataObjects(ctx, dataSourceHandler)
+}
+
+func (s *DataSourceSyncer) fetchDataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler) error {
+	s3Enabled := s.config.GetBoolWithDefault(constants.AwsS3Enabled, false)
+	glueEnabled := s.config.GetBoolWithDefault(constants.AwsGlueEnabled, false)
 
 	if s3Enabled && glueEnabled {
 		return fmt.Errorf("both AWS S3 and AWS Glue are enabled, which is currently not supported")
@@ -49,16 +73,16 @@ func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler
 	}
 
 	if s3Enabled {
-		return s.FetchS3DataObjects(ctx, dataSourceHandler, fileLock)
+		return s.FetchS3DataObjects(ctx, dataSourceHandler)
 	} else {
 		return s.FetchGlueDataObjects(ctx, dataSourceHandler)
 	}
 }
 
 func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler) error {
-	accountId := s.config.ConfigMap.GetString(constants.AwsAccountId)
+	accountId := s.config.GetString(constants.AwsAccountId)
 
-	glueRepo := NewAwsGlueRepository(s.config.ConfigMap)
+	glueRepo := NewAwsGlueRepository(s.config)
 	dbs, err := glueRepo.ListDatabases(ctx, accountId)
 
 	if err != nil {
@@ -110,16 +134,23 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 				currentPath += "/" + pathParts[i]
 
 				if !pathsHandled.Contains(currentPath) {
+					doType := ds.Folder
+
+					// The last one we specify as type glue table
+					if i == len(pathParts)-1 {
+						doType = model.GlueTable
+					}
+
 					err = dataSourceHandler.AddDataObjects(&ds.DataObject{
 						ExternalId:       currentPath,
 						Name:             pathParts[i],
 						FullName:         currentPath,
-						Type:             ds.Folder,
+						Type:             doType,
 						ParentExternalId: parentPath,
 					})
 
 					if err != nil {
-						return fmt.Errorf("adding folder %q to file: %w", currentPath, err)
+						return fmt.Errorf("adding %s %q to file: %w", doType, currentPath, err)
 					}
 
 					pathsHandled.Add(currentPath)
@@ -131,8 +162,9 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 	return nil
 }
 
-func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, fileLock *sync.Mutex) error {
-	s3Repo := NewAwsS3Repository(s.config.ConfigMap)
+func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler) error {
+	fileLock := new(sync.Mutex)
+	s3Repo := NewAwsS3Repository(s.config)
 
 	// handle datasets
 	buckets, err := s3Repo.ListBuckets(ctx)
@@ -140,7 +172,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 		return err
 	}
 
-	buckets, err = filterBuckets(s.config.ConfigMap, buckets)
+	buckets, err = filterBuckets(s.config, buckets)
 	if err != nil {
 		return err
 	}
@@ -153,7 +185,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 	}
 
 	// handle files
-	workerPool := workerpool.New(utils.GetConcurrency(s.config.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(s.config))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -169,7 +201,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 
 			var prefix *string
 
-			if p, f := strings.CutPrefix(s.config.DataObjectParent, bucketName+"/"); f {
+			if p, f := strings.CutPrefix(s.dataObjectParent, bucketName+"/"); f {
 				if !strings.HasSuffix(p, "/") {
 					p += "/"
 				}
@@ -211,7 +243,7 @@ func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context, configPara
 }
 
 func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
-	awsAccount := s.config.ConfigMap.GetString(constants.AwsAccountId)
+	awsAccount := s.config.GetString(constants.AwsAccountId)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -235,8 +267,8 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 }
 
 func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
-	awsAccount := s.config.ConfigMap.GetString(constants.AwsAccountId)
-	emulateFolders := s.config.ConfigMap.GetBoolWithDefault(constants.AwsS3EmulateFolderStructure, true)
+	awsAccount := s.config.GetString(constants.AwsAccountId)
+	emulateFolders := s.config.GetBoolWithDefault(constants.AwsS3EmulateFolderStructure, true)
 
 	if lock == nil {
 		lock = new(sync.Mutex)
@@ -266,7 +298,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourc
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
-				maxFolderDepth := s.config.ConfigMap.GetIntWithDefault(constants.AwsS3MaxFolderDepth, 20)
+				maxFolderDepth := s.config.GetIntWithDefault(constants.AwsS3MaxFolderDepth, 20)
 
 				parts := strings.Split(entity.Key, "/")
 				parentExternalId := entity.ParentKey
@@ -354,18 +386,18 @@ func (s *DataSourceSyncer) shouldHandle(fullName string) (ret bool) {
 	}()
 
 	// No partial sync specified, so do everything
-	if s.config.DataObjectParent == "" {
+	if s.dataObjectParent == "" {
 		return true
 	}
 
 	// Check if the data object is under the data object to start from
-	if !strings.HasPrefix(fullName, s.config.DataObjectParent) || s.config.DataObjectParent == fullName {
+	if !strings.HasPrefix(fullName, s.dataObjectParent) || s.dataObjectParent == fullName {
 		return false
 	}
 
 	// Check if we hit any excludes
-	for _, exclude := range s.config.DataObjectExcludes {
-		if strings.HasPrefix(fullName, s.config.DataObjectParent+"/"+exclude) {
+	for _, exclude := range s.dataObjectExcludes {
+		if strings.HasPrefix(fullName, s.dataObjectParent+"/"+exclude) {
 			return false
 		}
 	}
@@ -380,7 +412,7 @@ func (s *DataSourceSyncer) shouldGoInto(fullName string) (ret bool) {
 	}()
 
 	// No partial sync specified, so do everything
-	if s.config.DataObjectParent == "" || strings.HasPrefix(s.config.DataObjectParent, fullName) || strings.HasPrefix(fullName, s.config.DataObjectParent) {
+	if s.dataObjectParent == "" || strings.HasPrefix(s.dataObjectParent, fullName) || strings.HasPrefix(fullName, s.dataObjectParent) {
 		return true
 	}
 
@@ -475,4 +507,37 @@ func filterBuckets(configMap *config.ConfigMap, buckets []model.AwsS3Entity) ([]
 	}
 
 	return filteredBuckets, nil
+}
+
+type mapDataSourceHandler struct {
+	bucketMap map[string]interface{}
+}
+
+func (m mapDataSourceHandler) AddDataObjects(dataObjects ...*ds.DataObject) error {
+	for _, dataObject := range dataObjects {
+		parts := strings.Split(dataObject.FullName, "/")
+
+		currentMap := m.bucketMap
+
+		for _, part := range parts {
+			partMap, found := currentMap[part]
+			if !found {
+				partMap = map[string]interface{}{}
+				currentMap[part] = partMap
+			}
+
+			currentMap = partMap.(map[string]interface{})
+		}
+	}
+
+	return nil
+}
+
+func (m mapDataSourceHandler) SetDataSourceName(name string) {
+}
+
+func (m mapDataSourceHandler) SetDataSourceFullname(name string) {
+}
+
+func (m mapDataSourceHandler) SetDataSourceDescription(desc string) {
 }

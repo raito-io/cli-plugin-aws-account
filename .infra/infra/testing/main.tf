@@ -207,6 +207,7 @@ resource "aws_iam_user" "d_hayden_user" {
   name = "d_hayden"
 }
 
+// Marissa is part of the Marketing group
 resource "aws_iam_group_membership" "m_carissa_membership" {
   name  = "m_carissa_membership"
   group = aws_iam_group.marketing_group.name
@@ -215,6 +216,7 @@ resource "aws_iam_group_membership" "m_carissa_membership" {
   ]
 }
 
+// Dustin is part of the Sales group
 resource "aws_iam_group_membership" "d_hayden_membership" {
   name  = "d_hayden_membership"
   group = aws_iam_group.sales_group.name
@@ -223,7 +225,7 @@ resource "aws_iam_group_membership" "d_hayden_membership" {
   ]
 }
 
-// Marketing role is directly assigned to a single user and has a managed policy attached to it to provide access to marketing folder in S3
+// Marketing role can be assumed by Marissa and has a managed policy attached to it to provide access to marketing folder in S3
 resource "aws_iam_role" "marketing_role" {
   name               = "MarketingRole"
   assume_role_policy = data.aws_iam_policy_document.marketing_assume_rolepolicy_document.json
@@ -236,7 +238,7 @@ data "aws_iam_policy_document" "marketing_assume_rolepolicy_document" {
     actions = ["sts:AssumeRole"]
     principals {
       type        = "AWS"
-      identifiers = [aws_iam_user.d_hayden_user.arn]
+      identifiers = [aws_iam_user.m_carissa_user.arn]
     }
   }
 }
@@ -261,26 +263,11 @@ resource "aws_iam_role_policy_attachment" "raito_marketing_policy_attach" {
   policy_arn = aws_iam_policy.marketing_policy.arn
 }
 
-// Sales role is directly assigned to a single user and has an inline policy pointing to the sales folder in S3
-resource "aws_iam_role" "sales_role" {
-  name = "SalesRole"
-  inline_policy {
+// Sales group gets an inline policy providing access to the sales folder in S3
+resource "aws_iam_group_policy" "sales_policy" {
     name   = "SalesPolicy"
+    group  = aws_iam_group.sales_group.name
     policy = data.aws_iam_policy_document.sales_policy_document.json
-  }
-  assume_role_policy = data.aws_iam_policy_document.sales_assume_rolepolicy_document.json
-}
-
-data "aws_iam_policy_document" "sales_assume_rolepolicy_document" {
-  statement {
-    effect = "Allow"
-
-    actions = ["sts:AssumeRole"]
-    principals {
-      type        = "AWS"
-      identifiers = [aws_iam_user.d_hayden_user.arn]
-    }
-  }
 }
 
 data "aws_iam_policy_document" "sales_policy_document" {
@@ -289,6 +276,22 @@ data "aws_iam_policy_document" "sales_policy_document" {
 
     actions   = ["s3:GetObject", "s3:PutObject"]
     resources = ["${aws_s3_bucket.corporate.arn}/sales/*"]
+  }
+}
+
+// Dusting gets an inline policy providing access to the operations folder in S3
+resource "aws_iam_user_policy" "d_hayden_policy" {
+    name   = "DustinPolicy"
+    user   = aws_iam_user.d_hayden_user.name
+    policy = data.aws_iam_policy_document.d_hayden_policy_document.json
+}
+
+data "aws_iam_policy_document" "d_hayden_policy_document" {
+  statement {
+    effect = "Allow"
+
+    actions   = ["s3:GetObject"]
+    resources = ["${aws_s3_bucket.corporate.arn}/operations/*"]
   }
 }
 
@@ -317,7 +320,7 @@ data "aws_iam_policy_document" "operations_access_point_policy_document" {
     actions = ["s3:GetObject"]
     principals {
       type        = "AWS"
-      identifiers = ["${aws_iam_user.m_carissa_user.arn}", "${aws_iam_role.sales_role.arn}"]
+      identifiers = ["${aws_iam_user.m_carissa_user.arn}", "${aws_iam_group.marketing_group.arn}"]
     }
     resources = ["${aws_s3_access_point.operations_access_point.arn}/object/operations/*"]
   }

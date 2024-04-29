@@ -6,8 +6,11 @@ import (
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	ds "github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/tag"
 )
+
+var GlueTable = "glue-" + ds.Table
 
 type AccessProviderType string
 
@@ -103,7 +106,7 @@ type EventBytes struct {
 	BytesOut float32 `json:"bytesTransferredOut"`
 }
 
-type AwsRecource struct {
+type AwsResource struct {
 	AccountId *string `json:"accountId"`
 	Type      *string `json:"type"`
 	Arn       *string `json:"ARN"`
@@ -121,7 +124,7 @@ type CloudtrailRecord struct {
 	Bytes              *EventBytes   `json:"additionalEventData"`
 	EventID            *string       `json:"eventID"`
 	ReadOnly           bool          `json:"readOnly"`
-	Resources          []AwsRecource `json:"resources"`
+	Resources          []AwsResource `json:"resources"`
 	EventType          *string       `json:"eventType"`
 	ManagementEvent    bool          `json:"managementEvent"`
 	RecipientAccountId *string       `json:"recipientAccountId"`
