@@ -444,7 +444,7 @@ func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, co
 			PolicyType: model.AccessPoint,
 			ApInput: &sync_from_target.AccessProvider{
 				// As internal policies don't have an ID we use the policy ARN
-				ExternalId: accessPoint.Arn,
+				ExternalId: constants.AccessPointTypePrefix + accessPoint.Name,
 				Name:       accessPoint.Name,
 				Type:       aws.String(string(model.AccessPoint)),
 				NamingHint: "",

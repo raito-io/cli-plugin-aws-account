@@ -405,10 +405,9 @@ func getExistingOrNewBindings(existingBindings map[string]set.Set[model.PolicyBi
 	return existingBindings[name]
 }
 
-func ProcessApInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string],
-	newRoleWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding],
-	existingRoleWhoBindings map[string]set.Set[model.PolicyBinding], existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding]) {
-	// First we run over the role inheritance map and for each role add the inherited who from the dependant roles
+// processRoleInheritance flattens the role bindings for roles because no role inheritance is supported in AWS
+func processRoleInheritance(roleInheritanceMap map[string]set.Set[string], newRoleWhoBindings map[string]set.Set[model.PolicyBinding], existingRoleWhoBindings map[string]set.Set[model.PolicyBinding]) {
+	// Run over the role inheritance map and for each role add the inherited who from the dependant roles
 	for k := range roleInheritanceMap {
 		// A role can only have other roles as descendants
 		descendants := getDescendants(roleInheritanceMap, k)
@@ -416,8 +415,13 @@ func ProcessApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 			newRoleWhoBindings[k].AddSet(getExistingOrNewBindings(existingRoleWhoBindings, newRoleWhoBindings, descendant))
 		}
 	}
+}
 
-	// Next we run over the policy inheritance map
+// processPolicyInheritance flattens the policy bindings for policies and access points because no policy inheritance is supported in AWS
+// Note that the same logic is used for policies and access points because they are both represented as policies in AWS and we use the same inheritance logic for them.
+func processPolicyInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string],
+	newRoleWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding],
+	existingRoleWhoBindings map[string]set.Set[model.PolicyBinding], existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding]) {
 	for k := range policyInheritanceMap {
 		// We fetch the dependant policies for the current policy
 		policyDescendants := getDescendants(policyInheritanceMap, k)
@@ -434,7 +438,7 @@ func ProcessApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 			} else if _, f := newPolicyWhoBindings[descendant]; !f {
 				// In this case the descendant is not an internal access provider. Let's see if it is an external one to get those dependencies
 				if policyWho, f2 := existingPolicyWhoBindings[descendant]; f2 {
-					// The case where the internal AP depends on an external AP (of type policy). In that case we have to look at the bindings to see if there is a role in there.
+					// The case where the internal AP depends on an external AP (of type policy). In that case we have to look at the bindings to see if there are roles in there.
 					for _, binding := range policyWho.Slice() {
 						if binding.Type == RoleResourceType {
 							_, isNewRole2 := newRoleWhoBindings[binding.ResourceName]
@@ -468,6 +472,19 @@ func ProcessApInheritance(roleInheritanceMap map[string]set.Set[string], policyI
 			newPolicyWhoBindings[k].AddSet(getExistingOrNewBindings(existingPolicyWhoBindings, newPolicyWhoBindings, descendant))
 		}
 	}
+}
+
+func ProcessApInheritance(roleInheritanceMap map[string]set.Set[string], policyInheritanceMap map[string]set.Set[string], accessPointInheritanceMap map[string]set.Set[string],
+	newRoleWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding],
+	existingRoleWhoBindings map[string]set.Set[model.PolicyBinding], existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding], existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding]) {
+	// Handle inheritance for roles
+	processRoleInheritance(roleInheritanceMap, newRoleWhoBindings, existingRoleWhoBindings)
+
+	// Handle inheritance for policies
+	processPolicyInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+
+	// Handle inheritance for access points
+	processPolicyInheritance(roleInheritanceMap, accessPointInheritanceMap, newRoleWhoBindings, newAccessPointWhoBindings, existingRoleWhoBindings, existingAccessPointWhoBindings)
 }
 
 func getDescendants(childMap map[string]set.Set[string], apName string) set.Set[string] {

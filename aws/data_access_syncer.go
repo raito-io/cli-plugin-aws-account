@@ -30,6 +30,7 @@ type dataAccessRepository interface {
 	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) error
 	DeleteRole(ctx context.Context, name string) error
+	DeleteAccessPoint(ctx context.Context, name string) error
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
 	ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error)

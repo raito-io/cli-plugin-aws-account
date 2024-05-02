@@ -1038,8 +1038,8 @@ func (repo *AwsIamRepository) parsePolicyDocument(policyDoc *string, entityName,
 	return &policy, &policyDocument, err
 }
 
-func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *string) *s3control.Client {
-	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, region)
+func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context) *s3control.Client {
+	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, nil)
 
 	if err != nil {
 		log.Fatalf("failed to load configuration, %v", err)
@@ -1051,7 +1051,7 @@ func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *st
 }
 
 func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error) {
-	client := repo.getS3ControlClient(ctx, nil)
+	client := repo.getS3ControlClient(ctx)
 
 	moreObjectsAvailable := true
 	var nextToken *string
@@ -1102,4 +1102,70 @@ func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.Aws
 	}
 
 	return aps, nil
+}
+
+func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string) error {
+	client := repo.getS3ControlClient(ctx)
+
+	_, err := client.DeleteAccessPoint(ctx, &s3control.DeleteAccessPointInput{
+		AccountId: &repo.account,
+		Name:      aws.String(name),
+	})
+	if err != nil {
+		return fmt.Errorf("deleting access point: %w", err)
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, statement awspolicy.Statement) error {
+	client := repo.getS3ControlClient(ctx)
+
+	input := &s3control.CreateAccessPointInput{
+		AccountId: &repo.account,
+		Bucket:    aws.String(bucket),
+		Name:      aws.String(name),
+	}
+
+	_, err := client.CreateAccessPoint(ctx, input)
+
+	if err != nil {
+		return fmt.Errorf("creating access point %s: %w", name, err)
+	}
+
+	policyDoc, err := repo.createPolicyDocument([]awspolicy.Statement{statement})
+	if err != nil {
+		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
+	}
+
+	_, err = client.PutAccessPointPolicy(ctx, &s3control.PutAccessPointPolicyInput{
+		AccountId: &repo.account,
+		Name:      aws.String(name),
+		Policy:    aws.String(policyDoc),
+	})
+	if err != nil {
+		return fmt.Errorf("putting policy for access point %s: %w", name, err)
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, statement awspolicy.Statement) error {
+	client := repo.getS3ControlClient(ctx)
+
+	policyDoc, err := repo.createPolicyDocument([]awspolicy.Statement{statement})
+	if err != nil {
+		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
+	}
+
+	_, err = client.PutAccessPointPolicy(ctx, &s3control.PutAccessPointPolicyInput{
+		AccountId: &repo.account,
+		Name:      aws.String(name),
+		Policy:    aws.String(policyDoc),
+	})
+	if err != nil {
+		return fmt.Errorf("putting policy for access point %s: %w", name, err)
+	}
+
+	return nil
 }

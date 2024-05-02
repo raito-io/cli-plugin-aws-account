@@ -119,7 +119,7 @@ func GetS3MetaData() *ds.MetaData {
 					CanBeCreated:                  true,
 					CanBeAssumed:                  false,
 					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(model.Role), string(model.SSORole)},
+					AllowedWhoAccessProviderTypes: []string{string(model.AccessPoint), string(model.Role), string(model.SSORole)},
 				},
 			},
 		}

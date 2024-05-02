@@ -36,11 +36,12 @@ const (
 	PolicyPrefix = "policy/"
 
 	// Inline prefix is used for prefixing part of the external id, preceding the comma-separated list of inline policy ARNs used
-	InlinePrefix     = "inline:"
-	PolicyTypePrefix = "policy:"
-	RoleTypePrefix   = "role:"
-	UserTypePrefix   = "user:"
-	GroupTypePrefix  = "group:"
+	InlinePrefix          = "inline:"
+	PolicyTypePrefix      = "policy:"
+	RoleTypePrefix        = "role:"
+	AccessPointTypePrefix = "accesspoint:"
+	UserTypePrefix        = "user:"
+	GroupTypePrefix       = "group:"
 
 	TagSource = "aws-s3"
 
