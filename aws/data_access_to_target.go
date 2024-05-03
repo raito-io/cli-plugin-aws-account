@@ -399,6 +399,7 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 
 			// Getting the who (for access points, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
 			principals := make([]string, 0, len(who))
+
 			for _, binding := range who.Slice() {
 				if binding.Type == iam.UserResourceType || binding.Type == iam.RoleResourceType {
 					principals = append(principals, binding.ResourceName)
@@ -487,8 +488,9 @@ func extractBucketForAccessPoint(statements []*awspolicy.Statement) (string, err
 			if strings.HasPrefix(resource, "arn:aws:s3:") {
 				thisBucket := strings.Split(resource, ":")[5]
 				if strings.Contains(thisBucket, "/") {
-					thisBucket = thisBucket[:strings.Index(thisBucket, "/")]
+					thisBucket = thisBucket[:strings.Index(thisBucket, "/")] //nolint:gocritic
 				}
+
 				if bucket != "" && bucket != thisBucket {
 					return "", fmt.Errorf("an access point can only have one bucket associated with it")
 				}
