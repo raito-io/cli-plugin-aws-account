@@ -1092,14 +1092,14 @@ func TestConvertResourceURLsForAccessPoint(t *testing.T) {
 		{
 			Name: "Folder level",
 			Statement: &awspolicy.Statement{
-				Resource: []string{"arn:aws:s3:::bucket/folder1/*"},
+				Resource: []string{"arn:aws:s3:::bucket/folder1"},
 			},
 			Expected: []string{"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*"},
 		},
 		{
 			Name: "Multiple resources",
 			Statement: &awspolicy.Statement{
-				Resource: []string{"arn:aws:s3:::bucket/folder1/*", "arn:aws:s3:::bucket/folder2/folder3/*"},
+				Resource: []string{"arn:aws:s3:::bucket/folder1", "arn:aws:s3:::bucket/folder2/folder3"},
 			},
 			Expected: []string{"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*", "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder2/folder3/*"},
 		},

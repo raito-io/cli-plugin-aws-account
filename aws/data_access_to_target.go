@@ -468,7 +468,11 @@ func convertResourceURLsForAccessPoint(statements []*awspolicy.Statement, access
 			if strings.HasPrefix(resource, "arn:aws:s3:") {
 				fullName := strings.Split(resource, ":")[5]
 				if strings.Contains(fullName, "/") {
-					fullName = fullName[strings.Index(fullName, "/")+1:] + "/*"
+					fullName = fullName[strings.Index(fullName, "/")+1:]
+					if !strings.HasPrefix(fullName, "*") {
+						fullName += "/*"
+					}
+
 					statement.Resource[i] = fmt.Sprintf("%s/object/%s", accessPointArn, fullName)
 				} else {
 					statement.Resource[i] = accessPointArn
