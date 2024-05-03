@@ -43,6 +43,7 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything).Return([]model.AwsS3AccessPoint{}, nil).Once()
 
 	return repoMock, syncer
 }
