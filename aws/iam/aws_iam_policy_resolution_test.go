@@ -21,6 +21,8 @@ func TestApInheritanceHandler(t *testing.T) {
 		"Policy1": set.NewSet("Policy2"),
 		"Policy2": set.NewSet("Role1"),
 	}
+	accessPointInheritanceMap := map[string]set.Set[string]{}
+
 	newRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{
 		"Role1": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
@@ -41,10 +43,14 @@ func TestApInheritanceHandler(t *testing.T) {
 			ResourceName: "user4",
 		}),
 	}
+
+	newAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+
 	existingRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 	existingPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+	existingAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 
-	ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+	ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, accessPointInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, newAccessPointWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings, existingAccessPointWhoBindings)
 
 	fmt.Printf("Role1 bindings: %+v\n", newRoleWhoBindings["Role1"])
 	fmt.Printf("Role2 bindings: %+v\n", newRoleWhoBindings["Role2"])
@@ -114,6 +120,8 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 	policyInheritanceMap := map[string]set.Set[string]{
 		"Policy1": set.NewSet("Policy2"),
 	}
+	accessPointInheritanceMap := map[string]set.Set[string]{}
+
 	newRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{
 		"Role1": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
@@ -126,6 +134,7 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 			ResourceName: "user3",
 		}),
 	}
+	newAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 	existingRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{
 		"Role2": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
@@ -141,8 +150,9 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 			ResourceName: "Role1",
 		}),
 	}
+	existingAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 
-	ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+	ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, accessPointInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, newAccessPointWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings, existingAccessPointWhoBindings)
 
 	fmt.Printf("Role1 bindings: %+v\n", newRoleWhoBindings["Role1"])
 	fmt.Printf("Role2 bindings: %+v\n", newRoleWhoBindings["Role2"])
