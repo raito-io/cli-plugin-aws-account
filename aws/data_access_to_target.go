@@ -461,7 +461,7 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 }
 
 // convertResourceURLsForAccessPoint converts all the resource ARNs in the policy statements to the corresponding ones for the access point.
-// e.g. "arn:aws:s3:::bucket/folder1/*" would become "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*"
+// e.g. "arn:aws:s3:::bucket/folder1" would become "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*"
 func convertResourceURLsForAccessPoint(statements []*awspolicy.Statement, accessPointArn string) {
 	for _, statement := range statements {
 		for i, resource := range statement.Resource {
