@@ -279,7 +279,7 @@ func (repo *AwsIamRepository) DeleteRoleInlinePolicies(ctx context.Context, role
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []*awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
@@ -313,7 +313,7 @@ func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleNa
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
+func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []*awspolicy.Statement) (*types.Policy, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
@@ -353,10 +353,15 @@ func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyNam
 	return resp.Policy, nil
 }
 
-func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statement) (string, error) {
+func (repo *AwsIamRepository) createPolicyDocument(statements []*awspolicy.Statement) (string, error) {
+	stms := make([]awspolicy.Statement, 0, len(statements))
+	for _, statement := range statements {
+		stms = append(stms, *statement)
+	}
+
 	policy := awspolicy.Policy{
 		Version:    "2012-10-17",
-		Statements: statements,
+		Statements: stms,
 	}
 
 	bytes, err := json.Marshal(policy)
@@ -368,7 +373,7 @@ func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statem
 	return policyDoc, nil
 }
 
-func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
@@ -634,7 +639,7 @@ func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, p
 	return nil
 }
 
-func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []*awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
@@ -1118,7 +1123,7 @@ func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, statement awspolicy.Statement) error {
+func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, statements []*awspolicy.Statement) error {
 	client := repo.getS3ControlClient(ctx)
 
 	input := &s3control.CreateAccessPointInput{
@@ -1133,7 +1138,7 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 		return fmt.Errorf("creating access point %s: %w", name, err)
 	}
 
-	policyDoc, err := repo.createPolicyDocument([]awspolicy.Statement{statement})
+	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}
@@ -1150,10 +1155,10 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 	return nil
 }
 
-func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, statement awspolicy.Statement) error {
+func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, statements []*awspolicy.Statement) error {
 	client := repo.getS3ControlClient(ctx)
 
-	policyDoc, err := repo.createPolicyDocument([]awspolicy.Statement{statement})
+	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}

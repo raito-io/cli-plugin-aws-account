@@ -75,7 +75,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_GetManagedPolicies() {
 
 func (s *IAMPoliciesTestSuite) TestIAMPolicies_CreateManagedPolicy() {
 	policyName := "INT_TestPolicy1"
-	p, err := s.repo.CreateManagedPolicy(context.Background(), policyName, []awspolicy.Statement{
+	p, err := s.repo.CreateManagedPolicy(context.Background(), policyName, []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject"},
@@ -124,7 +124,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_CreateManagedPolicy() {
 
 func (s *IAMPoliciesTestSuite) TestIAMPolicies_UpdateManagedPolicy() {
 	policyName := "INT_UpdateManagedPolicy1"
-	p, err := s.repo.CreateManagedPolicy(context.Background(), policyName, []awspolicy.Statement{
+	p, err := s.repo.CreateManagedPolicy(context.Background(), policyName, []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject"},
@@ -136,7 +136,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_UpdateManagedPolicy() {
 	s.Assert().NotNil(p)
 	s.Assert().Equal(policyName, *p.PolicyName)
 
-	s.repo.UpdateManagedPolicy(context.Background(), policyName, false, []awspolicy.Statement{
+	s.repo.UpdateManagedPolicy(context.Background(), policyName, false, []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:PutObject", "s3:GetObject"},

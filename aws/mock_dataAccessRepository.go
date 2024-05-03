@@ -172,8 +172,57 @@ func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) RunAndReturn(
 	return _c
 }
 
+// CreateAccessPoint provides a mock function with given fields: ctx, name, bucket, statements
+func (_m *mockDataAccessRepository) CreateAccessPoint(ctx context.Context, name string, bucket string, statements []*awspolicy.Statement) error {
+	ret := _m.Called(ctx, name, bucket, statements)
+
+	if len(ret) == 0 {
+		panic("no return value specified for CreateAccessPoint")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []*awspolicy.Statement) error); ok {
+		r0 = rf(ctx, name, bucket, statements)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// mockDataAccessRepository_CreateAccessPoint_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateAccessPoint'
+type mockDataAccessRepository_CreateAccessPoint_Call struct {
+	*mock.Call
+}
+
+// CreateAccessPoint is a helper method to define mock.On call
+//   - ctx context.Context
+//   - name string
+//   - bucket string
+//   - statements []*awspolicy.Statement
+func (_e *mockDataAccessRepository_Expecter) CreateAccessPoint(ctx interface{}, name interface{}, bucket interface{}, statements interface{}) *mockDataAccessRepository_CreateAccessPoint_Call {
+	return &mockDataAccessRepository_CreateAccessPoint_Call{Call: _e.mock.On("CreateAccessPoint", ctx, name, bucket, statements)}
+}
+
+func (_c *mockDataAccessRepository_CreateAccessPoint_Call) Run(run func(ctx context.Context, name string, bucket string, statements []*awspolicy.Statement)) *mockDataAccessRepository_CreateAccessPoint_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]*awspolicy.Statement))
+	})
+	return _c
+}
+
+func (_c *mockDataAccessRepository_CreateAccessPoint_Call) Return(_a0 error) *mockDataAccessRepository_CreateAccessPoint_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *mockDataAccessRepository_CreateAccessPoint_Call) RunAndReturn(run func(context.Context, string, string, []*awspolicy.Statement) error) *mockDataAccessRepository_CreateAccessPoint_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateManagedPolicy provides a mock function with given fields: ctx, policyName, statements
-func (_m *mockDataAccessRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
+func (_m *mockDataAccessRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []*awspolicy.Statement) (*types.Policy, error) {
 	ret := _m.Called(ctx, policyName, statements)
 
 	if len(ret) == 0 {
@@ -182,10 +231,10 @@ func (_m *mockDataAccessRepository) CreateManagedPolicy(ctx context.Context, pol
 
 	var r0 *types.Policy
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []awspolicy.Statement) (*types.Policy, error)); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*awspolicy.Statement) (*types.Policy, error)); ok {
 		return rf(ctx, policyName, statements)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, []awspolicy.Statement) *types.Policy); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*awspolicy.Statement) *types.Policy); ok {
 		r0 = rf(ctx, policyName, statements)
 	} else {
 		if ret.Get(0) != nil {
@@ -193,7 +242,7 @@ func (_m *mockDataAccessRepository) CreateManagedPolicy(ctx context.Context, pol
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, []awspolicy.Statement) error); ok {
+	if rf, ok := ret.Get(1).(func(context.Context, string, []*awspolicy.Statement) error); ok {
 		r1 = rf(ctx, policyName, statements)
 	} else {
 		r1 = ret.Error(1)
@@ -210,14 +259,14 @@ type mockDataAccessRepository_CreateManagedPolicy_Call struct {
 // CreateManagedPolicy is a helper method to define mock.On call
 //   - ctx context.Context
 //   - policyName string
-//   - statements []awspolicy.Statement
+//   - statements []*awspolicy.Statement
 func (_e *mockDataAccessRepository_Expecter) CreateManagedPolicy(ctx interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_CreateManagedPolicy_Call {
 	return &mockDataAccessRepository_CreateManagedPolicy_Call{Call: _e.mock.On("CreateManagedPolicy", ctx, policyName, statements)}
 }
 
-func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_CreateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, statements []*awspolicy.Statement)) *mockDataAccessRepository_CreateManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].([]*awspolicy.Statement))
 	})
 	return _c
 }
@@ -227,7 +276,7 @@ func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) Return(_a0 *types.P
 	return _c
 }
 
-func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []awspolicy.Statement) (*types.Policy, error)) *mockDataAccessRepository_CreateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_CreateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, []*awspolicy.Statement) (*types.Policy, error)) *mockDataAccessRepository_CreateManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -282,7 +331,7 @@ func (_c *mockDataAccessRepository_CreateRole_Call) RunAndReturn(run func(contex
 }
 
 // CreateRoleInlinePolicy provides a mock function with given fields: ctx, roleName, policyName, statements
-func (_m *mockDataAccessRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error {
+func (_m *mockDataAccessRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []*awspolicy.Statement) error {
 	ret := _m.Called(ctx, roleName, policyName, statements)
 
 	if len(ret) == 0 {
@@ -290,7 +339,7 @@ func (_m *mockDataAccessRepository) CreateRoleInlinePolicy(ctx context.Context, 
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, []awspolicy.Statement) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []*awspolicy.Statement) error); ok {
 		r0 = rf(ctx, roleName, policyName, statements)
 	} else {
 		r0 = ret.Error(0)
@@ -308,14 +357,14 @@ type mockDataAccessRepository_CreateRoleInlinePolicy_Call struct {
 //   - ctx context.Context
 //   - roleName string
 //   - policyName string
-//   - statements []awspolicy.Statement
+//   - statements []*awspolicy.Statement
 func (_e *mockDataAccessRepository_Expecter) CreateRoleInlinePolicy(ctx interface{}, roleName interface{}, policyName interface{}, statements interface{}) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
 	return &mockDataAccessRepository_CreateRoleInlinePolicy_Call{Call: _e.mock.On("CreateRoleInlinePolicy", ctx, roleName, policyName, statements)}
 }
 
-func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) Run(run func(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement)) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
+func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) Run(run func(ctx context.Context, roleName string, policyName string, statements []*awspolicy.Statement)) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]*awspolicy.Statement))
 	})
 	return _c
 }
@@ -325,7 +374,7 @@ func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) Return(_a0 error
 	return _c
 }
 
-func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, []awspolicy.Statement) error) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
+func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, []*awspolicy.Statement) error) *mockDataAccessRepository_CreateRoleInlinePolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1111,6 +1160,54 @@ func (_c *mockDataAccessRepository_ListAccessPoints_Call) RunAndReturn(run func(
 	return _c
 }
 
+// UpdateAccessPoint provides a mock function with given fields: ctx, name, statements
+func (_m *mockDataAccessRepository) UpdateAccessPoint(ctx context.Context, name string, statements []*awspolicy.Statement) error {
+	ret := _m.Called(ctx, name, statements)
+
+	if len(ret) == 0 {
+		panic("no return value specified for UpdateAccessPoint")
+	}
+
+	var r0 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, []*awspolicy.Statement) error); ok {
+		r0 = rf(ctx, name, statements)
+	} else {
+		r0 = ret.Error(0)
+	}
+
+	return r0
+}
+
+// mockDataAccessRepository_UpdateAccessPoint_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'UpdateAccessPoint'
+type mockDataAccessRepository_UpdateAccessPoint_Call struct {
+	*mock.Call
+}
+
+// UpdateAccessPoint is a helper method to define mock.On call
+//   - ctx context.Context
+//   - name string
+//   - statements []*awspolicy.Statement
+func (_e *mockDataAccessRepository_Expecter) UpdateAccessPoint(ctx interface{}, name interface{}, statements interface{}) *mockDataAccessRepository_UpdateAccessPoint_Call {
+	return &mockDataAccessRepository_UpdateAccessPoint_Call{Call: _e.mock.On("UpdateAccessPoint", ctx, name, statements)}
+}
+
+func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) Run(run func(ctx context.Context, name string, statements []*awspolicy.Statement)) *mockDataAccessRepository_UpdateAccessPoint_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string), args[2].([]*awspolicy.Statement))
+	})
+	return _c
+}
+
+func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) Return(_a0 error) *mockDataAccessRepository_UpdateAccessPoint_Call {
+	_c.Call.Return(_a0)
+	return _c
+}
+
+func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) RunAndReturn(run func(context.Context, string, []*awspolicy.Statement) error) *mockDataAccessRepository_UpdateAccessPoint_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // UpdateAssumeEntities provides a mock function with given fields: ctx, roleName, userNames
 func (_m *mockDataAccessRepository) UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error {
 	ret := _m.Called(ctx, roleName, userNames)
@@ -1160,7 +1257,7 @@ func (_c *mockDataAccessRepository_UpdateAssumeEntities_Call) RunAndReturn(run f
 }
 
 // UpdateInlinePolicy provides a mock function with given fields: ctx, policyName, resourceName, resourceType, statements
-func (_m *mockDataAccessRepository) UpdateInlinePolicy(ctx context.Context, policyName string, resourceName string, resourceType string, statements []awspolicy.Statement) error {
+func (_m *mockDataAccessRepository) UpdateInlinePolicy(ctx context.Context, policyName string, resourceName string, resourceType string, statements []*awspolicy.Statement) error {
 	ret := _m.Called(ctx, policyName, resourceName, resourceType, statements)
 
 	if len(ret) == 0 {
@@ -1168,7 +1265,7 @@ func (_m *mockDataAccessRepository) UpdateInlinePolicy(ctx context.Context, poli
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []awspolicy.Statement) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []*awspolicy.Statement) error); ok {
 		r0 = rf(ctx, policyName, resourceName, resourceType, statements)
 	} else {
 		r0 = ret.Error(0)
@@ -1187,14 +1284,14 @@ type mockDataAccessRepository_UpdateInlinePolicy_Call struct {
 //   - policyName string
 //   - resourceName string
 //   - resourceType string
-//   - statements []awspolicy.Statement
+//   - statements []*awspolicy.Statement
 func (_e *mockDataAccessRepository_Expecter) UpdateInlinePolicy(ctx interface{}, policyName interface{}, resourceName interface{}, resourceType interface{}, statements interface{}) *mockDataAccessRepository_UpdateInlinePolicy_Call {
 	return &mockDataAccessRepository_UpdateInlinePolicy_Call{Call: _e.mock.On("UpdateInlinePolicy", ctx, policyName, resourceName, resourceType, statements)}
 }
 
-func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) Run(run func(ctx context.Context, policyName string, resourceName string, resourceType string, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateInlinePolicy_Call {
+func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) Run(run func(ctx context.Context, policyName string, resourceName string, resourceType string, statements []*awspolicy.Statement)) *mockDataAccessRepository_UpdateInlinePolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].([]*awspolicy.Statement))
 	})
 	return _c
 }
@@ -1204,13 +1301,13 @@ func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) Return(_a0 error) *m
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, string, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateInlinePolicy_Call {
+func (_c *mockDataAccessRepository_UpdateInlinePolicy_Call) RunAndReturn(run func(context.Context, string, string, string, []*awspolicy.Statement) error) *mockDataAccessRepository_UpdateInlinePolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
 // UpdateManagedPolicy provides a mock function with given fields: ctx, policyName, awsManaged, statements
-func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error {
+func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement) error {
 	ret := _m.Called(ctx, policyName, awsManaged, statements)
 
 	if len(ret) == 0 {
@@ -1218,7 +1315,7 @@ func (_m *mockDataAccessRepository) UpdateManagedPolicy(ctx context.Context, pol
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, bool, []awspolicy.Statement) error); ok {
+	if rf, ok := ret.Get(0).(func(context.Context, string, bool, []*awspolicy.Statement) error); ok {
 		r0 = rf(ctx, policyName, awsManaged, statements)
 	} else {
 		r0 = ret.Error(0)
@@ -1236,14 +1333,14 @@ type mockDataAccessRepository_UpdateManagedPolicy_Call struct {
 //   - ctx context.Context
 //   - policyName string
 //   - awsManaged bool
-//   - statements []awspolicy.Statement
+//   - statements []*awspolicy.Statement
 func (_e *mockDataAccessRepository_Expecter) UpdateManagedPolicy(ctx interface{}, policyName interface{}, awsManaged interface{}, statements interface{}) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	return &mockDataAccessRepository_UpdateManagedPolicy_Call{Call: _e.mock.On("UpdateManagedPolicy", ctx, policyName, awsManaged, statements)}
 }
 
-func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement)) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Run(run func(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement)) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(bool), args[3].([]awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(bool), args[3].([]*awspolicy.Statement))
 	})
 	return _c
 }
@@ -1253,7 +1350,7 @@ func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) Return(_a0 error) *
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, bool, []awspolicy.Statement) error) *mockDataAccessRepository_UpdateManagedPolicy_Call {
+func (_c *mockDataAccessRepository_UpdateManagedPolicy_Call) RunAndReturn(run func(context.Context, string, bool, []*awspolicy.Statement) error) *mockDataAccessRepository_UpdateManagedPolicy_Call {
 	_c.Call.Return(run)
 	return _c
 }

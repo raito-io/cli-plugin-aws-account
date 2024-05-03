@@ -56,12 +56,14 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	name := "int-test-ap1"
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-corporate-data", awspolicy.Statement{
-		Effect:   "Allow",
-		Action:   []string{"s3:GetObject", "s3:PutObject"},
-		Resource: []string{fmt.Sprintf("arn:aws:s3:eu-central-1:077954824694:accesspoint/%s/object/operations/*", name)},
-		Principal: map[string][]string{
-			"AWS": {"arn:aws:iam::077954824694:user/d_hayden", "arn:aws:iam::077954824694:role/MarketingRole"},
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-corporate-data", []*awspolicy.Statement{
+		{
+			Effect:   "Allow",
+			Action:   []string{"s3:GetObject", "s3:PutObject"},
+			Resource: []string{fmt.Sprintf("arn:aws:s3:eu-central-1:077954824694:accesspoint/%s/object/operations/*", name)},
+			Principal: map[string][]string{
+				"AWS": {"arn:aws:iam::077954824694:user/d_hayden", "arn:aws:iam::077954824694:role/MarketingRole"},
+			},
 		},
 	})
 
@@ -85,6 +87,58 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 			s.Assert().ElementsMatch([]string{"s3:GetObject", "s3:PutObject"}, accessPoint.PolicyParsed.Statements[0].Action)
 			s.Assert().True(strings.HasSuffix(accessPoint.PolicyParsed.Statements[0].Resource[0], "object/operations/*"))
 			s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/d_hayden", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoint.PolicyParsed.Statements[0].Principal["AWS"])
+			break
+		}
+	}
+
+	s.Assert().True(found)
+}
+
+func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
+	name := "int-test-ap1"
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-corporate-data", []*awspolicy.Statement{
+		{
+			Effect:   "Allow",
+			Action:   []string{"s3:GetObject", "s3:PutObject"},
+			Resource: []string{fmt.Sprintf("arn:aws:s3:eu-central-1:077954824694:accesspoint/%s/object/operations/*", name)},
+			Principal: map[string][]string{
+				"AWS": {"arn:aws:iam::077954824694:user/d_hayden", "arn:aws:iam::077954824694:role/MarketingRole"},
+			},
+		},
+	})
+
+	s.Assert().NoError(err)
+
+	defer func() {
+		err = s.repo.DeleteAccessPoint(context.Background(), name)
+		s.Assert().NoError(err)
+	}()
+
+	err = s.repo.UpdateAccessPoint(context.Background(), name, []*awspolicy.Statement{
+		{
+			Effect:   "Allow",
+			Action:   []string{"s3:GetObject"},
+			Resource: []string{fmt.Sprintf("arn:aws:s3:eu-central-1:077954824694:accesspoint/%s/object/sales/*", name)},
+			Principal: map[string][]string{
+				"AWS": {"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"},
+			},
+		},
+	})
+	s.Assert().NoError(err)
+
+	accessPoints, err := s.repo.ListAccessPoints(context.Background())
+	s.Assert().NoError(err)
+
+	found := false
+	for _, accessPoint := range accessPoints {
+		if accessPoint.Name == name {
+			found = true
+			s.Assert().Equal("raito-corporate-data", accessPoints[0].Bucket)
+			s.Assert().Len(accessPoint.PolicyParsed.Statements, 1)
+			s.Assert().Equal(accessPoint.PolicyParsed.Statements[0].Effect, "Allow")
+			s.Assert().ElementsMatch([]string{"s3:GetObject"}, accessPoint.PolicyParsed.Statements[0].Action)
+			s.Assert().True(strings.HasSuffix(accessPoint.PolicyParsed.Statements[0].Resource[0], "object/sales/*"))
+			s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoint.PolicyParsed.Statements[0].Principal["AWS"])
 			break
 		}
 	}

@@ -14,10 +14,10 @@ import (
 
 type dataAccessRepository interface {
 	GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error)
-	CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error)
-	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error
+	CreateManagedPolicy(ctx context.Context, policyName string, statements []*awspolicy.Statement) (*types.Policy, error)
+	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement) error
 	DeleteManagedPolicy(ctx context.Context, policyName string, awsManaged bool) error
-	CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error
+	CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []*awspolicy.Statement) error
 	DeleteRoleInlinePolicies(ctx context.Context, roleName string) error
 	AttachUserToManagedPolicy(ctx context.Context, policyArn string, userNames []string) error
 	AttachGroupToManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error
@@ -30,13 +30,15 @@ type dataAccessRepository interface {
 	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) error
 	DeleteRole(ctx context.Context, name string) error
-	DeleteAccessPoint(ctx context.Context, name string) error
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
 	ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error)
 	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
-	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
+	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []*awspolicy.Statement) error
 	GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string
+	CreateAccessPoint(ctx context.Context, name, bucket string, statements []*awspolicy.Statement) error
+	UpdateAccessPoint(ctx context.Context, name string, statements []*awspolicy.Statement) error
+	DeleteAccessPoint(ctx context.Context, name string) error
 }
 
 type AccessSyncer struct {

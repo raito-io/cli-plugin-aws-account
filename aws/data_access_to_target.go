@@ -107,6 +107,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	newRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 	roleInheritanceMap := map[string]set.Set[string]{}
 	inverseRoleInheritanceMap := map[string]set.Set[string]{}
+	inverseAccessPointInheritanceMap := map[string]set.Set[string]{}
 	newPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 	policyInheritanceMap := map[string]set.Set[string]{}
 	newAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
@@ -179,12 +180,14 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		var inheritanceMap map[string]set.Set[string]
 		var whoBindings map[string]set.Set[model.PolicyBinding]
 		var aps map[string]*sync_to_target.AccessProvider
+		var inverseInheritanceMap map[string]set.Set[string]
 
 		switch apType {
 		case string(model.Role):
 			apActionMap = roleActionMap
 			inheritanceMap = roleInheritanceMap
 			whoBindings = newRoleWhoBindings
+			inverseInheritanceMap = inverseRoleInheritanceMap
 			aps = roleAps
 		case string(model.Policy):
 			apActionMap = policyActionMap
@@ -195,6 +198,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			apActionMap = accessPointActionMap
 			inheritanceMap = accessPointInheritanceMap
 			whoBindings = newAccessPointWhoBindings
+			inverseInheritanceMap = inverseAccessPointInheritanceMap
 			aps = accessPointAps
 		default:
 			logFeedbackError(&apFeedback, fmt.Sprintf("unsupported access provider type: %s", apType))
@@ -304,14 +308,14 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				}
 			}
 
-			if apType == string(model.Role) {
+			if apType == string(model.Role) || apType == string(model.AccessPoint) {
 				// For roles we also build the reverse inheritance map
 				for _, inheritFrom := range apInheritFromNames {
-					if _, f := inverseRoleInheritanceMap[inheritFrom]; !f {
-						inverseRoleInheritanceMap[inheritFrom] = set.NewSet[string]()
+					if _, f := inverseInheritanceMap[inheritFrom]; !f {
+						inverseInheritanceMap[inheritFrom] = set.NewSet[string]()
 					}
 
-					inverseRoleInheritanceMap[inheritFrom].Add(name)
+					inverseInheritanceMap[inheritFrom].Add(name)
 				}
 			}
 		}
@@ -333,10 +337,12 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	utils.Logger.Debug(fmt.Sprintf("New role bindings: %+v", newRoleWhoBindings))
 	utils.Logger.Debug(fmt.Sprintf("New access point bindings: %+v", newAccessPointWhoBindings))
 
-	// Now execute the actual update for the roles
+	// Now execute the actual update for the roles, policies and access points
 	a.handleRoleUpdates(ctx, roleActionMap, roleAps, existingRoleWhoBindings, newRoleWhoBindings, inverseRoleInheritanceMap, feedbackMap)
 
 	a.handlePolicyUpdates(ctx, policyActionMap, policyAps, existingPolicyWhoBindings, newPolicyWhoBindings, inlineUserPoliciesToDelete, inlineGroupPoliciesToDelete, feedbackMap, configMap)
+
+	a.handleAccessPointUpdates(ctx, accessPointActionMap, accessPointAps, existingAccessPointWhoBindings, newAccessPointWhoBindings, inverseAccessPointInheritanceMap, feedbackMap, configMap)
 
 	return nil
 }
@@ -366,9 +372,11 @@ func getRecursiveInheritedAPs(start string, inverseRoleInheritanceMap map[string
 	}
 }
 
-/*func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPointActionMap map[string]string, accessPointAps map[string]*sync_to_target.AccessProvider, existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback) {
+func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPointActionMap map[string]string, accessPointAps map[string]*sync_to_target.AccessProvider, existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], inverseAccessPointInheritanceMap map[string]set.Set[string], feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
 	var err error
-	assumeRoles := map[string]set.Set[model.PolicyBinding]{}
+
+	region := configMap.GetStringWithDefault(constants.AwsRegion, "eu-central-1")
+	account := configMap.GetString(constants.AwsAccountId)
 
 	for accessPointName, accessPointAction := range accessPointActionMap {
 		accessPointAp := accessPointAps[accessPointName]
@@ -384,71 +392,143 @@ func getRecursiveInheritedAPs(start string, inverseRoleInheritanceMap map[string
 				continue
 			}
 		} else if accessPointAction == CreateAction || accessPointAction == UpdateAction {
-			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", accessPointName, existingRoleWhoBindings[roleName]))
-			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", accessPointName, newRoleWhoBindings[roleName]))
+			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", accessPointName, existingAccessPointWhoBindings[accessPointName]))
+			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", accessPointName, newAccessPointWhoBindings[accessPointName]))
 
-			assumeRoles[accessPointName] = set.NewSet(newRoleWhoBindings[accessPointName].Slice()...)
+			who := set.NewSet(newAccessPointWhoBindings[accessPointName].Slice()...)
 
-			// Getting the who (for roles, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
-			userNames := make([]string, 0, len(assumeRoles[accessPointName]))
-			for _, binding := range assumeRoles[accessPointName].Slice() {
-				userNames = append(userNames, binding.ResourceName)
+			// Getting the who (for access points, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
+			principals := make([]string, 0, len(who))
+			for _, binding := range who.Slice() {
+				if binding.Type == iam.UserResourceType || binding.Type == iam.RoleResourceType {
+					principals = append(principals, binding.ResourceName)
+				}
 			}
 
-			sort.Strings(userNames)
+			sort.Strings(principals)
 
 			// Getting the what
-			ap := roleAps[roleName]
+			ap := accessPointAps[accessPointName]
 			statements := createPolicyStatementsFromWhat(ap.What)
 
-			// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
-			inheritedAPs := getAllAPsInInheritanceChainForWhat(roleName, inverseRoleInheritanceMap, roleAps)
+			// Because we need to flatten the WHAT for access points as well, we gather all access point APs from which this access point AP inherits its what (following the reverse inheritance chain)
+			inheritedAPs := getAllAPsInInheritanceChainForWhat(accessPointName, inverseAccessPointInheritanceMap, accessPointAps)
 			for _, inheritedAP := range inheritedAPs {
 				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.What)...)
 			}
 
-			if roleAction == CreateAction {
-				utils.Logger.Info(fmt.Sprintf("Creating role %s", roleName))
+			bucketName, err2 := extractBucketForAccessPoint(statements)
+			if err2 != nil {
+				logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to extract bucket name for access point %q: %s", accessPointName, err2.Error()))
+				continue
+			}
 
-				// Create the new role with the who
-				err = a.repo.CreateRole(ctx, roleName, ap.Description, userNames)
-				if err != nil {
-					logFeedbackError(feedbackMap[roleAp.Id], fmt.Sprintf("failed to create role %q: %s", roleName, err.Error()))
-					continue
-				}
-			} else {
-				utils.Logger.Info(fmt.Sprintf("Updating role %s", roleName))
+			statements = mergeStatementsOnPermissions(statements)
 
-				// Handle the who
-				err = a.repo.UpdateAssumeEntities(ctx, roleName, userNames)
-				if err != nil {
-					logFeedbackError(feedbackMap[roleAp.Id], fmt.Sprintf("failed to update role %q: %s", roleName, err.Error()))
-					continue
-				}
+			accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, account, accessPointName)
+			convertResourceURLsForAccessPoint(statements, accessPointArn)
 
-				// For roles, we always delete all the inline policies.
-				// If we wouldn't do that, we would be blind on what the role actually looks like.
-				// If new permissions are supported later on, we would never see them.
-				err = a.repo.DeleteRoleInlinePolicies(ctx, roleName)
-				if err != nil {
-					logFeedbackError(feedbackMap[roleAp.Id], fmt.Sprintf("failed to cleanup inline policies for role %q: %s", roleName, err.Error()))
-					continue
+			for _, statement := range statements {
+				statement.Principal = map[string][]string{
+					"AWS": principals,
 				}
 			}
 
-			if len(statements) > 0 {
-				// Create the inline policy for the what
-				err = a.repo.CreateRoleInlinePolicy(ctx, roleName, "Raito_Inline_"+roleName, statements)
+			if accessPointAction == CreateAction {
+				utils.Logger.Info(fmt.Sprintf("Creating access point %s", accessPointName))
+
+				// Create the new access point with the who
+				err = a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, statements)
 				if err != nil {
-					logFeedbackError(feedbackMap[roleAp.Id], fmt.Sprintf("failed to create inline policies for role %q: %s", roleName, err.Error()))
+					logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to create access point %q: %s", accessPointName, err.Error()))
+					continue
+				}
+			} else {
+				utils.Logger.Info(fmt.Sprintf("Updating access point %s", accessPointName))
+
+				// Handle the who
+				err = a.repo.UpdateAccessPoint(ctx, accessPointName, statements)
+				if err != nil {
+					logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to update access point %q: %s", accessPointName, err.Error()))
 					continue
 				}
 			}
 		} else {
-			utils.Logger.Debug(fmt.Sprintf("no action needed for role %q", roleName))
+			utils.Logger.Debug(fmt.Sprintf("no action needed for access point %q", accessPointName))
 		}
 	}
-}*/
+}
+
+// convertResourceURLsForAccessPoint converts all the resource ARNs in the policy statements to the corresponding ones for the access point.
+// e.g. "arn:aws:s3:::bucket/folder1/*" would become "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*"
+func convertResourceURLsForAccessPoint(statements []*awspolicy.Statement, accessPointArn string) {
+	for _, statement := range statements {
+		for i, resource := range statement.Resource {
+			if strings.HasPrefix(resource, "arn:aws:s3:") {
+				fullName := strings.Split(resource, ":")[5]
+				if strings.Contains(fullName, "/") {
+					fullName = fullName[strings.Index(fullName, "/")+1:] + "/*"
+					statement.Resource[i] = fmt.Sprintf("%s/object/%s", accessPointArn, fullName)
+				} else {
+					statement.Resource[i] = accessPointArn
+				}
+			}
+		}
+	}
+}
+
+// extractBucketForAccessPoint extracts the bucket name from the policy statements of an access point.
+// When there is non found or multiple buckets, an error is returned.
+func extractBucketForAccessPoint(statements []*awspolicy.Statement) (string, error) {
+	bucket := ""
+
+	for _, statement := range statements {
+		for _, resource := range statement.Resource {
+			if strings.HasPrefix(resource, "arn:aws:s3:") {
+				thisBucket := strings.Split(resource, ":")[5]
+				if strings.Contains(thisBucket, "/") {
+					thisBucket = thisBucket[:strings.Index(thisBucket, "/")]
+				}
+				if bucket != "" && bucket != thisBucket {
+					return "", fmt.Errorf("an access point can only have one bucket associated with it")
+				}
+
+				bucket = thisBucket
+			}
+		}
+	}
+
+	if bucket == "" {
+		return "", fmt.Errorf("unable to determine the bucket for this access point")
+	}
+
+	return bucket, nil
+}
+
+// mergeStatementsOnPermissions merges statements that have the same permissions.
+func mergeStatementsOnPermissions(statements []*awspolicy.Statement) []*awspolicy.Statement {
+	mergedStatements := make([]*awspolicy.Statement, 0, len(statements))
+
+	permissions := map[string]*awspolicy.Statement{}
+
+	for _, s := range statements {
+		actionList := s.Action
+		sort.Strings(actionList)
+		actions := strings.Join(actionList, ",")
+
+		if existing, f := permissions[actions]; f {
+			existing.Resource = append(existing.Resource, s.Resource...)
+		} else {
+			permissions[actions] = s
+		}
+	}
+
+	for _, s := range permissions {
+		mergedStatements = append(mergedStatements, s)
+	}
+
+	return mergedStatements
+}
 
 func (a *AccessSyncer) handlePolicyUpdates(ctx context.Context, policyActionMap map[string]string, policyAps map[string]*sync_to_target.AccessProvider, existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding], inlineUserPoliciesToDelete map[string][]string, inlineGroupPoliciesToDelete map[string][]string, feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
 	var err error
@@ -706,7 +786,7 @@ func (a *AccessSyncer) handleRoleUpdates(ctx context.Context, roleActionMap map[
 	}
 }
 
-func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspolicy.Statement {
+func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []*awspolicy.Statement {
 	policyInfo := map[string][]string{}
 
 	for _, what := range whatItems {
@@ -726,9 +806,9 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []awspo
 		}
 	}
 
-	statements := make([]awspolicy.Statement, 0, len(policyInfo))
+	statements := make([]*awspolicy.Statement, 0, len(policyInfo))
 	for resource, actions := range policyInfo {
-		statements = append(statements, awspolicy.Statement{
+		statements = append(statements, &awspolicy.Statement{
 			Resource: []string{utils.ConvertFullnameToArn(resource, "s3")},
 			Action:   actions,
 			Effect:   "Allow",

@@ -197,7 +197,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	}
 
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []awspolicy.Statement{{
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Resource: []string{
@@ -294,7 +294,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
 	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(nil).Once()
 
-	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).RunAndReturn(func(ctx context.Context, s string, s2 string, statements []awspolicy.Statement) error {
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).RunAndReturn(func(ctx context.Context, s string, s2 string, statements []*awspolicy.Statement) error {
 		assert.Equal(t, 2, len(statements))
 
 		file := false
@@ -314,7 +314,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 		return nil
 	}).Once()
 
-	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "another_role", "Raito_Inline_another_role", []awspolicy.Statement{{
+	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "another_role", "Raito_Inline_another_role", []*awspolicy.Statement{{
 		Effect:   "Allow",
 		Action:   []string{"s3:GetObjectAttributes"},
 		Resource: []string{"arn:aws:s3:::folder1"},
@@ -498,7 +498,7 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", []awspolicy.Statement{{
+	repoMock.EXPECT().CreateManagedPolicy(ctx, "test_policy", []*awspolicy.Statement{{
 		StatementID: "",
 		Effect:      "Allow",
 		Action:      []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -878,5 +878,237 @@ func TestGetRecursiveInheritedAPs(t *testing.T) {
 		sort.Strings(res)
 
 		assert.Equal(t, res, test.ExpectedResult)
+	}
+}
+
+func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
+	repoMock, syncer := setupMockExportEnvironment(t)
+	ctx := context.Background()
+	configmap := config.ConfigMap{}
+	if configmap.Parameters == nil {
+		configmap.Parameters = map[string]string{}
+	}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456", constants.AwsRegion: "eu-central-1"}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something",
+				Name:        "Test Access Point",
+				Description: "a test access point",
+				NamingHint:  "test_access_point",
+				Type:        aws.String(string(model.AccessPoint)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users: []string{"stewart_b"},
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "bucketname/folder1/folder2",
+							Type:     "glue-table",
+						},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
+					},
+				},
+			},
+		},
+	}
+
+	repoMock.EXPECT().CreateAccessPoint(ctx, "test_access_point", "bucketname", []*awspolicy.Statement{{
+		Effect: "Allow",
+		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
+		Principal: map[string][]string{
+			"AWS": {"stewart_b"},
+		},
+		Resource: []string{
+			"arn:aws:s3:eu-central-1:123456:accesspoint/test_access_point/object/folder1/folder2/*",
+		},
+	}}).Return(nil).Once()
+
+	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_access_point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test_access_point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestMergeStatementsOnPermissions(t *testing.T) {
+	var tests = []struct {
+		Name       string
+		Statements []*awspolicy.Statement
+		Expected   []*awspolicy.Statement
+	}{
+		{
+			Name:       "No statements",
+			Statements: []*awspolicy.Statement{},
+			Expected:   []*awspolicy.Statement{},
+		},
+		{
+			Name: "Single statement",
+			Statements: []*awspolicy.Statement{
+				{Action: []string{"s3:GetObject"}, Resource: []string{"arn:aws:s3:::test_file"}},
+			},
+			Expected: []*awspolicy.Statement{
+				{Action: []string{"s3:GetObject"}, Resource: []string{"arn:aws:s3:::test_file"}},
+			},
+		},
+		{
+			Name: "Advanced",
+			Statements: []*awspolicy.Statement{
+				{Action: []string{"s3:GetObject"}, Resource: []string{"arn:aws:s3:::f1", "arn:aws:s3:::f2"}},
+				{Action: []string{"s3:GetObject", "s3:PutObject"}, Resource: []string{"arn:aws:s3:::f3"}},
+				{Action: []string{"s3:PutObject", "s3:GetObject"}, Resource: []string{"arn:aws:s3:::f4"}},
+			},
+			Expected: []*awspolicy.Statement{
+				{Action: []string{"s3:GetObject"}, Resource: []string{"arn:aws:s3:::f1", "arn:aws:s3:::f2"}},
+				{Action: []string{"s3:GetObject", "s3:PutObject"}, Resource: []string{"arn:aws:s3:::f3", "arn:aws:s3:::f4"}},
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			result := mergeStatementsOnPermissions(test.Statements)
+			assert.ElementsMatch(t, result, test.Expected)
+		})
+	}
+}
+
+func TestExtractBucketForAccessPoint(t *testing.T) {
+	var tests = []struct {
+		Name          string
+		Statements    []*awspolicy.Statement
+		Expected      string
+		ExpectedError string
+	}{
+		{
+			Name: "Single bucket",
+			Statements: []*awspolicy.Statement{
+				{
+					Resource: []string{"arn:aws:s3:::bucket"},
+				},
+			},
+			Expected:      "bucket",
+			ExpectedError: "",
+		},
+		{
+			Name: "No bucket",
+			Statements: []*awspolicy.Statement{
+				{
+					Resource: []string{"blah"},
+				},
+			},
+			Expected:      "",
+			ExpectedError: "unable to determine the bucket",
+		},
+		{
+			Name: "No statements",
+			Statements: []*awspolicy.Statement{
+				{
+					Resource: []string{},
+				},
+			},
+			Expected:      "",
+			ExpectedError: "unable to determine the bucket",
+		},
+		{
+			Name: "Multiple statements",
+			Statements: []*awspolicy.Statement{
+				{
+					Resource: []string{"arn:aws:s3:::bucket/blah", "arn:aws:s3:::bucket/folder2"},
+				},
+				{
+					Resource: []string{"arn:aws:s3:::bucket/folder3"},
+				},
+			},
+			Expected:      "bucket",
+			ExpectedError: "",
+		},
+		{
+			Name: "Multiple buckets",
+			Statements: []*awspolicy.Statement{
+				{
+					Resource: []string{"arn:aws:s3:::bucket1", "arn:aws:s3:::bucket"},
+				},
+				{
+					Resource: []string{"arn:aws:s3:::bucket2"},
+				},
+			},
+			Expected:      "",
+			ExpectedError: "an access point can only have one bucket associated with it",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			result, err := extractBucketForAccessPoint(test.Statements)
+			assert.Equal(t, result, test.Expected)
+			if test.ExpectedError != "" {
+				assert.Error(t, err)
+				assert.Contains(t, err.Error(), test.ExpectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+		})
+	}
+}
+
+func TestConvertResourceURLsForAccessPoint(t *testing.T) {
+	var tests = []struct {
+		Name      string
+		Statement *awspolicy.Statement
+		Expected  []string
+	}{
+		{
+			Name: "Bucket level",
+			Statement: &awspolicy.Statement{
+				Resource: []string{"arn:aws:s3:::bucket"},
+			},
+			Expected: []string{"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations"},
+		},
+		{
+			Name: "Folder level",
+			Statement: &awspolicy.Statement{
+				Resource: []string{"arn:aws:s3:::bucket/folder1/*"},
+			},
+			Expected: []string{"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*"},
+		},
+		{
+			Name: "Multiple resources",
+			Statement: &awspolicy.Statement{
+				Resource: []string{"arn:aws:s3:::bucket/folder1/*", "arn:aws:s3:::bucket/folder2/folder3/*"},
+			},
+			Expected: []string{"arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*", "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder2/folder3/*"},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.Name, func(t *testing.T) {
+			convertResourceURLsForAccessPoint([]*awspolicy.Statement{test.Statement}, "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations")
+			assert.ElementsMatch(t, test.Expected, test.Statement.Resource)
+		})
 	}
 }
