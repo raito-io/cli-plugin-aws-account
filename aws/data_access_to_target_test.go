@@ -897,7 +897,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 				Id:          "something",
 				Name:        "Test Access Point",
 				Description: "a test access point",
-				NamingHint:  "test_access_point",
+				NamingHint:  "Test Access Point",
 				Type:        aws.String(string(model.AccessPoint)),
 
 				Action: sync_to_target.Grant,
@@ -918,19 +918,19 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateAccessPoint(ctx, "test_access_point", "bucketname", []*awspolicy.Statement{{
+	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point", "bucketname", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Principal: map[string][]string{
 			"AWS": {"stewart_b"},
 		},
 		Resource: []string{
-			"arn:aws:s3:eu-central-1:123456:accesspoint/test_access_point/object/folder1/folder2/*",
+			"arn:aws:s3:eu-central-1:123456:accesspoint/test-access-point/object/folder1/folder2/*",
 		},
 	}}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_access_point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test_access_point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
