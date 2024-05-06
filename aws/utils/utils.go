@@ -118,14 +118,27 @@ func GetConcurrency(config *config.ConfigMap) int {
 	return config.GetIntWithDefault(constants.AwsConcurrency, 5)
 }
 
-func GenerateName(ap *sync_to_target.AccessProvider) (string, error) {
-	uniqueRoleNameGenerator, err := naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
-		UpperCaseLetters:  true,
-		LowerCaseLetters:  true,
-		Numbers:           true,
-		SpecialCharacters: "+_",
-		MaxLength:         64,
-	})
+func GenerateName(ap *sync_to_target.AccessProvider, apType model.AccessProviderType) (string, error) {
+	var uniqueRoleNameGenerator naming_hint.UniqueGenerator
+	var err error
+
+	if apType == model.AccessPoint {
+		uniqueRoleNameGenerator, err = naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
+			UpperCaseLetters:  false,
+			LowerCaseLetters:  true,
+			Numbers:           true,
+			SpecialCharacters: "-",
+			MaxLength:         30,
+		})
+	} else {
+		uniqueRoleNameGenerator, err = naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
+			UpperCaseLetters:  true,
+			LowerCaseLetters:  true,
+			Numbers:           true,
+			SpecialCharacters: "+_",
+			MaxLength:         64,
+		})
+	}
 
 	if err != nil {
 		return "", err

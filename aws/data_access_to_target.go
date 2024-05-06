@@ -7,13 +7,13 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-
 	ds "github.com/raito-io/cli/base/data_source"
 
 	awspolicy "github.com/n4ch04/aws-policy"
@@ -141,7 +141,15 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 		feedbackMap[ap.Id] = &apFeedback
 
-		name, err2 := utils.GenerateName(ap)
+		// Determine the type
+		apType, err2 := resolveApType(ap)
+		if err2 != nil {
+			logFeedbackError(&apFeedback, err2.Error())
+		}
+
+		// Generating the technical name for the access provider complying to the different rules for AWS resources.
+		name, err2 := utils.GenerateName(ap, apType)
+
 		if err2 != nil {
 			logFeedbackError(&apFeedback, fmt.Sprintf("failed to generate actual name for access provider %q: %s", ap.Name, err2.Error()))
 			continue
@@ -154,27 +162,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			continue
 		}
 
-		apType := string(model.Policy)
-
-		if ap.Action == sync_to_target.Purpose {
-			// TODO look at all other APs to see what the incoming WHO links are.
-			// How do we handle this with external APs? Do we have this information in the existingRoleWhoBindings and existingPolicyWhoBindings ?
-			// If so, do we already know if the role is an SSO role or not?
-			// If this is linked to an SSO role (can only be 1): we just add the sso role as actual name and add the WHO from
-			//    How to handle Purpose inheritance?
-			//    How to handle partial syncs? (can we even support this?) Possibly need a metadata indication that we always need to export the purposes and SSO roles?
-			// If this is linked to a role (or multiple?): we handle it the same way as a normal role (or do the same as for SSO roles?)
-			// If this is linked to a policy (or multiple?): we need to add the WHO to the policy (= act as normal policy?)
-			logFeedbackError(&apFeedback, "currently purposes are not supported yet")
-		} else {
-			if ap.Type == nil {
-				utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
-			} else {
-				apType = *ap.Type
-			}
-		}
-
-		apFeedback.Type = &apType
+		apFeedback.Type = ptr.String(string(apType))
 
 		var apActionMap map[string]string
 		var inheritanceMap map[string]set.Set[string]
@@ -183,18 +171,18 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		var inverseInheritanceMap map[string]set.Set[string]
 
 		switch apType {
-		case string(model.Role):
+		case model.Role, model.SSORole:
 			apActionMap = roleActionMap
 			inheritanceMap = roleInheritanceMap
 			whoBindings = newRoleWhoBindings
 			inverseInheritanceMap = inverseRoleInheritanceMap
 			aps = roleAps
-		case string(model.Policy):
+		case model.Policy:
 			apActionMap = policyActionMap
 			inheritanceMap = policyInheritanceMap
 			whoBindings = newPolicyWhoBindings
 			aps = policyAps
-		case string(model.AccessPoint):
+		case model.AccessPoint:
 			apActionMap = accessPointActionMap
 			inheritanceMap = accessPointInheritanceMap
 			whoBindings = newAccessPointWhoBindings
@@ -242,9 +230,9 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			continue
 		} else {
 			externalId := name
-			if apType == string(model.Role) {
+			if apType == model.Role {
 				externalId = fmt.Sprintf("%s%s", constants.RoleTypePrefix, name)
-			} else if apType == string(model.AccessPoint) {
+			} else if apType == model.AccessPoint {
 				externalId = fmt.Sprintf("%s%s", constants.AccessPointTypePrefix, name)
 			} else {
 				externalId = fmt.Sprintf("%s%s", constants.PolicyTypePrefix, name)
@@ -263,7 +251,12 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			apActionMap[name] = action
 
 			// Storing the inheritance information to handle every we covered all APs
-			apInheritFromNames := iam.ResolveInheritedApNames(accessProviders.AccessProviders, ap.Who.InheritFrom...)
+			apInheritFromNames, err3 := iam.ResolveInheritedApNames(resolveApType, accessProviders.AccessProviders, ap.Who.InheritFrom...)
+			if err3 != nil {
+				logFeedbackError(&apFeedback, fmt.Sprintf("resolving inherited access providers: %s", err3.Error()))
+				continue
+			}
+
 			inheritanceMap[name] = set.NewSet(apInheritFromNames...)
 
 			// Handling the WHO by converting it to policy bindings
@@ -277,7 +270,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				whoBindings[name].Add(key)
 			}
 
-			if apType == string(model.Role) || apType == string(model.AccessPoint) {
+			if apType == model.Role || apType == model.AccessPoint {
 				if len(ap.Who.Groups) > 0 {
 					userGroupMap, err3 := a.getUserGroupMap(ctx, configMap)
 					if err3 != nil {
@@ -308,8 +301,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 				}
 			}
 
-			if apType == string(model.Role) || apType == string(model.AccessPoint) {
-				// For roles we also build the reverse inheritance map
+			if apType == model.Role || apType == model.AccessPoint {
+				// For roles and access points we also build the reverse inheritance map
 				for _, inheritFrom := range apInheritFromNames {
 					if _, f := inverseInheritanceMap[inheritFrom]; !f {
 						inverseInheritanceMap[inheritFrom] = set.NewSet[string]()
@@ -345,6 +338,31 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	a.handleAccessPointUpdates(ctx, accessPointActionMap, accessPointAps, existingAccessPointWhoBindings, newAccessPointWhoBindings, inverseAccessPointInheritanceMap, feedbackMap, configMap)
 
 	return nil
+}
+
+func resolveApType(ap *sync_to_target.AccessProvider) (model.AccessProviderType, error) {
+	// Determine the type
+	apType := model.Policy
+
+	if ap.Action == sync_to_target.Purpose {
+		// TODO look at all other APs to see what the incoming WHO links are.
+		// How do we handle this with external APs? Do we have this information in the existingRoleWhoBindings and existingPolicyWhoBindings ?
+		// If so, do we already know if the role is an SSO role or not?
+		// If this is linked to an SSO role (can only be 1): we just add the sso role as actual name and add the WHO from
+		//    How to handle Purpose inheritance?
+		//    How to handle partial syncs? (can we even support this?) Possibly need a metadata indication that we always need to export the purposes and SSO roles?
+		// If this is linked to a role (or multiple?): we handle it the same way as a normal role (or do the same as for SSO roles?)
+		// If this is linked to a policy (or multiple?): we need to add the WHO to the policy (= act as normal policy?)
+		return apType, fmt.Errorf("currently purposes are not supported yet")
+	} else {
+		if ap.Type == nil {
+			utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
+		} else {
+			apType = model.AccessProviderType(*ap.Type)
+		}
+	}
+
+	return apType, nil
 }
 
 func getAllAPsInInheritanceChainForWhat(start string, inverseRoleInheritanceMap map[string]set.Set[string], roleAps map[string]*sync_to_target.AccessProvider) []*sync_to_target.AccessProvider {

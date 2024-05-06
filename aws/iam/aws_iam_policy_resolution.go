@@ -371,7 +371,7 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 	return mappedActions, incomplete
 }
 
-func ResolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...string) []string {
+func ResolveInheritedApNames(apTypeResolver func(*importer.AccessProvider) (model.AccessProviderType, error), exportedAps []*importer.AccessProvider, aps ...string) ([]string, error) {
 	result := make([]string, 0, len(aps))
 
 	for _, ap := range aps {
@@ -388,13 +388,18 @@ func ResolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...stri
 		apID := parts[1]
 		for _, ap2 := range exportedAps {
 			if ap2 != nil && ap2.Id == apID {
-				apName, _ := utils.GenerateName(ap2)
+				ap2Type, err := apTypeResolver(ap2)
+				if err != nil {
+					return nil, err
+				}
+
+				apName, _ := utils.GenerateName(ap2, ap2Type)
 				result = append(result, apName)
 			}
 		}
 	}
 
-	return result
+	return result, nil
 }
 
 func getExistingOrNewBindings(existingBindings map[string]set.Set[model.PolicyBinding], newBindings map[string]set.Set[model.PolicyBinding], name string) set.Set[model.PolicyBinding] {
