@@ -72,18 +72,37 @@ func (s *DataSourceSyncer) fetchDataObjects(ctx context.Context, dataSourceHandl
 		return fmt.Errorf("neither AWS S3 nor AWS Glue are enabled; at least one of them must be enabled")
 	}
 
-	if s3Enabled {
-		return s.FetchS3DataObjects(ctx, dataSourceHandler)
-	} else {
-		return s.FetchGlueDataObjects(ctx, dataSourceHandler)
+	for _, region := range s.getRegions() {
+		var err error
+		if s3Enabled {
+			err = s.FetchS3DataObjects(ctx, dataSourceHandler, region)
+		} else {
+			err = s.FetchGlueDataObjects(ctx, dataSourceHandler, region)
+		}
+
+		if err != nil {
+			return err
+		}
 	}
+
+	return nil
 }
 
-func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler) error {
+func (s *DataSourceSyncer) getRegions() []string {
+	regions := s.config.GetString(constants.AwsRegions)
+
+	if regions == "" {
+		return []string{}
+	}
+
+	return strings.Split(regions, ",")
+}
+
+func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, region string) error {
 	accountId := s.config.GetString(constants.AwsAccountId)
 
 	glueRepo := NewAwsGlueRepository(s.config)
-	dbs, err := glueRepo.ListDatabases(ctx, accountId)
+	dbs, err := glueRepo.ListDatabases(ctx, accountId, region)
 
 	if err != nil {
 		return fmt.Errorf("listing glue databases: %w", err)
@@ -92,7 +111,7 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 	pathsHandled := set.NewSet[string]()
 
 	for _, db := range dbs {
-		tables, err2 := glueRepo.ListTablesForDatabase(ctx, accountId, db)
+		tables, err2 := glueRepo.ListTablesForDatabase(ctx, accountId, db, region)
 		if err2 != nil {
 			return fmt.Errorf("listing glue tables: %w", err2)
 		}
@@ -162,12 +181,12 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 	return nil
 }
 
-func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler) error {
+func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, region string) error {
 	fileLock := new(sync.Mutex)
 	s3Repo := NewAwsS3Repository(s.config)
 
 	// handle datasets
-	buckets, err := s3Repo.ListBuckets(ctx)
+	buckets, err := s3Repo.ListBuckets(ctx, region)
 	if err != nil {
 		return err
 	}
@@ -211,7 +230,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 				utils.Logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketName))
 			}
 
-			files, err2 := s3Repo.ListFiles(ctx, bucketName, prefix)
+			files, err2 := s3Repo.ListFiles(ctx, bucketName, prefix, region)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)

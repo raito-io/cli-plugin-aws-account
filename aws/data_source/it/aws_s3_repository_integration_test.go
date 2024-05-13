@@ -33,7 +33,7 @@ func (s *S3RepositoryTestSuite) TestS3Repository_SyncDataSource() {
 
 	config.Parameters[constants.AwsGlueEnabled] = "false"
 	config.Parameters[constants.AwsS3Enabled] = "true"
-	config.Parameters[constants.AwsRegion] = "eu-central-1"
+	config.Parameters[constants.AwsRegions] = "eu-central-1"
 	config.Parameters[constants.AwsS3IncludeBuckets] = "raito-corporate-data"
 
 	err := syncer.SyncDataSource(context.Background(), &dsHandler, &ds2.DataSourceSyncConfig{ConfigMap: config})

@@ -393,7 +393,7 @@ func getRecursiveInheritedAPs(start string, inverseRoleInheritanceMap map[string
 func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPointActionMap map[string]string, accessPointAps map[string]*sync_to_target.AccessProvider, existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], inverseAccessPointInheritanceMap map[string]set.Set[string], feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
 	var err error
 
-	region := configMap.GetStringWithDefault(constants.AwsRegion, "eu-central-1")
+	region := configMap.GetStringWithDefault(constants.AwsRegions, "eu-central-1")
 	account := configMap.GetString(constants.AwsAccountId)
 
 	for accessPointName, accessPointAction := range accessPointActionMap {

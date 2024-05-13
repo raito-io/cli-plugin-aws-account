@@ -6,6 +6,7 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/service/glue"
+	"github.com/aws/smithy-go/ptr"
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli/base/util/config"
 )
@@ -32,8 +33,8 @@ func (repo *AwsGlueRepository) GetGlueClient(ctx context.Context, region *string
 	return client, nil
 }
 
-func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accountId string, database string) (map[string]string, error) {
-	client, err := repo.GetGlueClient(ctx, nil)
+func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accountId string, database string, region string) (map[string]string, error) {
+	client, err := repo.GetGlueClient(ctx, ptr.String(region))
 	if err != nil {
 		return nil, err
 	}
@@ -69,8 +70,8 @@ func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accoun
 	return tableMap, nil
 }
 
-func (repo *AwsGlueRepository) ListDatabases(ctx context.Context, accountId string) ([]string, error) {
-	client, err := repo.GetGlueClient(ctx, nil)
+func (repo *AwsGlueRepository) ListDatabases(ctx context.Context, accountId string, region string) ([]string, error) {
+	client, err := repo.GetGlueClient(ctx, ptr.String(region))
 	if err != nil {
 		return nil, err
 	}

@@ -888,7 +888,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 	if configmap.Parameters == nil {
 		configmap.Parameters = map[string]string{}
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456", constants.AwsRegion: "eu-central-1"}
+	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456", constants.AwsRegions: "eu-central-1"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),

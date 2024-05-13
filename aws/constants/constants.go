@@ -5,7 +5,7 @@ const (
 
 	AwsProfile = "aws-profile"
 
-	AwsRegion = "aws-region"
+	AwsRegions = "aws-regions"
 
 	AwsConcurrency = "aws-concurrency"
 

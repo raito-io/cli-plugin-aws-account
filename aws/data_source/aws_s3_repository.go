@@ -8,6 +8,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
+	"github.com/aws/smithy-go/ptr"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
@@ -40,8 +41,8 @@ func (repo *AwsS3Repository) GetS3Client(ctx context.Context, region *string) (*
 	return client, nil
 }
 
-func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]model.AwsS3Entity, error) {
-	client, err := repo.GetS3Client(ctx, nil)
+func (repo *AwsS3Repository) ListBuckets(ctx context.Context, region string) ([]model.AwsS3Entity, error) {
+	client, err := repo.GetS3Client(ctx, ptr.String(region))
 	if err != nil {
 		return nil, err
 	}
@@ -65,10 +66,15 @@ func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]model.AwsS3Enti
 	return result, nil
 }
 
-func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error) {
+func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string, region string) ([]model.AwsS3Entity, error) {
 	utils.Logger.Info(fmt.Sprintf("Fetching files from bucket %s", bucket))
 
-	bucketClient, err := repo.GetS3Client(ctx, nil)
+	var regionPtr *string
+	if region != "" {
+		regionPtr = &region
+	}
+
+	bucketClient, err := repo.GetS3Client(ctx, regionPtr)
 	if err != nil {
 		return nil, err
 	}
@@ -117,8 +123,8 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 	return result, nil
 }
 
-func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string) (io.ReadCloser, error) {
-	client, err := repo.GetS3Client(ctx, nil)
+func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string, region string) (io.ReadCloser, error) {
+	client, err := repo.GetS3Client(ctx, ptr.String(region))
 	if err != nil {
 		return nil, err
 	}

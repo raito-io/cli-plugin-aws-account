@@ -33,7 +33,7 @@ func main() {
 				Parameters: []*plugin.ParameterInfo{
 					{Name: constants.AwsAccountId, Description: "The AWS account ID", Mandatory: true},
 					{Name: constants.AwsProfile, Description: "The AWS SDK profile to use for connecting to the AWS account to synchronize. When not specified, the default profile is used (or what is defined in the AWS_PROFILE environment variable).", Mandatory: false},
-					{Name: constants.AwsRegion, Description: "The AWS region to use for connecting to the AWS account to synchronize. When not specified, the default region as found by the AWS SDK is used.", Mandatory: false},
+					{Name: constants.AwsRegions, Description: "A comma separated list of AWS regions to deal with. When not specified, only the default region as found by the AWS SDK is used. The first region in the list must be the default region.", Mandatory: false},
 					{Name: constants.AwsOrganizationProfile, Description: "The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.", Mandatory: false},
 					{Name: constants.AwsOrganizationRegion, Description: fmt.Sprintf("The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and %s parameter is defined, the default region for the profile will be used", constants.AwsOrganizationProfile), Mandatory: false},
 					// AWS S3 parameters

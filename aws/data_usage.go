@@ -27,8 +27,8 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=dataUsageRepository --with-expecter --inpackage
 type dataUsageRepository interface {
-	ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error)
-	GetFile(ctx context.Context, bucket string, key string) (io.ReadCloser, error)
+	ListFiles(ctx context.Context, bucket string, prefix *string, region string) ([]model.AwsS3Entity, error)
+	GetFile(ctx context.Context, bucket string, key string, region string) (io.ReadCloser, error)
 }
 
 type DataUsageSyncer struct {
@@ -45,10 +45,13 @@ func (s *DataUsageSyncer) provideRepo() dataUsageRepository {
 
 func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandler wrappers.DataUsageStatementHandler, configMap *config.ConfigMap) error {
 	s.configMap = configMap
-
 	repo := s.provideRepo()
 
-	bucket := configMap.GetString(constants.AwsS3CloudTrailBucket)
+	return s.syncDataUsageForRegion(ctx, dataUsageFileHandler, repo)
+}
+
+func (s *DataUsageSyncer) syncDataUsageForRegion(ctx context.Context, dataUsageFileHandler wrappers.DataUsageStatementHandler, repo dataUsageRepository) error {
+	bucket := s.configMap.GetString(constants.AwsS3CloudTrailBucket)
 
 	if bucket == "" {
 		utils.Logger.Warn("No usage cloud trail bucket specified.")
@@ -56,7 +59,7 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 		return nil
 	}
 
-	allUsageFiles, err := repo.ListFiles(ctx, bucket, nil)
+	allUsageFiles, err := repo.ListFiles(ctx, bucket, nil, "")
 	if err != nil {
 		return fmt.Errorf("error while reading usage files from S3 bucket: %w", err)
 	}
@@ -66,8 +69,8 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	numberOfDays := 90
 	startDate := time.Now().Truncate(24*time.Hour).AddDate(0, 0, -numberOfDays)
 
-	if configMap.Parameters["lastUsed"] != "" {
-		startDateRaw, errLocal := time.Parse(time.RFC3339, configMap.Parameters["lastUsed"])
+	if s.configMap.Parameters["lastUsed"] != "" {
+		startDateRaw, errLocal := time.Parse(time.RFC3339, s.configMap.Parameters["lastUsed"])
 		if errLocal == nil && startDateRaw.After(startDate) {
 			startDate = startDateRaw
 		}
@@ -99,12 +102,12 @@ func (s *DataUsageSyncer) SyncDataUsage(ctx context.Context, dataUsageFileHandle
 	utils.Logger.Info(fmt.Sprintf("%d files to process", len(usageFiles)))
 
 	fileChan := make(chan string)
-	workerPool := workerpool.New(utils.GetConcurrency(configMap))
+	workerPool := workerpool.New(utils.GetConcurrency(s.configMap))
 	fileLock := new(sync.Mutex)
 	numWorkers := 16
 
 	doSyncer := data_source2.NewDataSourceSyncer()
-	availableObjects, err := doSyncer.GetAvailableObjects(ctx, configMap)
+	availableObjects, err := doSyncer.GetAvailableObjects(ctx, s.configMap)
 
 	if err != nil {
 		return fmt.Errorf("error while fetching available objects for data usage: %w", err)
@@ -257,7 +260,7 @@ func mapToClosedObject(object string, availableObjects map[string]interface{}) s
 }
 
 func getFileContents(ctx context.Context, repo dataUsageRepository, bucketName string, fileKey string) (string, error) {
-	reader, err := repo.GetFile(ctx, bucketName, fileKey)
+	reader, err := repo.GetFile(ctx, bucketName, fileKey, "")
 	if err != nil {
 		return "", err
 	}

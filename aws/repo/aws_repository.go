@@ -2,6 +2,7 @@ package repo
 
 import (
 	"context"
+	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -10,7 +11,7 @@ import (
 )
 
 func GetAWSConfig(ctx context.Context, configMap *config.ConfigMap, region *string) (aws.Config, error) {
-	return getAWSConfig(ctx, configMap, aws2.AwsProfile, aws2.AwsRegion, region)
+	return getAWSConfig(ctx, configMap, aws2.AwsProfile, aws2.AwsRegions, region)
 }
 
 func GetAWSOrgConfig(ctx context.Context, configMap *config.ConfigMap, region *string) (aws.Config, error) {
@@ -30,6 +31,11 @@ func getAWSConfig(ctx context.Context, configMap *config.ConfigMap, profileParam
 		awsRegion = *region
 	} else {
 		awsRegion = configMap.GetStringWithDefault(regionParam, "")
+
+		// Taking the first region if there are multiple regions defined
+		if strings.Contains(awsRegion, ",") {
+			awsRegion = strings.Split(awsRegion, ",")[0]
+		}
 	}
 
 	if awsRegion != "" {
