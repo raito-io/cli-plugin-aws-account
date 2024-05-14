@@ -16,6 +16,16 @@ resource "aws_s3_bucket" "corporate" {
   }
 }
 
+resource "aws_s3_bucket" "west-data" {
+  provider      = eu-west-1
+  bucket        = "raito-west-data"
+  force_destroy = true
+
+  tags = {
+    Source = "terraform"
+  }
+}
+
 resource "aws_s3_bucket_policy" "allow_access_from_access_point" {
   provider = eu-central-1
   bucket   = aws_s3_bucket.corporate.bucket
