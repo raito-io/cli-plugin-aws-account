@@ -38,7 +38,7 @@ func generateS3Usage() error {
 
 	secretMap := map[string]AwsAccessKey{}
 
-	includeList := []string{"raito-corporate-data"}
+	includeList := []string{"raito-data-corporate"}
 	buckets, err := repo.ListBuckets(ctx, includeList)
 	if err != nil {
 		return err
@@ -71,7 +71,7 @@ func generateS3Usage() error {
 		logger.Info(fmt.Sprintf("Starting with queries for user %s", user))
 
 		for _, path := range paths {
-			_, fileError := repo.GetFile(ctx, "raito-corporate-data", path)
+			_, fileError := repo.GetFile(ctx, "raito-data-corporate", path)
 			if fileError != nil {
 				logger.Error(fmt.Sprintf("Error fetching file %s: %s", path, fileError.Error()))
 			} else {

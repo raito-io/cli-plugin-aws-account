@@ -76,6 +76,13 @@ resource "aws_s3_object" "passengers" {
   source   = "data/passengers.parquet"
 }
 
+resource "aws_s3_object" "cars" {
+  provider = aws.eu-west-1
+  bucket   = aws_s3_bucket.west-data.bucket
+  key      = "cars/analysis/cars.parquet"
+  source   = "data/cars.parquet"
+}
+
 // Cloudtrail
 resource "aws_s3_bucket" "cloudtrail_bucket" {
   provider      = aws.eu-central-1
@@ -148,6 +155,11 @@ resource "aws_glue_catalog_database" "raito_glue_database" {
   name     = "raito_catalog"
 }
 
+resource "aws_glue_catalog_database" "raito_glue_database_west" {
+  provider = aws.eu-west-1
+  name     = "raito_catalog_west"
+}
+
 resource "aws_iam_role" "raito_glue_role" {
   provider           = aws.eu-central-1
   name               = "raito_glue_role"
@@ -173,7 +185,7 @@ data "aws_iam_policy_document" "raito_glue_policy_document" {
     effect = "Allow"
 
     actions   = ["s3:GetObject", "s3:PutObject"]
-    resources = ["${aws_s3_bucket.corporate.arn}/*"]
+    resources = ["${aws_s3_bucket.corporate.arn}/*", "${aws_s3_bucket.west-data.arn}/*"]
   }
 }
 
@@ -204,6 +216,24 @@ resource "aws_glue_crawler" "raito_crawler" {
 
   s3_target {
     path = "s3://${aws_s3_bucket.corporate.bucket}"
+  }
+
+  schema_change_policy {
+    delete_behavior = "DELETE_FROM_DATABASE"
+    update_behavior = "UPDATE_IN_DATABASE"
+  }
+
+  schedule = "cron(0 2 * * ? *)"
+}
+
+resource "aws_glue_crawler" "raito_crawler_west" {
+  provider      = aws.eu-west-1
+  database_name = aws_glue_catalog_database.raito_glue_database_west.name
+  name          = "raito_crawler_west"
+  role          = aws_iam_role.raito_glue_role.arn
+
+  s3_target {
+    path = "s3://${aws_s3_bucket.west-data.bucket}"
   }
 
   schema_change_policy {

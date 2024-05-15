@@ -33,8 +33,8 @@ func (s *S3RepositoryTestSuite) TestS3Repository_SyncDataSource() {
 
 	config.Parameters[constants.AwsGlueEnabled] = "false"
 	config.Parameters[constants.AwsS3Enabled] = "true"
-	config.Parameters[constants.AwsRegions] = "eu-central-1"
-	config.Parameters[constants.AwsS3IncludeBuckets] = "raito-data-corporate"
+	config.Parameters[constants.AwsRegions] = "eu-central-1,eu-west-1"
+	config.Parameters[constants.AwsS3ExcludeBuckets] = "raito-cloudtrail"
 
 	err := syncer.SyncDataSource(context.Background(), &dsHandler, &ds2.DataSourceSyncConfig{ConfigMap: config})
 
@@ -52,6 +52,10 @@ func (s *S3RepositoryTestSuite) TestS3Repository_SyncDataSource() {
 		"raito-data-corporate/marketing/passengers/passengers.parquet":          "file",
 		"raito-data-corporate/operations/weather/weather.parquet":               "file",
 		"raito-data-corporate/sales/housing/prices/housing-prices-2023.parquet": "file",
+		"raito-data-west":                                                       "bucket",
+		"raito-data-west/cars":                                                  "folder",
+		"raito-data-west/cars/analysis":                                         "folder",
+		"raito-data-west/cars/analysis/cars.parquet":                            "file",
 	}
 
 	s.Require().Len(dsHandler.DataObjects, len(doMap))

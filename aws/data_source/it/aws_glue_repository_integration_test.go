@@ -33,6 +33,7 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 
 	config.Parameters[constants.AwsGlueEnabled] = "true"
 	config.Parameters[constants.AwsS3Enabled] = "false"
+	config.Parameters[constants.AwsRegions] = "eu-central-1,eu-west-1"
 
 	err := syncer.SyncDataSource(context.Background(), &dsHandler, &ds2.DataSourceSyncConfig{ConfigMap: config})
 
@@ -44,6 +45,7 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 		"raito-data-corporate/operations":         "glue-table",
 		"raito-data-corporate/marketing":          "glue-table",
 		"raito-data-corporate/sales":              "glue-table",
+		"raito-data-west":                         "bucket",
 	}
 
 	s.Require().Len(dsHandler.DataObjects, len(doMap))

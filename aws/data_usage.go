@@ -27,7 +27,7 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=dataUsageRepository --with-expecter --inpackage
 type dataUsageRepository interface {
-	ListFiles(ctx context.Context, bucket string, prefix *string, region string) ([]model.AwsS3Entity, error)
+	ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error)
 	GetFile(ctx context.Context, bucket string, key string, region string) (io.ReadCloser, error)
 }
 
@@ -59,7 +59,7 @@ func (s *DataUsageSyncer) syncDataUsageForRegion(ctx context.Context, dataUsageF
 		return nil
 	}
 
-	allUsageFiles, err := repo.ListFiles(ctx, bucket, nil, "")
+	allUsageFiles, err := repo.ListFiles(ctx, bucket, nil)
 	if err != nil {
 		return fmt.Errorf("error while reading usage files from S3 bucket: %w", err)
 	}

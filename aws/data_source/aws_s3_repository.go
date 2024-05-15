@@ -41,8 +41,8 @@ func (repo *AwsS3Repository) GetS3Client(ctx context.Context, region *string) (*
 	return client, nil
 }
 
-func (repo *AwsS3Repository) ListBuckets(ctx context.Context, region string) ([]model.AwsS3Entity, error) {
-	client, err := repo.GetS3Client(ctx, ptr.String(region))
+func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]model.AwsS3Entity, error) {
+	client, err := repo.GetS3Client(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -66,15 +66,10 @@ func (repo *AwsS3Repository) ListBuckets(ctx context.Context, region string) ([]
 	return result, nil
 }
 
-func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string, region string) ([]model.AwsS3Entity, error) {
+func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error) {
 	utils.Logger.Info(fmt.Sprintf("Fetching files from bucket %s", bucket))
 
-	var regionPtr *string
-	if region != "" {
-		regionPtr = &region
-	}
-
-	bucketClient, err := repo.GetS3Client(ctx, regionPtr)
+	bucketClient, err := repo.GetS3Client(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
