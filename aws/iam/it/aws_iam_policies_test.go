@@ -79,7 +79,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_CreateManagedPolicy() {
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject"},
-			Resource: []string{"arn:aws:s3:::raito-corporate-data/*"},
+			Resource: []string{"arn:aws:s3:::raito-data-corporate/*"},
 		},
 	})
 
@@ -110,7 +110,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_CreateManagedPolicy() {
 			s.Assert().Len(policy.PolicyParsed.Statements, 1)
 			s.Assert().Equal(policy.PolicyParsed.Statements[0].Effect, "Allow")
 			s.Assert().ElementsMatch(policy.PolicyParsed.Statements[0].Action, []string{"s3:GetObject"})
-			s.Assert().ElementsMatch(policy.PolicyParsed.Statements[0].Resource, []string{"arn:aws:s3:::raito-corporate-data/*"})
+			s.Assert().ElementsMatch(policy.PolicyParsed.Statements[0].Resource, []string{"arn:aws:s3:::raito-data-corporate/*"})
 
 			policyFound = true
 		}
@@ -128,7 +128,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_UpdateManagedPolicy() {
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject"},
-			Resource: []string{"arn:aws:s3:::raito-corporate-data/sub-path1/*"},
+			Resource: []string{"arn:aws:s3:::raito-data-corporate/sub-path1/*"},
 		},
 	})
 
@@ -140,7 +140,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_UpdateManagedPolicy() {
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:PutObject", "s3:GetObject"},
-			Resource: []string{"arn:aws:s3:::raito-corporate-data/sub-path2/*"},
+			Resource: []string{"arn:aws:s3:::raito-data-corporate/sub-path2/*"},
 		},
 	})
 
@@ -158,7 +158,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_UpdateManagedPolicy() {
 			s.Assert().Len(policy.PolicyParsed.Statements, 1)
 			s.Assert().Equal(policy.PolicyParsed.Statements[0].Effect, "Allow")
 			s.Assert().ElementsMatch(policy.PolicyParsed.Statements[0].Action, []string{"s3:PutObject", "s3:GetObject"})
-			s.Assert().ElementsMatch(policy.PolicyParsed.Statements[0].Resource, []string{"arn:aws:s3:::raito-corporate-data/sub-path2/*"})
+			s.Assert().ElementsMatch(policy.PolicyParsed.Statements[0].Resource, []string{"arn:aws:s3:::raito-data-corporate/sub-path2/*"})
 			policyFound = true
 		}
 	}
@@ -186,7 +186,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().NoError(err)
 	s.Assert().Len(accessPoints, 1)
 	s.Assert().Equal("operations", accessPoints[0].Name)
-	s.Assert().Equal("raito-corporate-data", accessPoints[0].Bucket)
+	s.Assert().Equal("raito-data-corporate", accessPoints[0].Bucket)
 	s.Assert().Len(accessPoints[0].PolicyParsed.Statements, 1)
 	s.Assert().Equal(accessPoints[0].PolicyParsed.Statements[0].Effect, "Allow")
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, accessPoints[0].PolicyParsed.Statements[0].Action)
@@ -203,6 +203,6 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().Equal(who.Users[0], "m_carissa")
 
 	s.Assert().Len(what, 1)
-	s.Assert().Equal("raito-corporate-data/operations", what[0].DataObject.FullName)
+	s.Assert().Equal("raito-data-corporate/operations", what[0].DataObject.FullName)
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, what[0].Permissions)
 }

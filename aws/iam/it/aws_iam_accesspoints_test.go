@@ -33,7 +33,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().NoError(err)
 	s.Assert().Len(accessPoints, 1)
 	s.Assert().Equal("operations", accessPoints[0].Name)
-	s.Assert().Equal("raito-corporate-data", accessPoints[0].Bucket)
+	s.Assert().Equal("raito-data-corporate", accessPoints[0].Bucket)
 	s.Assert().Len(accessPoints[0].PolicyParsed.Statements, 1)
 	s.Assert().Equal(accessPoints[0].PolicyParsed.Statements[0].Effect, "Allow")
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, accessPoints[0].PolicyParsed.Statements[0].Action)
@@ -50,13 +50,13 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().Equal(who.Users[0], "m_carissa")
 
 	s.Assert().Len(what, 1)
-	s.Assert().Equal("raito-corporate-data/operations", what[0].DataObject.FullName)
+	s.Assert().Equal("raito-data-corporate/operations", what[0].DataObject.FullName)
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, what[0].Permissions)
 }
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	name := "int-test-ap1"
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-corporate-data", []*awspolicy.Statement{
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject", "s3:PutObject"},
@@ -81,7 +81,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	for _, accessPoint := range accessPoints {
 		if accessPoint.Name == name {
 			found = true
-			s.Assert().Equal("raito-corporate-data", accessPoints[0].Bucket)
+			s.Assert().Equal("raito-data-corporate", accessPoints[0].Bucket)
 			s.Assert().Len(accessPoint.PolicyParsed.Statements, 1)
 			s.Assert().Equal(accessPoint.PolicyParsed.Statements[0].Effect, "Allow")
 			s.Assert().ElementsMatch([]string{"s3:GetObject", "s3:PutObject"}, accessPoint.PolicyParsed.Statements[0].Action)
@@ -96,7 +96,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	name := "int-test-ap1"
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-corporate-data", []*awspolicy.Statement{
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject", "s3:PutObject"},
@@ -133,7 +133,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	for _, accessPoint := range accessPoints {
 		if accessPoint.Name == name {
 			found = true
-			s.Assert().Equal("raito-corporate-data", accessPoints[0].Bucket)
+			s.Assert().Equal("raito-data-corporate", accessPoints[0].Bucket)
 			s.Assert().Len(accessPoint.PolicyParsed.Statements, 1)
 			s.Assert().Equal(accessPoint.PolicyParsed.Statements[0].Effect, "Allow")
 			s.Assert().ElementsMatch([]string{"s3:GetObject"}, accessPoint.PolicyParsed.Statements[0].Action)

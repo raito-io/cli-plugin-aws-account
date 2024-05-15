@@ -8,7 +8,7 @@ locals {
 
 resource "aws_s3_bucket" "corporate" {
   provider      = aws.eu-central-1
-  bucket        = "raito-corporate-data"
+  bucket        = "raito-data-corporate"
   force_destroy = true
 
   tags = {
@@ -18,7 +18,7 @@ resource "aws_s3_bucket" "corporate" {
 
 resource "aws_s3_bucket" "west-data" {
   provider      = aws.eu-west-1
-  bucket        = "raito-west-data"
+  bucket        = "raito-data-west"
   force_destroy = true
 
   tags = {
