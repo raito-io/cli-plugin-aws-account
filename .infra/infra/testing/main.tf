@@ -7,7 +7,7 @@ locals {
 }
 
 resource "aws_s3_bucket" "corporate" {
-  provider      = eu-central-1
+  provider      = aws.eu-central-1
   bucket        = "raito-corporate-data"
   force_destroy = true
 
@@ -17,7 +17,7 @@ resource "aws_s3_bucket" "corporate" {
 }
 
 resource "aws_s3_bucket" "west-data" {
-  provider      = eu-west-1
+  provider      = aws.eu-west-1
   bucket        = "raito-west-data"
   force_destroy = true
 
@@ -27,7 +27,7 @@ resource "aws_s3_bucket" "west-data" {
 }
 
 resource "aws_s3_bucket_policy" "allow_access_from_access_point" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   bucket   = aws_s3_bucket.corporate.bucket
   policy   = data.aws_iam_policy_document.allow_access_from_access_point.json
 }
@@ -56,21 +56,21 @@ data "aws_iam_policy_document" "allow_access_from_access_point" {
 
 // S3 objects
 resource "aws_s3_object" "housing_prices_2023" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   bucket   = aws_s3_bucket.corporate.bucket
   key      = "sales/housing/prices/housing-prices-2023.parquet"
   source   = "data/housing-prices-2023.parquet"
 }
 
 resource "aws_s3_object" "weather" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   bucket   = aws_s3_bucket.corporate.bucket
   key      = "operations/weather/weather.parquet"
   source   = "data/weather.parquet"
 }
 
 resource "aws_s3_object" "passengers" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   bucket   = aws_s3_bucket.corporate.bucket
   key      = "marketing/passengers/passengers.parquet"
   source   = "data/passengers.parquet"
@@ -78,7 +78,7 @@ resource "aws_s3_object" "passengers" {
 
 // Cloudtrail
 resource "aws_s3_bucket" "cloudtrail_bucket" {
-  provider      = eu-central-1
+  provider      = aws.eu-central-1
   bucket        = "raito-cloudtrail"
   force_destroy = true
 }
@@ -118,14 +118,14 @@ data "aws_iam_policy_document" "cloudtrail_bucket_policy_statement" {
 }
 
 resource "aws_s3_bucket_policy" "cloudtrail_bucket_policy" {
-  provider   = eu-central-1
+  provider   = aws.eu-central-1
   depends_on = [aws_s3_bucket.cloudtrail_bucket]
   bucket     = aws_s3_bucket.cloudtrail_bucket.id
   policy     = data.aws_iam_policy_document.cloudtrail_bucket_policy_statement.json
 }
 
 resource "aws_cloudtrail" "cloudtrail" {
-  provider                      = eu-central-1
+  provider                      = aws.eu-central-1
   depends_on                    = [aws_s3_bucket_policy.cloudtrail_bucket_policy, aws_s3_bucket.cloudtrail_bucket]
   name                          = "raito-corporate-cloudtrail"
   s3_bucket_name                = aws_s3_bucket.cloudtrail_bucket.id
@@ -144,12 +144,12 @@ resource "aws_cloudtrail" "cloudtrail" {
 
 // Glue
 resource "aws_glue_catalog_database" "raito_glue_database" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "raito_catalog"
 }
 
 resource "aws_iam_role" "raito_glue_role" {
-  provider           = eu-central-1
+  provider           = aws.eu-central-1
   name               = "raito_glue_role"
   assume_role_policy = <<EOF
 {
@@ -178,26 +178,26 @@ data "aws_iam_policy_document" "raito_glue_policy_document" {
 }
 
 resource "aws_iam_policy" "raito_glue_policy" {
-  provider    = eu-central-1
+  provider    = aws.eu-central-1
   name        = "raito_glue_policy"
   description = "Policy for Raito Glue Role"
   policy      = data.aws_iam_policy_document.raito_glue_policy_document.json
 }
 
 resource "aws_iam_role_policy_attachment" "raito_glue_role_attach" {
-  provider   = eu-central-1
+  provider   = aws.eu-central-1
   role       = aws_iam_role.raito_glue_role.name
   policy_arn = aws_iam_policy.raito_glue_policy.arn
 }
 
 resource "aws_iam_role_policy_attachment" "raito_glue_role_attach2" {
-  provider   = eu-central-1
+  provider   = aws.eu-central-1
   role       = aws_iam_role.raito_glue_role.name
   policy_arn = "arn:aws:iam::aws:policy/service-role/AWSGlueServiceRole"
 }
 
 resource "aws_glue_crawler" "raito_crawler" {
-  provider      = eu-central-1
+  provider      = aws.eu-central-1
   database_name = aws_glue_catalog_database.raito_glue_database.name
   name          = "raito_crawler"
   role          = aws_iam_role.raito_glue_role.arn
@@ -216,28 +216,28 @@ resource "aws_glue_crawler" "raito_crawler" {
 
 // IAM identities
 resource "aws_iam_group" "sales_group" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "Sales"
 }
 
 resource "aws_iam_group" "marketing_group" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "Marketing"
 }
 
 resource "aws_iam_user" "m_carissa_user" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "m_carissa"
 }
 
 resource "aws_iam_user" "d_hayden_user" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "d_hayden"
 }
 
 // Marissa is part of the Marketing group
 resource "aws_iam_group_membership" "m_carissa_membership" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "m_carissa_membership"
   group    = aws_iam_group.marketing_group.name
   users = [
@@ -247,7 +247,7 @@ resource "aws_iam_group_membership" "m_carissa_membership" {
 
 // Dustin is part of the Sales group
 resource "aws_iam_group_membership" "d_hayden_membership" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "d_hayden_membership"
   group    = aws_iam_group.sales_group.name
   users = [
@@ -257,7 +257,7 @@ resource "aws_iam_group_membership" "d_hayden_membership" {
 
 // Marketing role can be assumed by Marissa and has a managed policy attached to it to provide access to marketing folder in S3
 resource "aws_iam_role" "marketing_role" {
-  provider           = eu-central-1
+  provider           = aws.eu-central-1
   name               = "MarketingRole"
   assume_role_policy = data.aws_iam_policy_document.marketing_assume_rolepolicy_document.json
 }
@@ -284,28 +284,28 @@ data "aws_iam_policy_document" "marketing_policy_document" {
 }
 
 resource "aws_iam_policy" "marketing_policy" {
-  provider    = eu-central-1
+  provider    = aws.eu-central-1
   name        = "marketing_policy"
   description = "Policy for marketing stuff"
   policy      = data.aws_iam_policy_document.marketing_policy_document.json
 }
 
 resource "aws_iam_role_policy_attachment" "raito_marketing_policy_attach" {
-  provider   = eu-central-1
+  provider   = aws.eu-central-1
   role       = aws_iam_role.marketing_role.name
   policy_arn = aws_iam_policy.marketing_policy.arn
 }
 
 // Sales group gets an inline policy providing access to the sales folder in S3
 resource "aws_iam_group_policy" "sales_policy" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "SalesPolicy"
   group    = aws_iam_group.sales_group.name
   policy   = data.aws_iam_policy_document.sales_policy_document.json
 }
 
 data "aws_iam_policy_document" "sales_policy_document" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   statement {
     effect = "Allow"
 
@@ -316,7 +316,7 @@ data "aws_iam_policy_document" "sales_policy_document" {
 
 // Dusting gets an inline policy providing access to the operations folder in S3
 resource "aws_iam_user_policy" "d_hayden_policy" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   name     = "DustinPolicy"
   user     = aws_iam_user.d_hayden_user.name
   policy   = data.aws_iam_policy_document.d_hayden_policy_document.json
@@ -333,7 +333,7 @@ data "aws_iam_policy_document" "d_hayden_policy_document" {
 
 // S3 AccessPoint
 resource "aws_s3_access_point" "operations_access_point" {
-  provider = eu-central-1
+  provider = aws.eu-central-1
   bucket   = aws_s3_bucket.corporate.id
   name     = "operations"
 
@@ -364,7 +364,7 @@ data "aws_iam_policy_document" "operations_access_point_policy_document" {
 }
 
 resource "aws_s3control_access_point_policy" "operations_access_point_policy" {
-  provider         = eu-central-1
+  provider         = aws.eu-central-1
   access_point_arn = aws_s3_access_point.operations_access_point.arn
 
   policy = data.aws_iam_policy_document.operations_access_point_policy_document.json
