@@ -9,6 +9,7 @@ import (
 	"testing"
 
 	awspolicy "github.com/n4ch04/aws-policy"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
 	"github.com/stretchr/testify/suite"
@@ -22,6 +23,7 @@ type IAMAccessPointsTestSuite struct {
 func TestIAMAccessPointsTestSuite(t *testing.T) {
 	ts := IAMAccessPointsTestSuite{}
 	config := ts.GetConfig()
+	config.Parameters[constants.AwsRegions] = "eu-central-1,eu-west-1"
 	repo := iam.NewAwsIamRepository(config)
 
 	ts.repo = repo
@@ -29,7 +31,7 @@ func TestIAMAccessPointsTestSuite(t *testing.T) {
 }
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
-	accessPoints, err := s.repo.ListAccessPoints(context.Background())
+	accessPoints, err := s.repo.ListAccessPoints(context.Background(), "eu-central-1")
 	s.Assert().NoError(err)
 	s.Assert().Len(accessPoints, 1)
 	s.Assert().Equal("operations", accessPoints[0].Name)
@@ -40,7 +42,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().True(strings.HasSuffix(accessPoints[0].PolicyParsed.Statements[0].Resource[0], "/object/operations/*"))
 	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
 
-	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, s.GetConfig())
+	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, "077954824694")
 	s.Assert().False(incomplete)
 
 	s.Assert().Len(who.Groups, 0)
@@ -56,7 +58,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	name := "int-test-ap1"
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", []*awspolicy.Statement{
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject", "s3:PutObject"},
@@ -70,11 +72,11 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	s.Assert().NoError(err)
 
 	defer func() {
-		err = s.repo.DeleteAccessPoint(context.Background(), name)
+		err = s.repo.DeleteAccessPoint(context.Background(), name, "eu-central-1")
 		s.Assert().NoError(err)
 	}()
 
-	accessPoints, err := s.repo.ListAccessPoints(context.Background())
+	accessPoints, err := s.repo.ListAccessPoints(context.Background(), "eu-central-1")
 	s.Assert().NoError(err)
 
 	found := false
@@ -96,7 +98,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	name := "int-test-ap1"
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", []*awspolicy.Statement{
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject", "s3:PutObject"},
@@ -110,11 +112,11 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	s.Assert().NoError(err)
 
 	defer func() {
-		err = s.repo.DeleteAccessPoint(context.Background(), name)
+		err = s.repo.DeleteAccessPoint(context.Background(), name, "eu-central-1")
 		s.Assert().NoError(err)
 	}()
 
-	err = s.repo.UpdateAccessPoint(context.Background(), name, []*awspolicy.Statement{
+	err = s.repo.UpdateAccessPoint(context.Background(), name, "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject"},
@@ -126,7 +128,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	})
 	s.Assert().NoError(err)
 
-	accessPoints, err := s.repo.ListAccessPoints(context.Background())
+	accessPoints, err := s.repo.ListAccessPoints(context.Background(), "eu-central-1")
 	s.Assert().NoError(err)
 
 	found := false

@@ -30,7 +30,10 @@ const (
 )
 
 func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
-	a.repo = iam.NewAwsIamRepository(configMap)
+	err := a.initialize(ctx, configMap)
+	if err != nil {
+		return err
+	}
 
 	return a.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler, configMap)
 }
@@ -393,9 +396,6 @@ func getRecursiveInheritedAPs(start string, inverseRoleInheritanceMap map[string
 func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPointActionMap map[string]string, accessPointAps map[string]*sync_to_target.AccessProvider, existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], inverseAccessPointInheritanceMap map[string]set.Set[string], feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
 	var err error
 
-	region := configMap.GetStringWithDefault(constants.AwsRegions, "eu-central-1")
-	account := configMap.GetString(constants.AwsAccountId)
-
 	for accessPointName, accessPointAction := range accessPointActionMap {
 		accessPointAp := accessPointAps[accessPointName]
 
@@ -404,7 +404,17 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 		if accessPointAction == DeleteAction {
 			utils.Logger.Info(fmt.Sprintf("Removing access point %s", accessPointName))
 
-			err = a.repo.DeleteAccessPoint(ctx, accessPointName)
+			if accessPointAp.ExternalId == nil {
+				logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to delete access point %q as no external id is found", accessPointName))
+				continue
+			}
+
+			// Extract the region from the access point external ID
+			extId := *accessPointAp.ExternalId
+			extId = extId[len(constants.AccessPointTypePrefix):]
+			region := extId[:strings.Index(extId, ":")]
+
+			err = a.repo.DeleteAccessPoint(ctx, accessPointName, region)
 			if err != nil {
 				logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to delete access point %q: %s", accessPointName, err.Error()))
 				continue
@@ -429,14 +439,17 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 			// Getting the what
 			ap := accessPointAps[accessPointName]
 			statements := createPolicyStatementsFromWhat(ap.What)
+			whatItems := make([]sync_to_target.WhatItem, 0, len(ap.What))
+			whatItems = append(whatItems, ap.What...)
 
 			// Because we need to flatten the WHAT for access points as well, we gather all access point APs from which this access point AP inherits its what (following the reverse inheritance chain)
 			inheritedAPs := getAllAPsInInheritanceChainForWhat(accessPointName, inverseAccessPointInheritanceMap, accessPointAps)
 			for _, inheritedAP := range inheritedAPs {
+				whatItems = append(whatItems, inheritedAP.What...)
 				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.What)...)
 			}
 
-			bucketName, err2 := extractBucketForAccessPoint(statements)
+			bucketName, region, err2 := extractBucketForAccessPoint(whatItems)
 			if err2 != nil {
 				logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to extract bucket name for access point %q: %s", accessPointName, err2.Error()))
 				continue
@@ -444,7 +457,7 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 
 			statements = mergeStatementsOnPermissions(statements)
 
-			accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, account, accessPointName)
+			accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, a.account, accessPointName)
 			convertResourceURLsForAccessPoint(statements, accessPointArn)
 
 			for _, statement := range statements {
@@ -457,7 +470,7 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 				utils.Logger.Info(fmt.Sprintf("Creating access point %s", accessPointName))
 
 				// Create the new access point with the who
-				err = a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, statements)
+				err = a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, region, statements)
 				if err != nil {
 					logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to create access point %q: %s", accessPointName, err.Error()))
 					continue
@@ -466,7 +479,7 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 				utils.Logger.Info(fmt.Sprintf("Updating access point %s", accessPointName))
 
 				// Handle the who
-				err = a.repo.UpdateAccessPoint(ctx, accessPointName, statements)
+				err = a.repo.UpdateAccessPoint(ctx, accessPointName, region, statements)
 				if err != nil {
 					logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("failed to update access point %q: %s", accessPointName, err.Error()))
 					continue
@@ -500,33 +513,39 @@ func convertResourceURLsForAccessPoint(statements []*awspolicy.Statement, access
 	}
 }
 
-// extractBucketForAccessPoint extracts the bucket name from the policy statements of an access point.
+// extractBucketForAccessPoint extracts the bucket name and region from the policy statements of an access point.
 // When there is non found or multiple buckets, an error is returned.
-func extractBucketForAccessPoint(statements []*awspolicy.Statement) (string, error) {
+func extractBucketForAccessPoint(whatItems []sync_to_target.WhatItem) (string, string, error) {
 	bucket := ""
+	region := ""
 
-	for _, statement := range statements {
-		for _, resource := range statement.Resource {
-			if strings.HasPrefix(resource, "arn:aws:s3:") {
-				thisBucket := strings.Split(resource, ":")[5]
-				if strings.Contains(thisBucket, "/") {
-					thisBucket = thisBucket[:strings.Index(thisBucket, "/")] //nolint:gocritic
-				}
-
-				if bucket != "" && bucket != thisBucket {
-					return "", fmt.Errorf("an access point can only have one bucket associated with it")
-				}
-
-				bucket = thisBucket
-			}
+	for _, whatItem := range whatItems {
+		thisBucket := whatItem.DataObject.FullName
+		if strings.Contains(thisBucket, "/") {
+			thisBucket = thisBucket[:strings.Index(thisBucket, "/")]
 		}
+
+		parts := strings.Split(thisBucket, ":")
+		if len(parts) != 3 {
+			return "", "", fmt.Errorf("unexpected full name for S3 object: %s", whatItem.DataObject.FullName)
+		}
+
+		thisBucketName := parts[2]
+		thisBucketRegion := parts[1]
+
+		if bucket != "" && bucket != thisBucketName {
+			return "", "", fmt.Errorf("an access point can only have one bucket associated with it")
+		}
+
+		bucket = thisBucketName
+		region = thisBucketRegion
 	}
 
 	if bucket == "" {
-		return "", fmt.Errorf("unable to determine the bucket for this access point")
+		return "", "", fmt.Errorf("unable to determine the bucket for this access point")
 	}
 
-	return bucket, nil
+	return bucket, region, nil
 }
 
 // mergeStatementsOnPermissions merges statements that have the same permissions.
@@ -826,7 +845,17 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []*awsp
 				allPermissions = toPermissionList(dot.GetPermissions())
 			}
 
-			policyInfo[what.DataObject.FullName] = optimizePermissions(allPermissions, what.Permissions)
+			fullName := what.DataObject.FullName
+
+			// TODO: later this should only be done for S3 resources?
+			if strings.Contains(fullName, ":") {
+				fullName = fullName[strings.Index(fullName, ":")+1:]
+				if strings.Contains(fullName, ":") {
+					fullName = fullName[strings.Index(fullName, ":")+1:]
+				}
+			}
+
+			policyInfo[fullName] = optimizePermissions(allPermissions, what.Permissions)
 		}
 	}
 
@@ -960,7 +989,7 @@ func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config
 	for _, role := range roles {
 		roleMap[role.Name] = "existing"
 
-		who, _ := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, configMap)
+		who, _ := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, a.account)
 		existingRoleAssumptions[role.Name] = set.Set[model.PolicyBinding]{}
 
 		if who != nil {
@@ -1012,13 +1041,24 @@ func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[st
 func (a *AccessSyncer) fetchExistingAccessPoints(ctx context.Context, configMap *config.ConfigMap) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing access points")
 
-	accessPoints, err := a.repo.ListAccessPoints(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching existing access points: %w", err)
-	}
-
 	accessPointMap := map[string]string{}
 	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
+
+	for _, region := range utils.GetRegions(configMap) {
+		err := a.fetchExistingAccessPointsForRegion(ctx, region, accessPointMap, existingPolicyBindings)
+		if err != nil {
+			return nil, nil, fmt.Errorf("fetching existing access points for region %s: %w", region, err)
+		}
+	}
+
+	return accessPointMap, existingPolicyBindings, nil
+}
+
+func (a *AccessSyncer) fetchExistingAccessPointsForRegion(ctx context.Context, region string, accessPointMap map[string]string, existingPolicyBindings map[string]set.Set[model.PolicyBinding]) error {
+	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
+	if err != nil {
+		return fmt.Errorf("error fetching existing access points: %w", err)
+	}
 
 	for ind := range accessPoints {
 		accessPoint := accessPoints[ind]
@@ -1027,7 +1067,7 @@ func (a *AccessSyncer) fetchExistingAccessPoints(ctx context.Context, configMap 
 
 		existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
 
-		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, configMap)
+		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
 		if who != nil {
 			// Note: Groups are not supported here in AWS.
 			for _, userName := range who.Users {
@@ -1050,7 +1090,7 @@ func (a *AccessSyncer) fetchExistingAccessPoints(ctx context.Context, configMap 
 
 	utils.Logger.Info(fmt.Sprintf("Fetched existing %d access points", len(accessPointMap)))
 
-	return accessPointMap, existingPolicyBindings, nil
+	return nil
 }
 
 func removeArn(input []model.PolicyBinding) []model.PolicyBinding {

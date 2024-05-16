@@ -54,6 +54,34 @@ data "aws_iam_policy_document" "allow_access_from_access_point" {
   }
 }
 
+resource "aws_s3_bucket_policy" "allow_access_from_access_point_west" {
+  provider = aws.eu-west-1
+  bucket   = aws_s3_bucket.west-data.bucket
+  policy   = data.aws_iam_policy_document.allow_access_from_access_point_west.json
+}
+
+data "aws_iam_policy_document" "allow_access_from_access_point_west" {
+  statement {
+    principals {
+      type        = "AWS"
+      identifiers = ["*"]
+    }
+
+    actions = ["*"]
+
+    resources = [
+      aws_s3_bucket.west-data.arn,
+      "${aws_s3_bucket.west-data.arn}/*",
+    ]
+
+    condition {
+      test     = "StringEquals"
+      variable = "s3:DataAccessPointAccount"
+      values   = [local.account_id]
+    }
+  }
+}
+
 // S3 objects
 resource "aws_s3_object" "housing_prices_2023" {
   provider = aws.eu-central-1

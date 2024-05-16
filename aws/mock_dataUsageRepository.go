@@ -24,9 +24,9 @@ func (_m *mockDataUsageRepository) EXPECT() *mockDataUsageRepository_Expecter {
 	return &mockDataUsageRepository_Expecter{mock: &_m.Mock}
 }
 
-// GetFile provides a mock function with given fields: ctx, bucket, key
-func (_m *mockDataUsageRepository) GetFile(ctx context.Context, bucket string, key string) (io.ReadCloser, error) {
-	ret := _m.Called(ctx, bucket, key)
+// GetFile provides a mock function with given fields: ctx, bucket, key, region
+func (_m *mockDataUsageRepository) GetFile(ctx context.Context, bucket string, key string, region string) (io.ReadCloser, error) {
+	ret := _m.Called(ctx, bucket, key, region)
 
 	if len(ret) == 0 {
 		panic("no return value specified for GetFile")
@@ -34,19 +34,19 @@ func (_m *mockDataUsageRepository) GetFile(ctx context.Context, bucket string, k
 
 	var r0 io.ReadCloser
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) (io.ReadCloser, error)); ok {
-		return rf(ctx, bucket, key)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) (io.ReadCloser, error)); ok {
+		return rf(ctx, bucket, key, region)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) io.ReadCloser); ok {
-		r0 = rf(ctx, bucket, key)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string) io.ReadCloser); ok {
+		r0 = rf(ctx, bucket, key, region)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(io.ReadCloser)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, bucket, key)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string) error); ok {
+		r1 = rf(ctx, bucket, key, region)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -63,13 +63,14 @@ type mockDataUsageRepository_GetFile_Call struct {
 //   - ctx context.Context
 //   - bucket string
 //   - key string
-func (_e *mockDataUsageRepository_Expecter) GetFile(ctx interface{}, bucket interface{}, key interface{}) *mockDataUsageRepository_GetFile_Call {
-	return &mockDataUsageRepository_GetFile_Call{Call: _e.mock.On("GetFile", ctx, bucket, key)}
+//   - region string
+func (_e *mockDataUsageRepository_Expecter) GetFile(ctx interface{}, bucket interface{}, key interface{}, region interface{}) *mockDataUsageRepository_GetFile_Call {
+	return &mockDataUsageRepository_GetFile_Call{Call: _e.mock.On("GetFile", ctx, bucket, key, region)}
 }
 
-func (_c *mockDataUsageRepository_GetFile_Call) Run(run func(ctx context.Context, bucket string, key string)) *mockDataUsageRepository_GetFile_Call {
+func (_c *mockDataUsageRepository_GetFile_Call) Run(run func(ctx context.Context, bucket string, key string, region string)) *mockDataUsageRepository_GetFile_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string))
 	})
 	return _c
 }
@@ -79,7 +80,7 @@ func (_c *mockDataUsageRepository_GetFile_Call) Return(_a0 io.ReadCloser, _a1 er
 	return _c
 }
 
-func (_c *mockDataUsageRepository_GetFile_Call) RunAndReturn(run func(context.Context, string, string) (io.ReadCloser, error)) *mockDataUsageRepository_GetFile_Call {
+func (_c *mockDataUsageRepository_GetFile_Call) RunAndReturn(run func(context.Context, string, string, string) (io.ReadCloser, error)) *mockDataUsageRepository_GetFile_Call {
 	_c.Call.Return(run)
 	return _c
 }

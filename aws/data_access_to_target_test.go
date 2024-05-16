@@ -43,7 +43,7 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
-	repoMock.EXPECT().ListAccessPoints(mock.Anything).Return([]model.AwsS3AccessPoint{}, nil).Once()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return([]model.AwsS3AccessPoint{}, nil).Once()
 
 	return repoMock, syncer
 }
@@ -105,11 +105,9 @@ func TestSimplifyPermissions(t *testing.T) {
 func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -161,11 +159,9 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -234,11 +230,9 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -350,11 +344,9 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -405,11 +397,9 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -458,11 +448,9 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -538,11 +526,9 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -615,11 +601,9 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -751,11 +735,9 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -803,11 +785,9 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -884,11 +864,9 @@ func TestGetRecursiveInheritedAPs(t *testing.T) {
 func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 	repoMock, syncer := setupMockExportEnvironment(t)
 	ctx := context.Background()
-	configmap := config.ConfigMap{}
-	if configmap.Parameters == nil {
-		configmap.Parameters = map[string]string{}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456", constants.AwsRegions: "eu-central-1"}
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -908,7 +886,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 				What: []sync_to_target.WhatItem{
 					{
 						DataObject: &data_source.DataObjectReference{
-							FullName: "bucketname/folder1/folder2",
+							FullName: "account:us-west-1:bucketname/folder1/folder2",
 							Type:     "glue-table",
 						},
 						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -918,14 +896,14 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point", "bucketname", []*awspolicy.Statement{{
+	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point", "bucketname", "us-west-1", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Principal: map[string][]string{
 			"AWS": {"stewart_b"},
 		},
 		Resource: []string{
-			"arn:aws:s3:eu-central-1:123456:accesspoint/test-access-point/object/folder1/folder2/*",
+			"arn:aws:s3:us-west-1::accesspoint/test-access-point/object/folder1/folder2/*",
 		},
 	}}).Return(nil).Once()
 
@@ -1000,72 +978,75 @@ func TestMergeStatementsOnPermissions(t *testing.T) {
 func TestExtractBucketForAccessPoint(t *testing.T) {
 	var tests = []struct {
 		Name          string
-		Statements    []*awspolicy.Statement
+		WhatItems     []sync_to_target.WhatItem
+		Region        string
 		Expected      string
 		ExpectedError string
 	}{
 		{
 			Name: "Single bucket",
-			Statements: []*awspolicy.Statement{
+			WhatItems: []sync_to_target.WhatItem{
 				{
-					Resource: []string{"arn:aws:s3:::bucket"},
+					DataObject: &data_source.DataObjectReference{FullName: "account:eu-central-1:bucket"},
 				},
 			},
 			Expected:      "bucket",
+			Region:        "eu-central-1",
 			ExpectedError: "",
 		},
 		{
 			Name: "No bucket",
-			Statements: []*awspolicy.Statement{
+			WhatItems: []sync_to_target.WhatItem{
 				{
-					Resource: []string{"blah"},
+					DataObject: &data_source.DataObjectReference{FullName: "blah"},
 				},
 			},
 			Expected:      "",
-			ExpectedError: "unable to determine the bucket",
+			Region:        "",
+			ExpectedError: "unexpected full name for S3 object",
 		},
 		{
-			Name: "No statements",
-			Statements: []*awspolicy.Statement{
-				{
-					Resource: []string{},
-				},
-			},
+			Name:          "No statements",
+			WhatItems:     []sync_to_target.WhatItem{},
 			Expected:      "",
+			Region:        "",
 			ExpectedError: "unable to determine the bucket",
 		},
 		{
 			Name: "Multiple statements",
-			Statements: []*awspolicy.Statement{
+			WhatItems: []sync_to_target.WhatItem{
 				{
-					Resource: []string{"arn:aws:s3:::bucket/blah", "arn:aws:s3:::bucket/folder2"},
+					DataObject: &data_source.DataObjectReference{FullName: "account:eu-west-1:bucket"},
 				},
 				{
-					Resource: []string{"arn:aws:s3:::bucket/folder3"},
+					DataObject: &data_source.DataObjectReference{FullName: "account:eu-west-1:bucket/folder3"},
 				},
 			},
 			Expected:      "bucket",
+			Region:        "eu-west-1",
 			ExpectedError: "",
 		},
 		{
 			Name: "Multiple buckets",
-			Statements: []*awspolicy.Statement{
+			WhatItems: []sync_to_target.WhatItem{
 				{
-					Resource: []string{"arn:aws:s3:::bucket1", "arn:aws:s3:::bucket"},
+					DataObject: &data_source.DataObjectReference{FullName: "account:eu-west-1:bucket"},
 				},
 				{
-					Resource: []string{"arn:aws:s3:::bucket2"},
+					DataObject: &data_source.DataObjectReference{FullName: "account:eu-west-1:bucket2"},
 				},
 			},
 			Expected:      "",
+			Region:        "",
 			ExpectedError: "an access point can only have one bucket associated with it",
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.Name, func(t *testing.T) {
-			result, err := extractBucketForAccessPoint(test.Statements)
+			result, region, err := extractBucketForAccessPoint(test.WhatItems)
 			assert.Equal(t, result, test.Expected)
+			assert.Equal(t, region, test.Region)
 			if test.ExpectedError != "" {
 				assert.Error(t, err)
 				assert.Contains(t, err.Error(), test.ExpectedError)

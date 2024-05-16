@@ -23,7 +23,10 @@ import (
 )
 
 func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, accessProviderHandler wrappers.AccessProviderHandler, configMap *config.ConfigMap) error {
-	a.repo = iam.NewAwsIamRepository(configMap)
+	err := a.initialize(ctx, configMap)
+	if err != nil {
+		return err
+	}
 
 	return a.doSyncAccessProvidersFromTarget(ctx, accessProviderHandler, configMap)
 }
@@ -142,7 +145,7 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 		incomplete := false
 
 		if role.AssumeRolePolicyDocument != nil {
-			whoItem, incomplete = iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, configMap)
+			whoItem, incomplete = iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, a.account)
 		}
 
 		aps = append(aps, model.AccessProviderInputExtended{
@@ -219,7 +222,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 			continue
 		}
 
-		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, configMap)
+		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account)
 
 		policyDocument := ""
 		if policy.PolicyDocument != nil {
@@ -263,7 +266,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 	return aps, nil
 }
 
-func convertPoliciesToWhat(policies []model.PolicyEntity, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool, string) {
+func (a *AccessSyncer) convertPoliciesToWhat(policies []model.PolicyEntity) ([]sync_from_target.WhatItem, bool, string) {
 	// Making sure to never return nil
 	whatItems := make([]sync_from_target.WhatItem, 0, 10)
 	incomplete := false
@@ -271,7 +274,7 @@ func convertPoliciesToWhat(policies []model.PolicyEntity, configMap *config.Conf
 
 	for i := range policies {
 		policy := policies[i]
-		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, configMap)
+		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account)
 
 		if policy.PolicyDocument != nil {
 			policyDocuments += *policy.PolicyDocument + "\n"
@@ -319,14 +322,14 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	return whatItems
 }
 
-func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
+func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
 	userPolicies, err := a.getInlinePoliciesOnUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for user, policies := range userPolicies {
-		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
+		whatItems, incomplete, policyDocuments := a.convertPoliciesToWhat(policies)
 
 		name := "User " + user + " inline policies"
 
@@ -358,14 +361,14 @@ func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context,
 	return aps, nil
 }
 
-func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
+func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
 	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for group, policies := range groupPolicies {
-		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
+		whatItems, incomplete, policyDocuments := a.convertPoliciesToWhat(policies)
 
 		name := "Group " + group + " inline policies"
 
@@ -397,7 +400,7 @@ func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context
 	return aps, nil
 }
 
-func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, roles []model.RoleEntity, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context, roles []model.RoleEntity, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	rolePolicies, err := a.getInlinePoliciesOnRoles(ctx, roles)
 	if err != nil {
 		return nil, err
@@ -417,7 +420,7 @@ func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context,
 			continue
 		}
 
-		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
+		whatItems, incomplete, policyDocuments := a.convertPoliciesToWhat(policies)
 
 		var policyIds strings.Builder
 		for i := range policies {
@@ -434,7 +437,20 @@ func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context,
 }
 
 func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
-	accessPoints, err := a.repo.ListAccessPoints(ctx)
+	var err error
+
+	for _, region := range utils.GetRegions(configMap) {
+		aps, err = a.fetchS3AccessPointAccessProvidersForRegion(ctx, aps, region)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Context, aps []model.AccessProviderInputExtended, region string) ([]model.AccessProviderInputExtended, error) {
+	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
 	if err != nil {
 		return nil, err
 	}
@@ -443,8 +459,8 @@ func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, co
 		newAp := model.AccessProviderInputExtended{
 			PolicyType: model.AccessPoint,
 			ApInput: &sync_from_target.AccessProvider{
-				// As internal policies don't have an ID we use the policy ARN
-				ExternalId: constants.AccessPointTypePrefix + accessPoint.Name,
+				// Adding the region to uniquely identify the access point
+				ExternalId: fmt.Sprintf("%s%s:%s", constants.AccessPointTypePrefix, region, accessPoint.Name),
 				Name:       accessPoint.Name,
 				Type:       aws.String(string(model.AccessPoint)),
 				NamingHint: "",
@@ -457,7 +473,7 @@ func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, co
 		}
 
 		incomplete := false
-		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, configMap)
+		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
 
 		if incomplete {
 			newAp.ApInput.Incomplete = ptr.Bool(true)
@@ -490,21 +506,21 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 		}
 
 		if !configMap.GetBool(constants.AwsAccessSkipUserInlinePolicies) {
-			apImportList, err = a.fetchInlineUserPolicyAccessProviders(ctx, configMap, apImportList)
+			apImportList, err = a.fetchInlineUserPolicyAccessProviders(ctx, apImportList)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		if !configMap.GetBool(constants.AwsAccessSkipGroupInlinePolicies) {
-			apImportList, err = a.fetchInlineGroupPolicyAccessProviders(ctx, configMap, apImportList)
+			apImportList, err = a.fetchInlineGroupPolicyAccessProviders(ctx, apImportList)
 			if err != nil {
 				return nil, err
 			}
 		}
 
 		// Adding access providers to the list for the inline policies (existing role access providers will be enriched with inline policies it may have)
-		apImportList, err = a.fetchInlineRolePolicyAccessProviders(ctx, configMap, roles, apImportList)
+		apImportList, err = a.fetchInlineRolePolicyAccessProviders(ctx, roles, apImportList)
 		if err != nil {
 			return nil, err
 		}

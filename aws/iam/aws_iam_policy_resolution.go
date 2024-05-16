@@ -10,8 +10,6 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
-	"github.com/raito-io/cli/base/util/config"
-
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	importer "github.com/raito-io/cli/base/access_provider/sync_to_target"
@@ -19,12 +17,11 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
-func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName string, name string, configMap *config.ConfigMap) (*sync_from_target.WhoItem, []sync_from_target.WhatItem, bool) {
+func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName string, name string, account string) (*sync_from_target.WhoItem, []sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, nil, false
 	}
 
-	awsAccount := configMap.GetString(constants.AwsAccountId)
 	whoItem := &sync_from_target.WhoItem{}
 	whatMap := make(map[string]set.Set[string])
 
@@ -40,7 +37,7 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 	incomplete := handleStatements(policy, name, func(statement awspolicy.Statement) bool {
 		localIncomplete := false
 
-		principalIncomplete := handlePrincipal(statement.Principal, awsAccount, fmt.Sprintf("Policy document for access point %q", name), users, groups, roles)
+		principalIncomplete := handlePrincipal(statement.Principal, account, fmt.Sprintf("Policy document for access point %q", name), users, groups, roles)
 		if principalIncomplete {
 			localIncomplete = true
 		}
@@ -113,15 +110,14 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 	whoItem.Groups = groups.Slice()
 	whoItem.AccessProviders = roles.Slice()
 
-	return whoItem, flattenWhatMap(whatMap, awsAccount), incomplete
+	return whoItem, flattenWhatMap(whatMap, account), incomplete
 }
 
-func CreateWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, configMap *config.ConfigMap) (*sync_from_target.WhoItem, bool) {
+func CreateWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, account string) (*sync_from_target.WhoItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
 
-	awsAccount := configMap.GetString(constants.AwsAccountId)
 	whoItem := sync_from_target.WhoItem{}
 
 	users := set.NewSet[string]()
@@ -133,7 +129,7 @@ func CreateWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, con
 
 		for _, action := range actions {
 			if strings.EqualFold(action, "sts:AssumeRole") {
-				principalIncomplete := handlePrincipal(statement.Principal, awsAccount, fmt.Sprintf("Trusted Policy document for role %q", role), users, groups, nil)
+				principalIncomplete := handlePrincipal(statement.Principal, account, fmt.Sprintf("Trusted Policy document for role %q", role), users, groups, nil)
 				if principalIncomplete {
 					localIncomplete = true
 				}
@@ -245,12 +241,11 @@ func handleStatements(policy *awspolicy.Policy, name string, handler func(statem
 	return incomplete
 }
 
-func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
+func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, account string) ([]sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
 
-	awsAccount := configMap.GetString(constants.AwsAccountId)
 	whatMap := make(map[string]set.Set[string])
 
 	incomplete := handleStatements(policy, policyName, func(statement awspolicy.Statement) bool {
@@ -280,7 +275,7 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder)
 				}
 			} else if resource == "*" {
-				fullName = awsAccount
+				fullName = account
 				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource)
 			} else {
 				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
@@ -306,7 +301,7 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, c
 		return localIncomplete
 	})
 
-	return flattenWhatMap(whatMap, awsAccount), incomplete
+	return flattenWhatMap(whatMap, account), incomplete
 }
 
 func flattenWhatMap(whatMap map[string]set.Set[string], awsAccount string) []sync_from_target.WhatItem {

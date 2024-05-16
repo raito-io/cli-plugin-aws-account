@@ -9,6 +9,7 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
+	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	ds2 "github.com/raito-io/cli/base/data_source"
 	"github.com/stretchr/testify/suite"
 )
@@ -39,13 +40,15 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 
 	s.Require().NoError(err)
 
+	account, _ := repo.GetAccountId(context.Background(), config)
+
 	doMap := map[string]string{
-		config.Parameters[constants.AwsAccountId]: "datasource",
-		"raito-data-corporate":                    "bucket",
-		"raito-data-corporate/operations":         "glue-table",
-		"raito-data-corporate/marketing":          "glue-table",
-		"raito-data-corporate/sales":              "glue-table",
-		"raito-data-west":                         "bucket",
+		account: "datasource",
+		"077954824694:eu-central-1:raito-data-corporate":            "bucket",
+		"077954824694:eu-central-1:raito-data-corporate/operations": "glue-table",
+		"077954824694:eu-central-1:raito-data-corporate/marketing":  "glue-table",
+		"077954824694:eu-central-1:raito-data-corporate/sales":      "glue-table",
+		"077954824694:eu-west-1:raito-data-west":                    "bucket",
 	}
 
 	s.Require().Len(dsHandler.DataObjects, len(doMap))

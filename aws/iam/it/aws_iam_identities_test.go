@@ -167,7 +167,7 @@ func (s *IAMIdentitiesTestSuite) checkRole(role model.RoleEntity, expectedName s
 	s.Assert().Equal("creator", role.Tags[0].Key)
 	s.Assert().Equal("RAITO", role.Tags[0].Value)
 
-	whoItem, incomplete := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, s.GetConfig())
+	whoItem, incomplete := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, "077954824694")
 	s.Assert().False(incomplete)
 	s.Assert().Len(whoItem.Users, len(expectedUsers))
 	s.Assert().ElementsMatch(expectedUsers, whoItem.Users)

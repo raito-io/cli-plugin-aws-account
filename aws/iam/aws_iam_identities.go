@@ -373,7 +373,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 	newPrincipals := []string{}
 
 	for _, userName := range userNames {
-		newPrincipals = append(newPrincipals, utils.GetTrustPolicyArn(userName, repo.configMap))
+		newPrincipals = append(newPrincipals, utils.GetTrustPolicyArn(userName, repo.account))
 	}
 
 	var policy *awspolicy.Policy

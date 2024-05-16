@@ -83,7 +83,7 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, roleNames, iam.RoleResourceType).Return(roleInlineMap, nil).Once()
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, userNames, iam.UserResourceType).Return(userInlineMap, nil).Once()
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, groupNames, iam.GroupResourceType).Return(groupInlineMap, nil).Once()
-	repoMock.EXPECT().ListAccessPoints(mock.Anything).Return([]model.AwsS3AccessPoint{}, nil).Once()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return([]model.AwsS3AccessPoint{}, nil).Once()
 
 	return repoMock, syncer
 }
@@ -132,14 +132,15 @@ func TestMergeWhatItem(t *testing.T) {
 }
 
 func TestTargetToAccessProvider_BasicImport(t *testing.T) {
-	configmap := config.ConfigMap{}
-	configmap.Parameters = map[string]string{constants.AwsAccountId: "123456"}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+	}
 	_, syncer := setupMockImportEnvironment(t)
 	ctx := context.Background()
 
 	apHandler := mocks.NewAccessProviderHandler(t)
 
-	inputs := []interface{}{}
+	var inputs []interface{}
 	for i := 0; i < 22; i++ {
 		inputs = append(inputs, mock.Anything)
 	}

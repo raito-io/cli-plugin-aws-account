@@ -172,17 +172,17 @@ func (_c *mockDataAccessRepository_AttachUserToManagedPolicy_Call) RunAndReturn(
 	return _c
 }
 
-// CreateAccessPoint provides a mock function with given fields: ctx, name, bucket, statements
-func (_m *mockDataAccessRepository) CreateAccessPoint(ctx context.Context, name string, bucket string, statements []*awspolicy.Statement) error {
-	ret := _m.Called(ctx, name, bucket, statements)
+// CreateAccessPoint provides a mock function with given fields: ctx, name, bucket, region, statements
+func (_m *mockDataAccessRepository) CreateAccessPoint(ctx context.Context, name string, bucket string, region string, statements []*awspolicy.Statement) error {
+	ret := _m.Called(ctx, name, bucket, region, statements)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateAccessPoint")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, []*awspolicy.Statement) error); ok {
-		r0 = rf(ctx, name, bucket, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []*awspolicy.Statement) error); ok {
+		r0 = rf(ctx, name, bucket, region, statements)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -199,14 +199,15 @@ type mockDataAccessRepository_CreateAccessPoint_Call struct {
 //   - ctx context.Context
 //   - name string
 //   - bucket string
+//   - region string
 //   - statements []*awspolicy.Statement
-func (_e *mockDataAccessRepository_Expecter) CreateAccessPoint(ctx interface{}, name interface{}, bucket interface{}, statements interface{}) *mockDataAccessRepository_CreateAccessPoint_Call {
-	return &mockDataAccessRepository_CreateAccessPoint_Call{Call: _e.mock.On("CreateAccessPoint", ctx, name, bucket, statements)}
+func (_e *mockDataAccessRepository_Expecter) CreateAccessPoint(ctx interface{}, name interface{}, bucket interface{}, region interface{}, statements interface{}) *mockDataAccessRepository_CreateAccessPoint_Call {
+	return &mockDataAccessRepository_CreateAccessPoint_Call{Call: _e.mock.On("CreateAccessPoint", ctx, name, bucket, region, statements)}
 }
 
-func (_c *mockDataAccessRepository_CreateAccessPoint_Call) Run(run func(ctx context.Context, name string, bucket string, statements []*awspolicy.Statement)) *mockDataAccessRepository_CreateAccessPoint_Call {
+func (_c *mockDataAccessRepository_CreateAccessPoint_Call) Run(run func(ctx context.Context, name string, bucket string, region string, statements []*awspolicy.Statement)) *mockDataAccessRepository_CreateAccessPoint_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]*awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].(string), args[4].([]*awspolicy.Statement))
 	})
 	return _c
 }
@@ -216,7 +217,7 @@ func (_c *mockDataAccessRepository_CreateAccessPoint_Call) Return(_a0 error) *mo
 	return _c
 }
 
-func (_c *mockDataAccessRepository_CreateAccessPoint_Call) RunAndReturn(run func(context.Context, string, string, []*awspolicy.Statement) error) *mockDataAccessRepository_CreateAccessPoint_Call {
+func (_c *mockDataAccessRepository_CreateAccessPoint_Call) RunAndReturn(run func(context.Context, string, string, string, []*awspolicy.Statement) error) *mockDataAccessRepository_CreateAccessPoint_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -379,17 +380,17 @@ func (_c *mockDataAccessRepository_CreateRoleInlinePolicy_Call) RunAndReturn(run
 	return _c
 }
 
-// DeleteAccessPoint provides a mock function with given fields: ctx, name
-func (_m *mockDataAccessRepository) DeleteAccessPoint(ctx context.Context, name string) error {
-	ret := _m.Called(ctx, name)
+// DeleteAccessPoint provides a mock function with given fields: ctx, name, region
+func (_m *mockDataAccessRepository) DeleteAccessPoint(ctx context.Context, name string, region string) error {
+	ret := _m.Called(ctx, name, region)
 
 	if len(ret) == 0 {
 		panic("no return value specified for DeleteAccessPoint")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string) error); ok {
-		r0 = rf(ctx, name)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) error); ok {
+		r0 = rf(ctx, name, region)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -405,13 +406,14 @@ type mockDataAccessRepository_DeleteAccessPoint_Call struct {
 // DeleteAccessPoint is a helper method to define mock.On call
 //   - ctx context.Context
 //   - name string
-func (_e *mockDataAccessRepository_Expecter) DeleteAccessPoint(ctx interface{}, name interface{}) *mockDataAccessRepository_DeleteAccessPoint_Call {
-	return &mockDataAccessRepository_DeleteAccessPoint_Call{Call: _e.mock.On("DeleteAccessPoint", ctx, name)}
+//   - region string
+func (_e *mockDataAccessRepository_Expecter) DeleteAccessPoint(ctx interface{}, name interface{}, region interface{}) *mockDataAccessRepository_DeleteAccessPoint_Call {
+	return &mockDataAccessRepository_DeleteAccessPoint_Call{Call: _e.mock.On("DeleteAccessPoint", ctx, name, region)}
 }
 
-func (_c *mockDataAccessRepository_DeleteAccessPoint_Call) Run(run func(ctx context.Context, name string)) *mockDataAccessRepository_DeleteAccessPoint_Call {
+func (_c *mockDataAccessRepository_DeleteAccessPoint_Call) Run(run func(ctx context.Context, name string, region string)) *mockDataAccessRepository_DeleteAccessPoint_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string))
+		run(args[0].(context.Context), args[1].(string), args[2].(string))
 	})
 	return _c
 }
@@ -421,7 +423,7 @@ func (_c *mockDataAccessRepository_DeleteAccessPoint_Call) Return(_a0 error) *mo
 	return _c
 }
 
-func (_c *mockDataAccessRepository_DeleteAccessPoint_Call) RunAndReturn(run func(context.Context, string) error) *mockDataAccessRepository_DeleteAccessPoint_Call {
+func (_c *mockDataAccessRepository_DeleteAccessPoint_Call) RunAndReturn(run func(context.Context, string, string) error) *mockDataAccessRepository_DeleteAccessPoint_Call {
 	_c.Call.Return(run)
 	return _c
 }
@@ -1102,9 +1104,9 @@ func (_c *mockDataAccessRepository_GetUsers_Call) RunAndReturn(run func(context.
 	return _c
 }
 
-// ListAccessPoints provides a mock function with given fields: ctx
-func (_m *mockDataAccessRepository) ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error) {
-	ret := _m.Called(ctx)
+// ListAccessPoints provides a mock function with given fields: ctx, region
+func (_m *mockDataAccessRepository) ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error) {
+	ret := _m.Called(ctx, region)
 
 	if len(ret) == 0 {
 		panic("no return value specified for ListAccessPoints")
@@ -1112,19 +1114,19 @@ func (_m *mockDataAccessRepository) ListAccessPoints(ctx context.Context) ([]mod
 
 	var r0 []model.AwsS3AccessPoint
 	var r1 error
-	if rf, ok := ret.Get(0).(func(context.Context) ([]model.AwsS3AccessPoint, error)); ok {
-		return rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, string) ([]model.AwsS3AccessPoint, error)); ok {
+		return rf(ctx, region)
 	}
-	if rf, ok := ret.Get(0).(func(context.Context) []model.AwsS3AccessPoint); ok {
-		r0 = rf(ctx)
+	if rf, ok := ret.Get(0).(func(context.Context, string) []model.AwsS3AccessPoint); ok {
+		r0 = rf(ctx, region)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).([]model.AwsS3AccessPoint)
 		}
 	}
 
-	if rf, ok := ret.Get(1).(func(context.Context) error); ok {
-		r1 = rf(ctx)
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, region)
 	} else {
 		r1 = ret.Error(1)
 	}
@@ -1139,13 +1141,14 @@ type mockDataAccessRepository_ListAccessPoints_Call struct {
 
 // ListAccessPoints is a helper method to define mock.On call
 //   - ctx context.Context
-func (_e *mockDataAccessRepository_Expecter) ListAccessPoints(ctx interface{}) *mockDataAccessRepository_ListAccessPoints_Call {
-	return &mockDataAccessRepository_ListAccessPoints_Call{Call: _e.mock.On("ListAccessPoints", ctx)}
+//   - region string
+func (_e *mockDataAccessRepository_Expecter) ListAccessPoints(ctx interface{}, region interface{}) *mockDataAccessRepository_ListAccessPoints_Call {
+	return &mockDataAccessRepository_ListAccessPoints_Call{Call: _e.mock.On("ListAccessPoints", ctx, region)}
 }
 
-func (_c *mockDataAccessRepository_ListAccessPoints_Call) Run(run func(ctx context.Context)) *mockDataAccessRepository_ListAccessPoints_Call {
+func (_c *mockDataAccessRepository_ListAccessPoints_Call) Run(run func(ctx context.Context, region string)) *mockDataAccessRepository_ListAccessPoints_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context))
+		run(args[0].(context.Context), args[1].(string))
 	})
 	return _c
 }
@@ -1155,22 +1158,22 @@ func (_c *mockDataAccessRepository_ListAccessPoints_Call) Return(_a0 []model.Aws
 	return _c
 }
 
-func (_c *mockDataAccessRepository_ListAccessPoints_Call) RunAndReturn(run func(context.Context) ([]model.AwsS3AccessPoint, error)) *mockDataAccessRepository_ListAccessPoints_Call {
+func (_c *mockDataAccessRepository_ListAccessPoints_Call) RunAndReturn(run func(context.Context, string) ([]model.AwsS3AccessPoint, error)) *mockDataAccessRepository_ListAccessPoints_Call {
 	_c.Call.Return(run)
 	return _c
 }
 
-// UpdateAccessPoint provides a mock function with given fields: ctx, name, statements
-func (_m *mockDataAccessRepository) UpdateAccessPoint(ctx context.Context, name string, statements []*awspolicy.Statement) error {
-	ret := _m.Called(ctx, name, statements)
+// UpdateAccessPoint provides a mock function with given fields: ctx, name, region, statements
+func (_m *mockDataAccessRepository) UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error {
+	ret := _m.Called(ctx, name, region, statements)
 
 	if len(ret) == 0 {
 		panic("no return value specified for UpdateAccessPoint")
 	}
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, []*awspolicy.Statement) error); ok {
-		r0 = rf(ctx, name, statements)
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, []*awspolicy.Statement) error); ok {
+		r0 = rf(ctx, name, region, statements)
 	} else {
 		r0 = ret.Error(0)
 	}
@@ -1186,14 +1189,15 @@ type mockDataAccessRepository_UpdateAccessPoint_Call struct {
 // UpdateAccessPoint is a helper method to define mock.On call
 //   - ctx context.Context
 //   - name string
+//   - region string
 //   - statements []*awspolicy.Statement
-func (_e *mockDataAccessRepository_Expecter) UpdateAccessPoint(ctx interface{}, name interface{}, statements interface{}) *mockDataAccessRepository_UpdateAccessPoint_Call {
-	return &mockDataAccessRepository_UpdateAccessPoint_Call{Call: _e.mock.On("UpdateAccessPoint", ctx, name, statements)}
+func (_e *mockDataAccessRepository_Expecter) UpdateAccessPoint(ctx interface{}, name interface{}, region interface{}, statements interface{}) *mockDataAccessRepository_UpdateAccessPoint_Call {
+	return &mockDataAccessRepository_UpdateAccessPoint_Call{Call: _e.mock.On("UpdateAccessPoint", ctx, name, region, statements)}
 }
 
-func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) Run(run func(ctx context.Context, name string, statements []*awspolicy.Statement)) *mockDataAccessRepository_UpdateAccessPoint_Call {
+func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) Run(run func(ctx context.Context, name string, region string, statements []*awspolicy.Statement)) *mockDataAccessRepository_UpdateAccessPoint_Call {
 	_c.Call.Run(func(args mock.Arguments) {
-		run(args[0].(context.Context), args[1].(string), args[2].([]*awspolicy.Statement))
+		run(args[0].(context.Context), args[1].(string), args[2].(string), args[3].([]*awspolicy.Statement))
 	})
 	return _c
 }
@@ -1203,7 +1207,7 @@ func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) Return(_a0 error) *mo
 	return _c
 }
 
-func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) RunAndReturn(run func(context.Context, string, []*awspolicy.Statement) error) *mockDataAccessRepository_UpdateAccessPoint_Call {
+func (_c *mockDataAccessRepository_UpdateAccessPoint_Call) RunAndReturn(run func(context.Context, string, string, []*awspolicy.Statement) error) *mockDataAccessRepository_UpdateAccessPoint_Call {
 	_c.Call.Return(run)
 	return _c
 }

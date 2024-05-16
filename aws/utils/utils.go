@@ -93,8 +93,8 @@ func RemoveEndingWildcards(name string) string {
 	return strings.TrimSuffix(name, "/*")
 }
 
-func GetTrustPolicyArn(user string, configMap *config.ConfigMap) string {
-	return fmt.Sprintf("arn:aws:iam::%s:user/%s", configMap.GetString(constants.AwsAccountId), user)
+func GetTrustPolicyArn(user string, account string) string {
+	return fmt.Sprintf("arn:aws:iam::%s:user/%s", account, user)
 }
 
 func StripWhitespace(query string) string {
@@ -145,4 +145,14 @@ func GenerateName(ap *sync_to_target.AccessProvider, apType model.AccessProvider
 	}
 
 	return uniqueRoleNameGenerator.Generate(ap)
+}
+
+func GetRegions(config *config.ConfigMap) []string {
+	regions := config.GetString(constants.AwsRegions)
+
+	if regions == "" {
+		return []string{}
+	}
+
+	return strings.Split(regions, ",")
 }

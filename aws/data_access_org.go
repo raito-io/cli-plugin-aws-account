@@ -44,11 +44,11 @@ func (e *roleEnricher) enrich(aps []model.AccessProviderInputExtended) error {
 		return nil
 	}
 
-	e.account = e.configMap.GetString(constants.AwsAccountId)
-	if e.account == "" {
-		utils.Logger.Info("No account ID specified. Skipping role enrichment")
+	var err error
 
-		return nil
+	e.account, err = repo.GetAccountId(e.ctx, e.configMap)
+	if err != nil {
+		return fmt.Errorf("get account id: %s", err.Error())
 	}
 
 	cfg, err := repo.GetAWSOrgConfig(e.ctx, e.configMap, nil)

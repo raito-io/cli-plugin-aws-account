@@ -182,7 +182,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_GetInlinePoliciesForEntities() {
 }
 
 func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
-	accessPoints, err := s.repo.ListAccessPoints(context.Background())
+	accessPoints, err := s.repo.ListAccessPoints(context.Background(), "eu-central-1")
 	s.Assert().NoError(err)
 	s.Assert().Len(accessPoints, 1)
 	s.Assert().Equal("operations", accessPoints[0].Name)
@@ -193,7 +193,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().True(strings.HasSuffix(accessPoints[0].PolicyParsed.Statements[0].Resource[0], "/object/operations/*"))
 	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
 
-	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, s.GetConfig())
+	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, "077954824694")
 	s.Assert().False(incomplete)
 
 	s.Assert().Len(who.Groups, 0)

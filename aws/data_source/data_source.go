@@ -10,6 +10,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/golang-set/set"
 
@@ -23,6 +24,7 @@ import (
 
 type DataSourceSyncer struct {
 	config             *config.ConfigMap
+	account            string
 	dataObjectParent   string
 	dataObjectExcludes []string
 }
@@ -33,7 +35,10 @@ func NewDataSourceSyncer() *DataSourceSyncer {
 
 // GetAvailableObjects is used by the data usage component to fetch all available data objects in a map structure for easy lookup of what is available
 func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, config *config.ConfigMap) (map[string]interface{}, error) {
-	s.config = config
+	err := s.initialize(ctx, config)
+	if err != nil {
+		return nil, fmt.Errorf("initializing data source syncer: %w", err)
+	}
 
 	bucketMap := map[string]interface{}{}
 
@@ -41,7 +46,7 @@ func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, config *conf
 		bucketMap: bucketMap,
 	}
 
-	err := s.fetchDataObjects(ctx, dataSourceHandler)
+	err = s.fetchDataObjects(ctx, dataSourceHandler)
 	if err != nil {
 		return nil, err
 	}
@@ -49,12 +54,29 @@ func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, config *conf
 	return bucketMap, nil
 }
 
+func (s *DataSourceSyncer) initialize(ctx context.Context, config *config.ConfigMap) error {
+	s.config = config
+
+	var err error
+
+	s.account, err = repo.GetAccountId(ctx, config)
+	if err != nil {
+		return fmt.Errorf("getting account id: %w", err)
+	}
+
+	return nil
+}
+
 func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, config *ds.DataSourceSyncConfig) error {
-	s.config = config.ConfigMap
+	err := s.initialize(ctx, config.ConfigMap)
+	if err != nil {
+		return fmt.Errorf("initializing data source syncer: %w", err)
+	}
+
 	s.dataObjectParent = config.DataObjectParent
 	s.dataObjectExcludes = config.DataObjectExcludes
 
-	err := s.addAwsAsDataSource(dataSourceHandler, nil)
+	err = s.addAwsAsDataSource(dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
@@ -77,7 +99,7 @@ func (s *DataSourceSyncer) fetchDataObjects(ctx context.Context, dataSourceHandl
 		err = s.FetchS3DataObjects(ctx, dataSourceHandler)
 	} else {
 		// Glue is not cross-regional so needs to be fetched per region
-		for _, region := range s.getRegions() {
+		for _, region := range utils.GetRegions(s.config) {
 			err = s.FetchGlueDataObjects(ctx, dataSourceHandler, region)
 		}
 	}
@@ -89,21 +111,9 @@ func (s *DataSourceSyncer) fetchDataObjects(ctx context.Context, dataSourceHandl
 	return nil
 }
 
-func (s *DataSourceSyncer) getRegions() []string {
-	regions := s.config.GetString(constants.AwsRegions)
-
-	if regions == "" {
-		return []string{}
-	}
-
-	return strings.Split(regions, ",")
-}
-
 func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, region string) error {
-	accountId := s.config.GetString(constants.AwsAccountId)
-
 	glueRepo := NewAwsGlueRepository(s.config)
-	dbs, err := glueRepo.ListDatabases(ctx, accountId, region)
+	dbs, err := glueRepo.ListDatabases(ctx, s.account, region)
 
 	if err != nil {
 		return fmt.Errorf("listing glue databases: %w", err)
@@ -112,7 +122,7 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 	pathsHandled := set.NewSet[string]()
 
 	for _, db := range dbs {
-		tables, err2 := glueRepo.ListTablesForDatabase(ctx, accountId, db, region)
+		tables, err2 := glueRepo.ListTablesForDatabase(ctx, s.account, db, region)
 		if err2 != nil {
 			return fmt.Errorf("listing glue tables: %w", err2)
 		}
@@ -129,24 +139,25 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 
 			pathParts := strings.Split(location, "/")
 			bucketName := pathParts[0]
+			fullName := fmt.Sprintf("%s:%s:%s", s.account, region, bucketName)
 
-			if !pathsHandled.Contains(bucketName) {
+			if !pathsHandled.Contains(fullName) {
 				err = dataSourceHandler.AddDataObjects(&ds.DataObject{
-					ExternalId:       bucketName,
+					ExternalId:       fullName,
 					Name:             bucketName,
-					FullName:         bucketName,
+					FullName:         fullName,
 					Type:             ds.Bucket,
-					ParentExternalId: accountId,
+					ParentExternalId: s.account,
 				})
 
 				if err != nil {
-					return fmt.Errorf("adding bucket %q to file: %w", bucketName, err)
+					return fmt.Errorf("adding bucket %q to file: %w", fullName, err)
 				}
 
-				pathsHandled.Add(bucketName)
+				pathsHandled.Add(fullName)
 			}
 
-			currentPath := bucketName
+			currentPath := fullName
 
 			// Now loop over the other parts
 			for i := 1; i < len(pathParts); i++ {
@@ -199,7 +210,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 
 	utils.Logger.Info(fmt.Sprintf("Found %d buckets to handle: %+v", len(buckets), buckets))
 
-	err = s.addS3Entities(buckets, dataSourceHandler, nil)
+	err = s.addS3Entities(buckets, "", dataSourceHandler, nil)
 	if err != nil {
 		return err
 	}
@@ -218,17 +229,18 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 
 		workerPool.Submit(func() {
 			bucketName := bucket.Key
+			bucketFullName := fmt.Sprintf("%s::%s:%s", s.account, bucket.Region, bucketName)
 
 			var prefix *string
 
-			if p, f := strings.CutPrefix(s.dataObjectParent, bucketName+"/"); f {
+			if p, f := strings.CutPrefix(s.dataObjectParent, bucketFullName+"/"); f {
 				if !strings.HasSuffix(p, "/") {
 					p += "/"
 				}
 				prefix = &p
-				utils.Logger.Info(fmt.Sprintf("Handling files with prefix '%s' in bucket %s ", p, bucketName))
+				utils.Logger.Info(fmt.Sprintf("Handling files with prefix '%s' in bucket %s ", p, bucketFullName))
 			} else {
-				utils.Logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketName))
+				utils.Logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketFullName))
 			}
 
 			files, err2 := s3Repo.ListFiles(ctx, bucketName, prefix)
@@ -240,7 +252,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 				return
 			}
 
-			err2 = s.addS3Entities(files, dataSourceHandler, fileLock)
+			err2 = s.addS3Entities(files, bucket.Region, dataSourceHandler, fileLock)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -263,13 +275,11 @@ func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context, configPara
 }
 
 func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
-	awsAccount := s.config.GetString(constants.AwsAccountId)
-
 	if lock == nil {
 		lock = new(sync.Mutex)
 	}
 
-	if !s.shouldHandle(awsAccount) {
+	if !s.shouldHandle(s.account) {
 		return nil
 	}
 
@@ -277,17 +287,16 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 	defer lock.Unlock()
 
 	return dataSourceHandler.AddDataObjects(&ds.DataObject{
-		ExternalId:       awsAccount,
-		Name:             awsAccount,
-		FullName:         awsAccount,
+		ExternalId:       s.account,
+		Name:             s.account,
+		FullName:         s.account,
 		Type:             ds.Datasource,
-		Description:      fmt.Sprintf("DataSource for AWS account %s", awsAccount),
+		Description:      fmt.Sprintf("DataSource for AWS account %s", s.account),
 		ParentExternalId: "",
 	})
 }
 
-func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
-	awsAccount := s.config.GetString(constants.AwsAccountId)
+func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, region string, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
 	emulateFolders := s.config.GetBoolWithDefault(constants.AwsS3EmulateFolderStructure, true)
 
 	if lock == nil {
@@ -302,13 +311,15 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourc
 				continue
 			}
 
+			fullName := fmt.Sprintf("%s:%s:%s", s.account, entity.Region, entity.Key)
+
 			lock.Lock()
 			err := dataSourceHandler.AddDataObjects(&ds.DataObject{
-				ExternalId:       entity.Key,
+				ExternalId:       fullName,
 				Name:             entity.Key,
-				FullName:         entity.Key,
+				FullName:         fullName,
 				Type:             ds.Bucket,
-				ParentExternalId: awsAccount,
+				ParentExternalId: s.account,
 			})
 
 			lock.Unlock()
@@ -321,7 +332,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourc
 				maxFolderDepth := s.config.GetIntWithDefault(constants.AwsS3MaxFolderDepth, 20)
 
 				parts := strings.Split(entity.Key, "/")
-				parentExternalId := entity.ParentKey
+				parentExternalId := fmt.Sprintf("%s:%s:%s", s.account, region, entity.ParentKey)
 
 				for ind := range parts {
 					// In case we found a folder, the path ended with a slash and so the last part will be empty and so can be skipped.
@@ -380,12 +391,16 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, dataSourc
 				}
 
 				lock.Lock()
+
+				fullName := fmt.Sprintf("%s:%s:%s", s.account, region, entity.Key)
+				parent := fmt.Sprintf("%s:%s:%s", s.account, region, entity.ParentKey)
+
 				err := dataSourceHandler.AddDataObjects(&ds.DataObject{
-					ExternalId:       entity.Key,
+					ExternalId:       fullName,
 					Name:             entity.Key,
-					FullName:         entity.Key,
+					FullName:         fullName,
 					Type:             entity.Type,
-					ParentExternalId: entity.ParentKey,
+					ParentExternalId: parent,
 				})
 				lock.Unlock()
 

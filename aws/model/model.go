@@ -138,6 +138,7 @@ type CloudTrailLog struct {
 
 type AwsS3Entity struct {
 	Type      string
+	Region    string
 	Key       string
 	ParentKey string
 }

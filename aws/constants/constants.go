@@ -1,8 +1,6 @@
 package constants
 
 const (
-	AwsAccountId = "aws-account-id"
-
 	AwsProfile = "aws-profile"
 
 	AwsRegions = "aws-regions"

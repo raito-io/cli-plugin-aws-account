@@ -236,7 +236,7 @@ func (repo *AwsIamRepository) GetPolicyArn(policyName string, awsManaged bool, c
 	arn := arn.ARN{
 		Partition: "aws",
 		Service:   "iam",
-		AccountID: configMap.GetString(constants.AwsAccountId),
+		AccountID: repo.account,
 		Resource:  "policy/" + policyName,
 	}
 
@@ -1043,8 +1043,8 @@ func (repo *AwsIamRepository) parsePolicyDocument(policyDoc *string, entityName,
 	return &policy, &policyDocument, err
 }
 
-func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context) *s3control.Client {
-	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, nil)
+func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *string) *s3control.Client {
+	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, region)
 
 	if err != nil {
 		log.Fatalf("failed to load configuration, %v", err)
@@ -1055,8 +1055,8 @@ func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context) *s3control
 	return client
 }
 
-func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.AwsS3AccessPoint, error) {
-	client := repo.getS3ControlClient(ctx)
+func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error) {
+	client := repo.getS3ControlClient(ctx, &region)
 
 	moreObjectsAvailable := true
 	var nextToken *string
@@ -1109,8 +1109,8 @@ func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context) ([]model.Aws
 	return aps, nil
 }
 
-func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string) error {
-	client := repo.getS3ControlClient(ctx)
+func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string, region string) error {
+	client := repo.getS3ControlClient(ctx, &region)
 
 	_, err := client.DeleteAccessPoint(ctx, &s3control.DeleteAccessPointInput{
 		AccountId: &repo.account,
@@ -1123,8 +1123,8 @@ func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, statements []*awspolicy.Statement) error {
-	client := repo.getS3ControlClient(ctx)
+func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) error {
+	client := repo.getS3ControlClient(ctx, &region)
 
 	input := &s3control.CreateAccessPointInput{
 		AccountId: &repo.account,
@@ -1155,8 +1155,8 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 	return nil
 }
 
-func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, statements []*awspolicy.Statement) error {
-	client := repo.getS3ControlClient(ctx)
+func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error {
+	client := repo.getS3ControlClient(ctx, &region)
 
 	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {

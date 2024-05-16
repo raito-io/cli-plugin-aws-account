@@ -6,6 +6,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sts"
 	aws2 "github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli/base/util/config"
 )
@@ -43,4 +44,22 @@ func getAWSConfig(ctx context.Context, configMap *config.ConfigMap, profileParam
 	}
 
 	return awsconfig.LoadDefaultConfig(ctx, loadOptions...)
+}
+
+func GetAccountId(ctx context.Context, configMap *config.ConfigMap) (string, error) {
+	cfg, err := GetAWSConfig(ctx, configMap, nil)
+
+	if err != nil {
+		return "", err
+	}
+
+	client := sts.NewFromConfig(cfg)
+	input := &sts.GetCallerIdentityInput{}
+
+	req, err := client.GetCallerIdentity(ctx, input)
+	if err != nil {
+		return "", err
+	}
+
+	return *req.Account, nil
 }

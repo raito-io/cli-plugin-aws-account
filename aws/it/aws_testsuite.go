@@ -30,9 +30,8 @@ func getConfig() *config.ConfigMap {
 
 	return &config.ConfigMap{
 		Parameters: map[string]string{
-			constants.AwsAccountId: awsAccountId,
-			constants.AwsProfile:   awsProfile,
-			constants.AwsRegions:   awsRegion,
+			constants.AwsProfile: awsProfile,
+			constants.AwsRegions: awsRegion,
 		},
 	}
 }
