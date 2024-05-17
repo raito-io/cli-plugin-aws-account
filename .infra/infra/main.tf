@@ -15,6 +15,7 @@ module "demo" {
   source = "./demo"
 
   providers = {
-    aws = aws
+    aws.eu-central-1 = aws.eu-central-1
+    aws.eu-west-1    = aws.eu-west-1
   }
 }
