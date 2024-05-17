@@ -123,7 +123,7 @@ func filterApImportList(importList []model.AccessProviderInputExtended, configMa
 	return result
 }
 
-func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, roles []model.RoleEntity, aps []model.AccessProviderInputExtended) []model.AccessProviderInputExtended {
+func (a *AccessSyncer) fetchRoleAccessProviders(roles []model.RoleEntity, aps []model.AccessProviderInputExtended) []model.AccessProviderInputExtended {
 	utils.Logger.Info("Get all roles")
 
 	for _, role := range roles {
@@ -168,7 +168,7 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 	return aps
 }
 
-func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	utils.Logger.Info("Get all managed policies")
 	policies, err := a.repo.GetManagedPolicies(ctx)
 
@@ -495,11 +495,11 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 		}
 
 		// Adding access providers to the list for the roles
-		apImportList = a.fetchRoleAccessProviders(configMap, roles, apImportList)
+		apImportList = a.fetchRoleAccessProviders(roles, apImportList)
 
 		if !configMap.GetBool(constants.AwsAccessSkipManagedPolicies) {
 			// Adding access providers to the list for the managed policies
-			apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
+			apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, apImportList)
 			if err != nil {
 				return nil, err
 			}

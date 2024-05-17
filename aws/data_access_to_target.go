@@ -88,7 +88,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	utils.Logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
-	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx, configMap)
+	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx)
 	if err != nil {
 		return err
 	}
@@ -338,7 +338,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	a.handlePolicyUpdates(ctx, policyActionMap, policyAps, existingPolicyWhoBindings, newPolicyWhoBindings, inlineUserPoliciesToDelete, inlineGroupPoliciesToDelete, feedbackMap, configMap)
 
-	a.handleAccessPointUpdates(ctx, accessPointActionMap, accessPointAps, existingAccessPointWhoBindings, newAccessPointWhoBindings, inverseAccessPointInheritanceMap, feedbackMap, configMap)
+	a.handleAccessPointUpdates(ctx, accessPointActionMap, accessPointAps, existingAccessPointWhoBindings, newAccessPointWhoBindings, inverseAccessPointInheritanceMap, feedbackMap)
 
 	return nil
 }
@@ -393,7 +393,7 @@ func getRecursiveInheritedAPs(start string, inverseRoleInheritanceMap map[string
 	}
 }
 
-func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPointActionMap map[string]string, accessPointAps map[string]*sync_to_target.AccessProvider, existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], inverseAccessPointInheritanceMap map[string]set.Set[string], feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
+func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPointActionMap map[string]string, accessPointAps map[string]*sync_to_target.AccessProvider, existingAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], newAccessPointWhoBindings map[string]set.Set[model.PolicyBinding], inverseAccessPointInheritanceMap map[string]set.Set[string], feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback) {
 	var err error
 
 	for accessPointName, accessPointAction := range accessPointActionMap {
@@ -412,7 +412,14 @@ func (a *AccessSyncer) handleAccessPointUpdates(ctx context.Context, accessPoint
 			// Extract the region from the access point external ID
 			extId := *accessPointAp.ExternalId
 			extId = extId[len(constants.AccessPointTypePrefix):]
-			region := extId[:strings.Index(extId, ":")]
+
+			region := ""
+			if strings.Contains(extId, ":") {
+				region = extId[:strings.Index(extId, ":")] //nolint:gocritic
+			} else {
+				logFeedbackError(feedbackMap[accessPointAp.Id], fmt.Sprintf("invalid external id found %q", *accessPointAp.ExternalId))
+				continue
+			}
 
 			err = a.repo.DeleteAccessPoint(ctx, accessPointName, region)
 			if err != nil {
@@ -522,7 +529,7 @@ func extractBucketForAccessPoint(whatItems []sync_to_target.WhatItem) (string, s
 	for _, whatItem := range whatItems {
 		thisBucket := whatItem.DataObject.FullName
 		if strings.Contains(thisBucket, "/") {
-			thisBucket = thisBucket[:strings.Index(thisBucket, "/")]
+			thisBucket = thisBucket[:strings.Index(thisBucket, "/")] //nolint:gocritic
 		}
 
 		parts := strings.Split(thisBucket, ":")
@@ -975,7 +982,7 @@ func contains(slice []string, val string) bool {
 	return false
 }
 
-func (a *AccessSyncer) fetchExistingRoles(ctx context.Context, configMap *config.ConfigMap) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
+func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]string, map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing roles")
 
 	roles, err := a.repo.GetRoles(ctx)
