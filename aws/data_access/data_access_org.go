@@ -1,4 +1,4 @@
-package aws
+package data_access
 
 import (
 	"context"
@@ -9,11 +9,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/raito-io/cli/base/util/config"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/config"
 )
 
 const ReservedSSOPrefix = "AWSReservedSSO_"

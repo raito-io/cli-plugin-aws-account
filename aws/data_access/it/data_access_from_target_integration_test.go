@@ -6,16 +6,18 @@ import (
 	"context"
 	"testing"
 
-	"github.com/raito-io/cli-plugin-aws-account/aws"
-	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
-	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/wrappers/mocks"
 	"github.com/stretchr/testify/suite"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_access"
+	"github.com/raito-io/cli-plugin-aws-account/aws/it"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 )
 
 type DataAccessFromTargetTestSuite struct {
-	AWSTestSuite
+	it.AWSTestSuite
 }
 
 func TestDataAccessFromTargetTestSuiteTestSuite(t *testing.T) {
@@ -25,7 +27,7 @@ func TestDataAccessFromTargetTestSuiteTestSuite(t *testing.T) {
 }
 
 func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAccessProviders() {
-	accessSyncer := aws.NewDataAccessSyncerFromConfig(s.GetConfig())
+	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
 
 	aps, err := accessSyncer.FetchS3AccessPointAccessProviders(context.Background(), s.GetConfig(), nil)
 	s.NoError(err)
@@ -44,7 +46,7 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAcces
 }
 
 func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
-	accessSyncer := aws.NewDataAccessSyncerFromConfig(s.GetConfig())
+	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
 
 	handler := mocks.NewSimpleAccessProviderHandler(s.T(), 100)
 	config := s.GetConfig()

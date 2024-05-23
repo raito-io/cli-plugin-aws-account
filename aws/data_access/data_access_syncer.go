@@ -1,4 +1,4 @@
-package aws
+package data_access
 
 import (
 	"context"

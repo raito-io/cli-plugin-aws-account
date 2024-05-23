@@ -1,15 +1,16 @@
-package aws
+package data_access
 
 import (
 	"context"
 	"testing"
 
-	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
-	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
-	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers/mocks"
@@ -25,19 +26,19 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 		managedPolicies: nil,
 	}
 
-	managedPolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_managed_policies.json")
+	managedPolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_managed_policies.json")
 	require.Nil(t, err)
-	roles, err := getObjects[model.RoleEntity]("testdata/aws/test_roles.json")
+	roles, err := getObjects[model.RoleEntity]("../testdata/aws/test_roles.json")
 	require.Nil(t, err)
-	groups, err := getObjects[model.GroupEntity]("testdata/aws/test_groups.json")
+	groups, err := getObjects[model.GroupEntity]("../testdata/aws/test_groups.json")
 	require.Nil(t, err)
-	users, err := getObjects[model.UserEntity]("testdata/aws/test_users.json")
+	users, err := getObjects[model.UserEntity]("../testdata/aws/test_users.json")
 	require.Nil(t, err)
-	roleInlinePolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_role_inline_policies.json")
+	roleInlinePolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_role_inline_policies.json")
 	require.Nil(t, err)
-	groupInlinePolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_group_inline_policies.json")
+	groupInlinePolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_group_inline_policies.json")
 	require.Nil(t, err)
-	userInlinePolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_user_inline_policies.json")
+	userInlinePolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_user_inline_policies.json")
 	require.Nil(t, err)
 
 	roleNames := []string{}

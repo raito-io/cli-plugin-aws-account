@@ -58,29 +58,29 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 		return nil, err
 	}
 
-	var marker *string
 	var result []model.PolicyEntity
 
-	for {
-		input := iam.ListPoliciesInput{
-			Marker:       marker,
-			OnlyAttached: false,
-			MaxItems:     aws.Int32(50),
+	input := iam.ListPoliciesInput{
+		OnlyAttached: false,
+	}
+
+	if repo.configMap.GetBool(constants.AwsAccessSkipAWSManagedPolicies) {
+		input.Scope = types.PolicyScopeTypeLocal
+	}
+
+	var resultErr error
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
+
+	defer workerPool.Stop()
+
+	paginator := iam.NewListPoliciesPaginator(client, &input)
+
+	for paginator.HasMorePages() {
+
+		resp, pageErr := paginator.NextPage(ctx)
+		if pageErr != nil {
+			return nil, fmt.Errorf("policy nex page: %w", pageErr)
 		}
-
-		if repo.configMap.GetBool(constants.AwsAccessSkipAWSManagedPolicies) {
-			input.Scope = types.PolicyScopeTypeLocal
-		}
-
-		resp, err2 := client.ListPolicies(ctx, &input)
-		if err2 != nil {
-			return nil, err
-		}
-
-		utils.Logger.Info(fmt.Sprintf("Listed %d Policies", len(resp.Policies)))
-
-		workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
-		var resultErr error
 
 		for i := range resp.Policies {
 			policy := resp.Policies[i]
@@ -165,20 +165,14 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 			})
 		}
 
-		workerPool.StopWait()
-
-		if resultErr != nil {
-			return nil, resultErr
-		}
-
 		utils.Logger.Info(fmt.Sprintf("Finished processing %d Policies", len(resp.Policies)))
 		utils.Logger.Info(fmt.Sprintf("A total of %d policies have been found so far", len(result)))
-		utils.Logger.Info(fmt.Sprintf("Still more? %v", resp.IsTruncated))
+	}
 
-		if !resp.IsTruncated {
-			break
-		}
-		marker = resp.Marker
+	workerPool.StopWait()
+
+	if resultErr != nil {
+		return nil, resultErr
 	}
 
 	utils.Logger.Info(fmt.Sprintf("A total of %d policies have been found", len(result)))

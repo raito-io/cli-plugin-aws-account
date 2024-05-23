@@ -1,10 +1,11 @@
-package aws
+package data_access
 
 import (
 	"fmt"
 
-	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	importer "github.com/raito-io/cli/base/access_provider/sync_to_target"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 )
 
 func printDebugAp(ap importer.AccessProvider) {

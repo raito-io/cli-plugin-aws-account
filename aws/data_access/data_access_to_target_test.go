@@ -1,10 +1,11 @@
-package aws
+package data_access
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -36,9 +37,9 @@ func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 		managedPolicies: nil,
 	}
 
-	roles, err := getObjects[model.RoleEntity]("testdata/aws/test_roles.json")
+	roles, err := getObjects[model.RoleEntity]("../testdata/aws/test_roles.json")
 	require.Nil(t, err)
-	managedPolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_managed_policies.json")
+	managedPolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_managed_policies.json")
 	require.Nil(t, err)
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
@@ -128,7 +129,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(true, nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(constants.RoleTypePrefix + "test_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
@@ -192,7 +193,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(true, nil).Once()
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -285,8 +286,8 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(true, nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(true, nil).Once()
 
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).RunAndReturn(func(ctx context.Context, s string, s2 string, statements []*awspolicy.Statement) error {
 		assert.Equal(t, 2, len(statements))
@@ -692,8 +693,8 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p2", []string{"user3"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p3", []string{"user3"}).Return(nil).Once()
 
-	repoMock.EXPECT().CreateRole(ctx, "r1", "test role1", []string{"user4", "user5"}).Return(nil).Once()
-	repoMock.EXPECT().CreateRole(ctx, "r2", "test role2", []string{"user5"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "r1", "test role1", []string{"user4", "user5"}).Return(true, nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "r2", "test role2", []string{"user5"}).Return(true, nil).Once()
 
 	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p1", []string{"r1"}).Return(nil).Once()
 	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p2", []string{"r1"}).Return(nil).Once()

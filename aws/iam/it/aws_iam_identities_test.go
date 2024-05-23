@@ -7,11 +7,12 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/raito-io/golang-set/set"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
-	"github.com/raito-io/golang-set/set"
-	"github.com/stretchr/testify/suite"
 )
 
 type IAMIdentitiesTestSuite struct {
@@ -104,8 +105,9 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_CreatePolicy() {
 	s.repo.ClearRolesCache()
 	name := "INT_TestRole1"
 
-	err := s.repo.CreateRole(context.Background(), name, "Some description", []string{"m_carissa"})
+	created, err := s.repo.CreateRole(context.Background(), name, "Some description", []string{"m_carissa"})
 	s.Assert().NoError(err)
+	s.Assert().True(created)
 
 	defer func() {
 		err = s.repo.DeleteRole(context.Background(), name)
@@ -132,8 +134,9 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_UpdateRole() {
 	s.repo.ClearRolesCache()
 	name := "INT_UpdateTestRole1"
 
-	err := s.repo.CreateRole(context.Background(), name, "Some description", []string{"m_carissa"})
+	created, err := s.repo.CreateRole(context.Background(), name, "Some description", []string{"m_carissa"})
 	s.Assert().NoError(err)
+	s.Assert().True(created)
 
 	defer func() {
 		err = s.repo.DeleteRole(context.Background(), name)
