@@ -10,9 +10,10 @@ import (
 
 	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli/base/tag"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -296,20 +297,20 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity,
 
 // CreateRole creates an AWS Role. Every role needs a non-empty policy document (otherwise the Role is useless).
 // the principals input parameters define which users will be able to assume the policy initially
-func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) error {
+func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error) {
 	if len(userNames) == 0 {
 		utils.Logger.Warn("No users provided to assume the role")
-		return nil
+		return false, nil
 	}
 
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	initialPolicy, err := repo.CreateAssumeRolePolicyDocument(nil, userNames...)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	_, err = client.CreateRole(ctx, &iam.CreateRoleInput{
@@ -325,10 +326,10 @@ func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description 
 		},
 	})
 	if err != nil {
-		return err
+		return false,  err
 	}
 
-	return nil
+	return true, nil
 }
 
 func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error {

@@ -6,13 +6,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
+	"github.com/raito-io/golang-set/set"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/match"
-	"github.com/raito-io/cli/base/util/slice"
-	"github.com/raito-io/golang-set/set"
 
 	"github.com/aws/smithy-go/ptr"
 
@@ -43,7 +44,7 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 
 	err = newRoleEnricher(ctx, configMap).enrich(filteredList)
 	if err != nil {
-		return err
+		return fmt.Errorf("enrich: %w", err)
 	}
 
 	err = accessProviderHandler.AddAccessProviders(getProperFormatForImport(filteredList)...)

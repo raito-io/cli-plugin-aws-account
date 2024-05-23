@@ -3,6 +3,7 @@ package iam
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log"
 	"net/url"
@@ -11,13 +12,15 @@ import (
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/service/s3control"
+	"github.com/aws/smithy-go/transport/http"
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/match"
-	"github.com/raito-io/cli/base/util/slice"
 
 	"github.com/gammazero/workerpool"
 
@@ -1091,14 +1094,25 @@ func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context, region strin
 			}
 
 			policy, err3 := client.GetAccessPointPolicy(ctx, &s3control.GetAccessPointPolicyInput{Name: sourceAp.Name, AccountId: &repo.account})
-			if err3 != nil {
-				return nil, fmt.Errorf("fetching access point policy: %w", err3)
-			}
 
-			if policy.Policy != nil {
+			var operationErr *http.ResponseError
+			if errors.As(err3, &operationErr) && operationErr.HTTPStatusCode() == 404 {
+				utils.Logger.Info(fmt.Sprintf("No policy found for access point %s", *sourceAp.Name))
+				utils.Logger.Debug(fmt.Sprintf("Error of type %T: %+v", err3, err3))
+			} else if err3 != nil {
+				utils.Logger.Error(fmt.Sprintf("Error of type %T: %+v", err3, err3))
+
+				e := errors.Unwrap(err3)
+				for e != nil {
+					utils.Logger.Error(fmt.Sprintf("Error of type %T: %+v", e, e))
+					e = errors.Unwrap(e)
+				}
+
+				return nil, fmt.Errorf("fetching access point policy: %w", err3)
+			} else if policy.Policy != nil {
 				ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *sourceAp.Name, *sourceAp.Name)
 				if err3 != nil {
-					return nil, err3
+					return nil, fmt.Errorf("parse policy document: %w", err3)
 				}
 			}
 

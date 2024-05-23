@@ -6,11 +6,12 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	awspolicy "github.com/n4ch04/aws-policy"
+	"github.com/raito-io/cli/base/util/config"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/config"
 )
 
 //go:generate go run github.com/vektra/mockery/v2 --name=dataAccessRepository --with-expecter --inpackage
@@ -31,7 +32,7 @@ type dataAccessRepository interface {
 	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
 	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
 	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
-	CreateRole(ctx context.Context, name, description string, userNames []string) error
+	CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error)
 	DeleteRole(ctx context.Context, name string) error
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)

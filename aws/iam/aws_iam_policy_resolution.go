@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aws/smithy-go/ptr"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -411,7 +412,7 @@ func processRoleInheritance(roleInheritanceMap map[string]set.Set[string], newRo
 	for k := range roleInheritanceMap {
 		// A role can only have other roles as descendants
 		descendants := getDescendants(roleInheritanceMap, k)
-		for _, descendant := range descendants.Slice() {
+		for descendant := range descendants {
 			newRoleWhoBindings[k].AddSet(getExistingOrNewBindings(existingRoleWhoBindings, newRoleWhoBindings, descendant))
 		}
 	}
@@ -427,7 +428,7 @@ func processPolicyInheritance(roleInheritanceMap map[string]set.Set[string], pol
 		policyDescendants := getDescendants(policyInheritanceMap, k)
 		roleDescendants := set.NewSet[string]()
 
-		for _, descendant := range policyDescendants.Slice() {
+		for descendant := range policyDescendants {
 			_, isNewRole := newRoleWhoBindings[descendant]
 			_, isExistingRole := existingRoleWhoBindings[descendant]
 
@@ -439,7 +440,7 @@ func processPolicyInheritance(roleInheritanceMap map[string]set.Set[string], pol
 				// In this case the descendant is not an internal access provider. Let's see if it is an external one to get those dependencies
 				if policyWho, f2 := existingPolicyWhoBindings[descendant]; f2 {
 					// The case where the internal AP depends on an external AP (of type policy). In that case we have to look at the bindings to see if there are roles in there.
-					for _, binding := range policyWho.Slice() {
+					for binding := range policyWho {
 						if binding.Type == RoleResourceType {
 							_, isNewRole2 := newRoleWhoBindings[binding.ResourceName]
 							_, isExistingRole2 := existingRoleWhoBindings[binding.ResourceName]
@@ -455,7 +456,7 @@ func processPolicyInheritance(roleInheritanceMap map[string]set.Set[string], pol
 		}
 
 		// For descendants that are roles, we need to add that role as a binding for this policy
-		for _, descendant := range roleDescendants.Slice() {
+		for descendant := range roleDescendants {
 			roleBinding := model.PolicyBinding{
 				Type:         RoleResourceType,
 				ResourceName: descendant,
@@ -468,7 +469,7 @@ func processPolicyInheritance(roleInheritanceMap map[string]set.Set[string], pol
 		policyDescendants := getDescendants(policyInheritanceMap, k)
 
 		// For descendants that are policies,
-		for _, descendant := range policyDescendants.Slice() {
+		for descendant := range policyDescendants {
 			newPolicyWhoBindings[k].AddSet(getExistingOrNewBindings(existingPolicyWhoBindings, newPolicyWhoBindings, descendant))
 		}
 	}
@@ -494,7 +495,7 @@ func getDescendants(childMap map[string]set.Set[string], apName string) set.Set[
 		return descendants
 	}
 
-	for _, child := range childMap[apName].Slice() {
+	for child := range childMap[apName] {
 		descendants.Add(child)
 		descendants.AddSet(getDescendants(childMap, child))
 	}

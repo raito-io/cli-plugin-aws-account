@@ -9,12 +9,13 @@ import (
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/go-multierror"
+	ds "github.com/raito-io/cli/base/data_source"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	ds "github.com/raito-io/cli/base/data_source"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
@@ -41,6 +42,11 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 func logFeedbackError(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
 	utils.Logger.Error(msg)
 	apFeedback.Errors = append(apFeedback.Errors, msg)
+}
+
+func logFeedbackWarning(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
+	utils.Logger.Warn(msg)
+	apFeedback.Warnings = append(apFeedback.Warnings, msg)
 }
 
 func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error) {
@@ -152,7 +158,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 		// Generating the technical name for the access provider complying to the different rules for AWS resources.
 		name, err2 := utils.GenerateName(ap, apType)
-
 		if err2 != nil {
 			logFeedbackError(&apFeedback, fmt.Sprintf("failed to generate actual name for access provider %q: %s", ap.Name, err2.Error()))
 			continue
@@ -797,9 +802,12 @@ func (a *AccessSyncer) handleRoleUpdates(ctx context.Context, roleActionMap map[
 				utils.Logger.Info(fmt.Sprintf("Creating role %s", roleName))
 
 				// Create the new role with the who
-				err = a.repo.CreateRole(ctx, roleName, ap.Description, userNames)
-				if err != nil {
-					logFeedbackError(feedbackMap[roleAp.Id], fmt.Sprintf("failed to create role %q: %s", roleName, err.Error()))
+				created, err2 := a.repo.CreateRole(ctx, roleName, ap.Description, userNames)
+				if err2 != nil {
+					logFeedbackError(feedbackMap[roleAp.Id], fmt.Sprintf("failed to create role %q: %s", roleName, err2.Error()))
+					continue
+				} else if !created {
+					logFeedbackWarning(feedbackMap[roleAp.Id], fmt.Sprintf("role %q not created.", roleName))
 					continue
 				}
 			} else {

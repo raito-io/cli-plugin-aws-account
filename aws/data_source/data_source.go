@@ -8,11 +8,12 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/golang-set/set"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/golang-set/set"
 
 	"github.com/gammazero/workerpool"
 
@@ -96,11 +97,20 @@ func (s *DataSourceSyncer) fetchDataObjects(ctx context.Context, dataSourceHandl
 
 	var err error
 	if s3Enabled {
+		utils.Logger.Debug(fmt.Sprintf("Fetching data objects for account %s using AWS S3", s.account))
+
 		err = s.FetchS3DataObjects(ctx, dataSourceHandler)
 	} else {
+		utils.Logger.Debug(fmt.Sprintf("Start fetching glue tables in account %q", s.account))
+
 		// Glue is not cross-regional so needs to be fetched per region
 		for _, region := range utils.GetRegions(s.config) {
-			err = s.FetchGlueDataObjects(ctx, dataSourceHandler, region)
+			utils.Logger.Debug(fmt.Sprintf("Fetching glue tables in region %q", region))
+
+			glueErr := s.FetchGlueDataObjects(ctx, dataSourceHandler, region)
+			if glueErr != nil {
+				err = multierror.Append(err, glueErr)
+			}
 		}
 	}
 
