@@ -4,11 +4,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
-	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
 	"github.com/raito-io/cli/base/tag"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
@@ -76,10 +77,10 @@ func ParseAndValidateArn(inputArn string, account *string, service *string) (str
 	return res.Resource, nil
 }
 
-func ConvertArnToFullname(arn string) string {
-	parts := strings.Split(arn, ":")
+func ConvertArnToFullname(arnString string) string {
+	parts := strings.Split(arnString, ":")
 	if len(parts) < 6 {
-		return arn
+		return arnString
 	}
 
 	return strings.Join(parts[5:], ":")
@@ -114,15 +115,16 @@ func GetResourceNamesFromPolicyBindingArray(input []model.PolicyBinding) []strin
 	return result
 }
 
-func GetConcurrency(config *config.ConfigMap) int {
-	return config.GetIntWithDefault(constants.AwsConcurrency, 5)
+func GetConcurrency(cfg *config.ConfigMap) int {
+	return cfg.GetIntWithDefault(constants.AwsConcurrency, 5)
 }
 
 func GenerateName(ap *sync_to_target.AccessProvider, apType model.AccessProviderType) (string, error) {
 	var uniqueRoleNameGenerator naming_hint.UniqueGenerator
-	var err error
 
 	if apType == model.AccessPoint {
+		var err error
+
 		uniqueRoleNameGenerator, err = naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
 			UpperCaseLetters:  false,
 			LowerCaseLetters:  true,
@@ -130,7 +132,12 @@ func GenerateName(ap *sync_to_target.AccessProvider, apType model.AccessProvider
 			SpecialCharacters: "-",
 			MaxLength:         30,
 		})
+		if err != nil {
+			return "", fmt.Errorf("new unique name generator for access point: %w", err)
+		}
 	} else {
+		var err error
+
 		uniqueRoleNameGenerator, err = naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
 			UpperCaseLetters:  true,
 			LowerCaseLetters:  true,
@@ -138,17 +145,21 @@ func GenerateName(ap *sync_to_target.AccessProvider, apType model.AccessProvider
 			SpecialCharacters: "+_",
 			MaxLength:         64,
 		})
+		if err != nil {
+			return "", fmt.Errorf("new unique name generator non access point: %w", err)
+		}
 	}
 
+	name, err := uniqueRoleNameGenerator.Generate(ap)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("generate unique name: %w", err)
 	}
 
-	return uniqueRoleNameGenerator.Generate(ap)
+	return name, nil
 }
 
-func GetRegions(config *config.ConfigMap) []string {
-	regions := config.GetString(constants.AwsRegions)
+func GetRegions(cfg *config.ConfigMap) []string {
+	regions := cfg.GetString(constants.AwsRegions)
 
 	if regions == "" {
 		return []string{}

@@ -42,6 +42,7 @@ func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accoun
 	}
 
 	moreObjectsAvailable := true
+
 	var nextToken *string
 
 	tableMap := make(map[string]string)
@@ -81,6 +82,7 @@ func (repo *AwsGlueRepository) ListDatabases(ctx context.Context, accountId stri
 	}
 
 	moreObjectsAvailable := true
+
 	var nextToken *string
 
 	databases := make([]string, 0, 10)

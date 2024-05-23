@@ -9,10 +9,11 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/smithy-go/ptr"
+	"github.com/raito-io/cli/base/util/config"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/config"
 
 	ds "github.com/raito-io/cli/base/data_source"
 )
@@ -44,12 +45,12 @@ func (repo *AwsS3Repository) GetS3Client(ctx context.Context, region *string) (*
 func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]model.AwsS3Entity, error) {
 	client, err := repo.GetS3Client(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get s3 client: %w", err)
 	}
 
 	output, err := client.ListBuckets(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list buckets: %w", err)
 	}
 
 	// TODO; get tags from buckets
@@ -79,12 +80,12 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 
 	bucketClient, err := repo.GetS3Client(ctx, nil)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get s3 client: %w", err)
 	}
 
 	bucketInfo, err := bucketClient.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: &bucket})
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get bucket location: %w", err)
 	}
 
 	bucketLocation := string(bucketInfo.LocationConstraint)
@@ -96,6 +97,7 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 	}
 
 	moreObjectsAvailable := true
+
 	var continuationToken *string
 	var result []model.AwsS3Entity
 
@@ -108,7 +110,7 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 
 		response, err := client.ListObjectsV2(ctx, input)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("list objects: %w", err)
 		}
 
 		moreObjectsAvailable = response.IsTruncated != nil && *response.IsTruncated
@@ -136,10 +138,10 @@ func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string, re
 		Bucket: &bucket,
 		Key:    &key,
 	}
-	output, err := client.GetObject(ctx, input)
 
+	output, err := client.GetObject(ctx, input)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get object: %w", err)
 	}
 
 	return output.Body, nil

@@ -2,12 +2,14 @@ package aws
 
 import (
 	"context"
+	"fmt"
+
+	"github.com/raito-io/cli/base/util/config"
+	"github.com/raito-io/cli/base/wrappers"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/config"
-	"github.com/raito-io/cli/base/wrappers"
 
 	is "github.com/raito-io/cli/base/identity_store"
 )
@@ -42,7 +44,7 @@ func newRepoProvider(configMap *config.ConfigMap) identityStoreRepository {
 func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHandler wrappers.IdentityStoreIdentityHandler, configMap *config.ConfigMap) error {
 	groups, err := s.repoProvider(configMap).GetGroups(ctx)
 	if err != nil {
-		return err
+		return fmt.Errorf("get groups: %w", err)
 	}
 
 	userGroupMap := map[string][]string{}
@@ -55,7 +57,7 @@ func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHan
 			// ParentGroupExternalIds: nil, // AWS IAM doesn't support group hierarchies
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("add group to handler: %w", err)
 		}
 
 		for _, member := range g.Members {
@@ -66,7 +68,7 @@ func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHan
 	// get users
 	users, err := s.repoProvider(configMap).GetUsers(ctx, true)
 	if err != nil {
-		return err
+		return fmt.Errorf("get users: %w", err)
 	}
 
 	for _, u := range users {
@@ -79,7 +81,7 @@ func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHan
 			GroupExternalIds: userGroupMap[u.ExternalId],
 		})
 		if err != nil {
-			return err
+			return fmt.Errorf("add user to handler: %w", err)
 		}
 	}
 

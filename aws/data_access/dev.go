@@ -8,7 +8,7 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 )
 
-func printDebugAp(ap importer.AccessProvider) {
+func printDebugAp(ap *importer.AccessProvider) {
 	utils.Logger.Debug(fmt.Sprintf("=================  ap name: %v =================  ", ap.Name))
 
 	if ap.ActualName != nil {

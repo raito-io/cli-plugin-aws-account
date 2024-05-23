@@ -2,13 +2,15 @@ package repo
 
 import (
 	"context"
+	"fmt"
 	"strings"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
-	aws2 "github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli/base/util/config"
+
+	aws2 "github.com/raito-io/cli-plugin-aws-account/aws/constants"
 )
 
 func GetAWSConfig(ctx context.Context, configMap *config.ConfigMap, region *string) (aws.Config, error) {
@@ -43,14 +45,19 @@ func getAWSConfig(ctx context.Context, configMap *config.ConfigMap, profileParam
 		loadOptions = append(loadOptions, awsconfig.WithRegion(awsRegion))
 	}
 
-	return awsconfig.LoadDefaultConfig(ctx, loadOptions...)
+	cfg, err := awsconfig.LoadDefaultConfig(ctx, loadOptions...)
+	if err != nil {
+		return aws.Config{}, fmt.Errorf("load default config: %w", err)
+	}
+
+	return cfg, nil
 }
 
 func GetAccountId(ctx context.Context, configMap *config.ConfigMap) (string, error) {
 	cfg, err := GetAWSConfig(ctx, configMap, nil)
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get aws config: %w", err)
 	}
 
 	client := sts.NewFromConfig(cfg)
@@ -58,7 +65,7 @@ func GetAccountId(ctx context.Context, configMap *config.ConfigMap) (string, err
 
 	req, err := client.GetCallerIdentity(ctx, input)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get caller indentity: %w", err)
 	}
 
 	return *req.Account, nil

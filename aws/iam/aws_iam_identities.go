@@ -40,7 +40,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 		response, err2 := client.ListUsers(ctx, &input)
 		if err2 != nil {
-			return nil, err2
+			return nil, fmt.Errorf("list users: %w", err2)
 		}
 
 		allUsers = append(allUsers, response.Users...)
@@ -152,7 +152,7 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]model.GroupEntit
 
 			groupDetails, err := client.GetGroup(ctx, &groupInput)
 			if err != nil {
-				return nil, nil
+				return nil, fmt.Errorf("get group: %w", err)
 			}
 
 			moreGroupDetailsAvailable = groupDetails.IsTruncated
@@ -326,7 +326,7 @@ func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description 
 		},
 	})
 	if err != nil {
-		return false,  err
+		return false, fmt.Errorf("create role: %w", err)
 	}
 
 	return true, nil
@@ -342,7 +342,7 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error
 		RoleName: aws.String(name),
 	})
 	if err != nil {
-		return nil
+		return fmt.Errorf("delete role: %w", err)
 	}
 
 	return nil
@@ -364,7 +364,7 @@ func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, roleName
 		RoleName:       &roleName,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("update assume role policy: %w", err)
 	}
 
 	return nil
@@ -384,7 +384,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 
 		policy, _, err = repo.parsePolicyDocument(existingPolicyDoc, "", "")
 		if err != nil {
-			return "", nil
+			return "", fmt.Errorf("parse policy document: %w", nil)
 		}
 
 		for ind := range policy.Statements {
@@ -419,7 +419,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 
 	bytes, err := json.Marshal(policy)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal policy: %w", err)
 	}
 	existingPolicyDoc = aws.String(string(bytes))
 

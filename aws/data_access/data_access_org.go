@@ -205,7 +205,7 @@ func (e *roleEnricher) fetchSSOInstances() error {
 
 	instances, err := client.ListInstances(e.ctx, &ssoadmin.ListInstancesInput{})
 	if err != nil {
-		return err
+		return fmt.Errorf("list instances: %w", err)
 	}
 
 	e.identityStores = make([]string, 0)
@@ -279,7 +279,7 @@ func (e *roleEnricher) fetchPermissionSetAssignees(client *ssoadmin.Client, inst
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list account assignments: %w", err)
 	}
 
 	var ret []Assignee
@@ -311,7 +311,7 @@ func (e *roleEnricher) fetchPermissionSetName(client *ssoadmin.Client, instanceA
 	})
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("describe permission set: %w", err)
 	}
 
 	return *details.PermissionSet.Name, nil

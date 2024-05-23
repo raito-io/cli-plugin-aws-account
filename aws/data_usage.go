@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gammazero/workerpool"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -262,21 +263,21 @@ func mapToClosedObject(object string, availableObjects map[string]interface{}) s
 func getFileContents(ctx context.Context, repo dataUsageRepository, bucketName string, fileKey string) (string, error) {
 	reader, err := repo.GetFile(ctx, bucketName, fileKey, "")
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("get file: %w", err)
 	}
 	defer reader.Close()
 
 	gzipReader, err := gzip.NewReader(reader)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("new reader: %w", err)
 	}
 	defer gzipReader.Close()
 
 	buf := new(strings.Builder)
 
-	_, err = io.Copy(buf, gzipReader) //nolint: gosec
+	_, err = io.Copy(buf, gzipReader) //nolint:gosec // no risk of injection
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("copy: %w", err)
 	}
 
 	return buf.String(), nil
@@ -286,5 +287,10 @@ func addStatementsToDataUsageHandler(dataUsageFileHandler wrappers.DataUsageStat
 	lock.Lock()
 	defer lock.Unlock()
 
-	return dataUsageFileHandler.AddStatements(statements)
+	err := dataUsageFileHandler.AddStatements(statements)
+	if err != nil {
+		return fmt.Errorf("add statement to handler: %w", err)
+	}
+
+	return nil
 }

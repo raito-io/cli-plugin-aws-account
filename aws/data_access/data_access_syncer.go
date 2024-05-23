@@ -76,7 +76,7 @@ func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigM
 
 	a.account, err = repo.GetAccountId(ctx, configMap)
 	if err != nil {
-		return err
+		return fmt.Errorf("get account id: %w", err)
 	}
 
 	return nil

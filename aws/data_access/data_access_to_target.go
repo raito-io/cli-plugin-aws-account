@@ -58,14 +58,14 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.Co
 
 	groups, err := iamRepo.GetGroups(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get groups: %w", err)
 	}
 
 	a.userGroupMap = make(map[string][]string)
 
 	users, err := iamRepo.GetUsers(ctx, false)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get users: %w", err)
 	}
 
 	userMap := make(map[string]string)
@@ -86,7 +86,7 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.Co
 	return a.userGroupMap, nil
 }
 
-func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) (err error) {
+func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) (err error) { //nolint:gocyclo //TODO simplify this function
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
 		utils.Logger.Info("No access providers to sync from Raito to AWS")
 		return nil
@@ -201,7 +201,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			continue
 		}
 
-		printDebugAp(*ap)
+		printDebugAp(ap)
 
 		// Check the incoming external ID to see if there is a list of inline policies defined
 		if ap.ExternalId != nil && strings.Contains(*ap.ExternalId, constants.InlinePrefix) {
@@ -585,7 +585,7 @@ func mergeStatementsOnPermissions(statements []*awspolicy.Statement) []*awspolic
 	return mergedStatements
 }
 
-func (a *AccessSyncer) handlePolicyUpdates(ctx context.Context, policyActionMap map[string]string, policyAps map[string]*sync_to_target.AccessProvider, existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding], inlineUserPoliciesToDelete map[string][]string, inlineGroupPoliciesToDelete map[string][]string, feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
+func (a *AccessSyncer) handlePolicyUpdates(ctx context.Context, policyActionMap map[string]string, policyAps map[string]*sync_to_target.AccessProvider, existingPolicyWhoBindings map[string]set.Set[model.PolicyBinding], newPolicyWhoBindings map[string]set.Set[model.PolicyBinding], inlineUserPoliciesToDelete map[string][]string, inlineGroupPoliciesToDelete map[string][]string, feedbackMap map[string]*sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) { //nolint:gocyclo //TODO simplify this function
 	var err error
 	managedPolicies := set.NewSet[string]()
 	skippedPolicies := set.NewSet[string]()
@@ -659,7 +659,7 @@ func (a *AccessSyncer) handlePolicyUpdates(ctx context.Context, policyActionMap 
 		}
 	}
 
-	for policyName, bindings := range policyBindingsToAdd { //nolint: dupl
+	for policyName, bindings := range policyBindingsToAdd { //nolint:dupl //We may want to optimise this later
 		ap := policyAps[policyName]
 
 		policyArn := a.repo.GetPolicyArn(policyName, managedPolicies.Contains(policyName), configMap)
@@ -694,7 +694,7 @@ func (a *AccessSyncer) handlePolicyUpdates(ctx context.Context, policyActionMap 
 	}
 
 	// Now handle the WHO bindings to remove for policies
-	for policyName, bindings := range policyBindingsToRemove { //nolint: dupl
+	for policyName, bindings := range policyBindingsToRemove { //nolint:dupl //We may want to optimise this later
 		ap := policyAps[policyName]
 
 		policyArn := a.repo.GetPolicyArn(policyName, managedPolicies.Contains(policyName), configMap)
