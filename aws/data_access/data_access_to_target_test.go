@@ -3,8 +3,10 @@ package data_access
 import (
 	"context"
 	"fmt"
+	"sort"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
+	"github.com/raito-io/golang-set/set"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
@@ -12,7 +14,6 @@ import (
 
 	"reflect"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers/mocks"
-	"github.com/raito-io/golang-set/set"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -834,26 +834,32 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 func TestGetRecursiveInheritedAPs(t *testing.T) {
 	var tests = []struct {
 		Start          string
-		InheritanceMap map[string]set.Set[string]
+		DetailsMap     map[string]*AccessProviderDetails
 		ExpectedResult []string
 	}{
-		{"r1", map[string]set.Set[string]{
-			"r1": set.NewSet("r2"),
-			"r2": set.NewSet("r3"),
-		}, []string{"r2", "r3"}},
+		{
+			Start: "r1",
+			DetailsMap: map[string]*AccessProviderDetails{
+				"r1": {inverseInheritance: set.Set[string]{"r2": struct{}{}}},
+				"r2": {inverseInheritance: set.Set[string]{"r3": struct{}{}}},
+			},
+			ExpectedResult: []string{"r2", "r3"}},
 
-		{"r1", map[string]set.Set[string]{
-			"r0": set.NewSet("r1"),
-			"r1": set.NewSet("r2", "r3"),
-			"r3": set.NewSet("r5"),
-			"r4": set.NewSet("r2"),
-		}, []string{"r2", "r3", "r5"}},
+		{
+			Start: "r1",
+			DetailsMap: map[string]*AccessProviderDetails{
+				"r0": {inverseInheritance: set.Set[string]{"r1": struct{}{}}},
+				"r1": {inverseInheritance: set.Set[string]{"r2": struct{}{}, "r3": struct{}{}}},
+				"r3": {inverseInheritance: set.Set[string]{"r5": struct{}{}}},
+				"r4": {inverseInheritance: set.Set[string]{"r2": struct{}{}}},
+			},
+			ExpectedResult: []string{"r2", "r3", "r5"}},
 	}
 
 	for _, test := range tests {
 		inherited := set.NewSet[string]()
 
-		getRecursiveInheritedAPs(test.Start, test.InheritanceMap, inherited)
+		getRecursiveInheritedAPsDetails(test.Start, test.DetailsMap, inherited)
 
 		res := inherited.Slice()
 		sort.Strings(res)
@@ -901,7 +907,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Principal: map[string][]string{
-			"AWS": {"stewart_b"},
+			"AWS": {"arn:aws:iam:::user/stewart_b"},
 		},
 		Resource: []string{
 			"arn:aws:s3:us-west-1::accesspoint/test-access-point/object/folder1/folder2/*",

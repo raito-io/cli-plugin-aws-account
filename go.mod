@@ -20,6 +20,7 @@ require (
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/n4ch04/aws-policy v1.0.1
 	github.com/raito-io/cli v0.64.1
+	github.com/raito-io/enumer v0.1.4
 	github.com/raito-io/golang-set v0.0.4
 	github.com/stretchr/testify v1.9.0
 	github.com/vektra/mockery/v2 v2.43.0
@@ -69,7 +70,6 @@ require (
 	github.com/pelletier/go-toml/v2 v2.2.2 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect
 	github.com/raito-io/bexpression v0.1.2 // indirect
-	github.com/raito-io/enumer v0.1.4 // indirect
 	github.com/rs/zerolog v1.32.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect

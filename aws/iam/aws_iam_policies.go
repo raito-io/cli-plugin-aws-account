@@ -69,9 +69,6 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 	}
 
 	var resultErr error
-	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
-
-	defer workerPool.Stop()
 
 	paginator := iam.NewListPoliciesPaginator(client, &input)
 
@@ -80,6 +77,8 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 		if pageErr != nil {
 			return nil, fmt.Errorf("policy nex page: %w", pageErr)
 		}
+
+		workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 
 		for i := range resp.Policies {
 			policy := resp.Policies[i]
@@ -90,6 +89,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 			}
 
 			if matched {
+				utils.Logger.Debug(fmt.Sprintf("Skipping policy %s as it is excluded", *policy.PolicyName))
 				continue
 			}
 
@@ -164,11 +164,11 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.P
 			})
 		}
 
+		workerPool.StopWait()
+
 		utils.Logger.Info(fmt.Sprintf("Finished processing %d Policies", len(resp.Policies)))
 		utils.Logger.Info(fmt.Sprintf("A total of %d policies have been found so far", len(result)))
 	}
-
-	workerPool.StopWait()
 
 	if resultErr != nil {
 		return nil, resultErr
@@ -1174,6 +1174,8 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}
 
+	utils.Logger.Debug(fmt.Sprintf("Policy document for access point creation: %s", policyDoc))
+
 	_, err = client.PutAccessPointPolicy(ctx, &s3control.PutAccessPointPolicyInput{
 		AccountId: &repo.account,
 		Name:      aws.String(name),
@@ -1193,6 +1195,8 @@ func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string
 	if err != nil {
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}
+
+	utils.Logger.Debug(fmt.Sprintf("Policy document for access point update: %s", policyDoc))
 
 	_, err = client.PutAccessPointPolicy(ctx, &s3control.PutAccessPointPolicyInput{
 		AccountId: &repo.account,
