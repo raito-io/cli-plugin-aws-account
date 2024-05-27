@@ -16,21 +16,16 @@ func TestRoleAccessHandler_HandleInheritance(t *testing.T) {
 		// In this test we test the following case of inheritance where all are internal APs:
 		// (Role1) - [WHO] -> (Role2)
 
-		roleExecutor := roleAccessHandler{
-			repo:            nil,
-			getUserGroupMap: nil,
-		}
-
 		detailsMap := map[string]*AccessProviderDetails{
 			"Role1": {
-				inheritance: set.NewSet("Role2"),
+				inheritance: map[model.AccessProviderType][]string{model.Role: {"Role2"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user1",
 				}),
 			},
 			"Role2": {
-				inheritance: set.NewSet[string](),
+				inheritance: map[model.AccessProviderType][]string{},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user2",
@@ -38,7 +33,15 @@ func TestRoleAccessHandler_HandleInheritance(t *testing.T) {
 			},
 		}
 
-		roleExecutor.HandleInheritance(detailsMap, nil)
+		roleExecutor := roleAccessHandler{
+			repo:            nil,
+			getUserGroupMap: nil,
+			accessProviders: &AccessProvidersByType{
+				Roles: detailsMap,
+			},
+		}
+
+		roleExecutor.HandleInheritance()
 
 		compareBindings(t, set.NewSet(
 			model.PolicyBinding{
@@ -61,23 +64,18 @@ func TestRoleAccessHandler_HandleInheritance(t *testing.T) {
 
 	t.Run("ExternalAps", func(t *testing.T) {
 		// In this test we test the following case of inheritance where all are external APs:
-		// (Role1) - [WHO] -> (Role2)
-
-		roleExecutor := roleAccessHandler{
-			repo:            nil,
-			getUserGroupMap: nil,
-		}
+		// (Role1) - [WHO] ->
 
 		detailsMap := map[string]*AccessProviderDetails{
 			"Role1": {
-				inheritance: set.NewSet("Role2"),
+				inheritance: map[model.AccessProviderType][]string{model.Role: {"Role2"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user1",
 				}),
 			},
 			"Role2": {
-				inheritance: set.NewSet[string](),
+				inheritance: map[model.AccessProviderType][]string{},
 				existingBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user2",
@@ -85,7 +83,15 @@ func TestRoleAccessHandler_HandleInheritance(t *testing.T) {
 			},
 		}
 
-		roleExecutor.HandleInheritance(detailsMap, nil)
+		roleExecutor := roleAccessHandler{
+			repo:            nil,
+			getUserGroupMap: nil,
+			accessProviders: &AccessProvidersByType{
+				Roles: detailsMap,
+			},
+		}
+
+		roleExecutor.HandleInheritance()
 
 		compareBindings(t, set.NewSet(
 			model.PolicyBinding{
@@ -108,49 +114,61 @@ func TestProcessPolicyInheritance(t *testing.T) {
 		// (Policy1) - [WHO] -> (Policy2) - [WHO] -> (Role1) - [WHO] -> (Role2)
 
 		// Given
-		roleExecutor := roleAccessHandler{
-			repo:            nil,
-			getUserGroupMap: nil,
-		}
-
 		rolesDetails := map[string]*AccessProviderDetails{
 			"Role1": {
-				inheritance: set.NewSet("Role2"),
+				inheritance: map[model.AccessProviderType][]string{model.Role: {"Role2"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user1",
 				}),
+				apType: model.Role,
+				name:   "Role1",
 			},
 			"Role2": {
-				inheritance: set.NewSet[string](),
+				inheritance: map[model.AccessProviderType][]string{},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user2",
 				}),
+				apType: model.Role,
+				name:   "Role2",
 			},
 		}
 
 		policiesDetails := map[string]*AccessProviderDetails{
 			"Policy1": {
-				inheritance: set.NewSet("Policy2"),
+				inheritance: map[model.AccessProviderType][]string{model.Policy: {"Policy2"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user3",
 				}),
+				apType: model.Policy,
+				name:   "Policy1",
 			},
 			"Policy2": {
-				inheritance: set.NewSet("Role1"),
+				inheritance: map[model.AccessProviderType][]string{model.Role: {"Role1"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user4",
 				}),
+				apType: model.Policy,
+				name:   "Policy2",
 			},
 		}
 
-		roleExecutor.HandleInheritance(rolesDetails, nil)
+		roleExecutor := roleAccessHandler{
+			repo:            nil,
+			getUserGroupMap: nil,
+			accessProviders: &AccessProvidersByType{
+				Roles:    rolesDetails,
+				Policies: policiesDetails,
+			},
+		}
+
+		roleExecutor.HandleInheritance()
 
 		// When
-		processPolicyInheritance(policiesDetails, rolesDetails)
+		processPolicyInheritance(policiesDetails, roleExecutor.accessProviders)
 
 		// Then
 		compareBindings(t, set.NewSet(
@@ -191,50 +209,61 @@ func TestProcessPolicyInheritance(t *testing.T) {
 	t.Run("ExternalAps", func(t *testing.T) {
 		// In this test we test the following case of inheritance where all are external APs:
 		// (Policy1) - [WHO] -> (Policy2) - [WHO] -> (Role1) - [WHO] -> (Role2)
-
-		roleExecutor := roleAccessHandler{
-			repo:            nil,
-			getUserGroupMap: nil,
-		}
-
 		rolesDetails := map[string]*AccessProviderDetails{
 			"Role1": {
-				inheritance: set.NewSet("Role2"),
+				inheritance: map[model.AccessProviderType][]string{model.Role: {"Role2"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user1",
 				}),
+				name:   "Role1",
+				apType: model.Role,
 			},
 			"Role2": {
-				inheritance: set.NewSet[string](),
+				inheritance: map[model.AccessProviderType][]string{},
 				existingBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user2",
 				}),
+				name:   "Role2",
+				apType: model.Role,
 			},
 		}
 
 		policiesDetails := map[string]*AccessProviderDetails{
 			"Policy1": {
-				inheritance: set.NewSet("Policy2"),
+				inheritance: map[model.AccessProviderType][]string{model.Policy: {"Policy2"}},
 				newBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user3",
 				}),
+				name:   "Policy1",
+				apType: model.Policy,
 			},
 			"Policy2": {
-				inheritance: set.NewSet("Role1"),
+				inheritance: map[model.AccessProviderType][]string{model.Role: {"Role1"}},
 				existingBindings: set.NewSet(model.PolicyBinding{
 					Type:         iam.UserResourceType,
 					ResourceName: "user4",
 				}),
+				name:   "Policy2",
+				apType: model.Policy,
 			},
 		}
 
-		roleExecutor.HandleInheritance(rolesDetails, nil)
+		roleExecutor := roleAccessHandler{
+			repo:            nil,
+			getUserGroupMap: nil,
+			accessProviders: &AccessProvidersByType{
+				Roles:    rolesDetails,
+				Policies: policiesDetails,
+			},
+		}
+
+		roleExecutor.HandleInheritance()
 
 		// When
-		processPolicyInheritance(policiesDetails, rolesDetails)
+		processPolicyInheritance(policiesDetails, roleExecutor.accessProviders)
 
 		// Then
 		compareBindings(t, set.NewSet(

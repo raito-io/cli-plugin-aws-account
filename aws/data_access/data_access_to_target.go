@@ -7,9 +7,11 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/go-multierror"
 	ds "github.com/raito-io/cli/base/data_source"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -86,21 +88,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	utils.Logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
-	roleActionMap, existingRoleWhoBindings, err := a.fetchExistingRoles(ctx)
-	if err != nil {
-		return err
-	}
-
-	policyActionMap, existingPolicyWhoBindings, err := a.fetchExistingManagedPolicies(ctx)
-	if err != nil {
-		return err
-	}
-
-	accessPointActionMap, existingAccessPointWhoBindings, err := a.fetchExistingAccessPoints(ctx, configMap)
-	if err != nil {
-		return err
-	}
-
 	feedbackMap := make(map[string]*sync_to_target.AccessProviderSyncFeedback)
 
 	// Making sure we always send the feedback back
@@ -113,104 +100,88 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 	}()
 
-	inheritanceResolver := func(aps ...string) ([]string, error) {
-		return iam.ResolveInheritedApNames(resolveApType, accessProviders.AccessProviders, aps...)
-	}
-
-	roleHandler := NewRoleAccessHandler(a.repo, a.getUserGroupMap, roleActionMap, existingRoleWhoBindings, inheritanceResolver)
-	policyHandler := NewPolicyAccessHandler(a.repo, policyActionMap, existingPolicyWhoBindings, inheritanceResolver)
-	accessPointHandler := NewAccessProviderHandler(a.account, a.repo, a.getUserGroupMap, accessPointActionMap, existingAccessPointWhoBindings, inheritanceResolver)
+	// Sort access providers on type
+	typeSortedAccessProviders := NewAccessProvidersByType()
 
 	for i := range accessProviders.AccessProviders {
-		ap := accessProviders.AccessProviders[i]
+		accessProvider := accessProviders.AccessProviders[i]
 
-		if ap == nil {
+		if accessProvider == nil {
 			continue
 		}
 
 		// Create the initial feedback object
 		apFeedback := &sync_to_target.AccessProviderSyncFeedback{
-			AccessProvider: ap.Id,
+			AccessProvider: accessProvider.Id,
 		}
-		feedbackMap[ap.Id] = apFeedback
+		feedbackMap[accessProvider.Id] = apFeedback
 
-		// Determine the type
-		apType, err2 := resolveApType(ap)
+		apType, err2 := resolveApType(accessProvider, configMap)
 		if err2 != nil {
-			logFeedbackError(apFeedback, err2.Error())
+			logFeedbackError(apFeedback, fmt.Sprintf("Unable to resolve access provider type: %s", err2.Error()))
+
+			continue
 		}
 
-		switch apType {
-		case model.Role, model.SSORole:
-			roleHandler.AddAccessProvider(ap, apType, apFeedback, configMap)
-		case model.Policy:
-			policyHandler.AddAccessProvider(ap, apType, apFeedback, configMap)
-		case model.AccessPoint:
-			accessPointHandler.AddAccessProvider(ap, apType, apFeedback, configMap)
-		default:
-			logFeedbackError(apFeedback, fmt.Sprintf("unknown access provider type %q", apType))
+		apFeedback.Type = ptr.String(string(apType))
+
+		typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback)
+	}
+
+	// Based on AWS dependencies we handle the access providers in the following order:
+	// 1. Roles
+	// 2. Policies
+	// 3. Access Points
+	// 4. Permission Sets
+
+	roleHandler := NewRoleAccessHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
+	policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo)
+	accessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
+
+	handlers := []*AccessHandler{roleHandler, policyHandler, accessPointHandler}
+
+	// Initialize handers
+	for _, handler := range handlers {
+		err = handler.Initialize(ctx, configMap)
+		if err != nil {
+			return fmt.Errorf("initialize handler %T: %w", handler, err)
 		}
 	}
 
-	// Handle inheritance
-	roleDetailsMap := roleHandler.ProcessInheritance(nil)
-	_ = policyHandler.ProcessInheritance(roleDetailsMap)
-	_ = accessPointHandler.ProcessInheritance(roleDetailsMap)
+	// Start processing access providers
+	for _, handler := range handlers {
+		handler.PrepareAccessProviders()
+	}
 
-	roleHandler.HandleUpdates(ctx, configMap)
-	policyHandler.HandleUpdates(ctx, configMap)
-	accessPointHandler.HandleUpdates(ctx, configMap)
+	// Process Inheritance
+	for _, handler := range handlers {
+		handler.ProcessInheritance()
+	}
+
+	// Update access providers
+	for _, handler := range handlers {
+		handler.HandleUpdates(ctx)
+	}
 
 	return nil
 }
 
-func resolveApType(ap *sync_to_target.AccessProvider) (model.AccessProviderType, error) {
-	// Determine the type
-	apType := model.Policy
+func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMap) (model.AccessProviderType, error) {
+	if ap.Type != nil {
+		return model.AccessProviderType(*ap.Type), nil
+	}
 
-	if ap.Action == sync_to_target.Purpose {
-		// TODO look at all other APs to see what the incoming WHO links are.
-		// How do we handle this with external APs? Do we have this information in the existingRoleWhoBindings and existingPolicyWhoBindings ?
-		// If so, do we already know if the role is an SSO role or not?
-		// If this is linked to an SSO role (can only be 1): we just add the sso role as actual name and add the WHO from
-		//    How to handle Purpose inheritance?
-		//    How to handle partial syncs? (can we even support this?) Possibly need a metadata indication that we always need to export the purposes and SSO roles?
-		// If this is linked to a role (or multiple?): we handle it the same way as a normal role (or do the same as for SSO roles?)
-		// If this is linked to a policy (or multiple?): we need to add the WHO to the policy (= act as normal policy?)
-		return apType, fmt.Errorf("currently purposes are not supported yet")
-	} else {
-		if ap.Type == nil {
-			utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
+	if ap.Action == sync_to_target.Promise {
+		if configmap.GetStringWithDefault(constants.AwsOrganizationProfile, "") != "" {
+			return model.SSORole, nil
 		} else {
-			apType = model.AccessProviderType(*ap.Type)
+			return model.Role, nil
 		}
 	}
 
-	return apType, nil
-}
+	utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
 
-func getAllAPsInInheritanceChainForWhatDetails(start string, detailsMap map[string]*AccessProviderDetails) []*sync_to_target.AccessProvider {
-	inherited := set.NewSet[string]()
-	getRecursiveInheritedAPsDetails(start, detailsMap, inherited)
-
-	aps := make([]*sync_to_target.AccessProvider, 0, len(inherited))
-
-	for i := range inherited {
-		aps = append(aps, detailsMap[i].ap)
-	}
-
-	return aps
-}
-
-func getRecursiveInheritedAPsDetails(start string, detailsMap map[string]*AccessProviderDetails, inherited set.Set[string]) {
-	if in, f := detailsMap[start]; f {
-		for k := range in.inverseInheritance {
-			if !inherited.Contains(k) {
-				inherited.Add(k)
-				getRecursiveInheritedAPsDetails(k, detailsMap, inherited)
-			}
-		}
-	}
+	return model.Policy, nil
 }
 
 // convertResourceURLsForAccessPoint converts all the resource ARNs in the policy statements to the corresponding ones for the access point.
@@ -439,124 +410,6 @@ func contains(slice []string, val string) bool {
 	}
 
 	return false
-}
-
-func (a *AccessSyncer) fetchExistingRoles(ctx context.Context) (map[string]AccessProviderAction, map[string]set.Set[model.PolicyBinding], error) {
-	utils.Logger.Info("Fetching existing roles")
-
-	roles, err := a.repo.GetRoles(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching existing roles: %w", err)
-	}
-
-	roleMap := map[string]AccessProviderAction{}
-	existingRoleAssumptions := map[string]set.Set[model.PolicyBinding]{}
-
-	for _, role := range roles {
-		roleMap[role.Name] = ActionExisting
-
-		who, _ := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, a.account)
-		existingRoleAssumptions[role.Name] = set.Set[model.PolicyBinding]{}
-
-		if who != nil {
-			for _, userName := range who.Users {
-				key := model.PolicyBinding{
-					Type:         iam.UserResourceType,
-					ResourceName: userName,
-				}
-				existingRoleAssumptions[role.Name].Add(key)
-			}
-		}
-	}
-
-	utils.Logger.Info(fmt.Sprintf("Fetched existing %d roles", len(roleMap)))
-
-	return roleMap, existingRoleAssumptions, nil
-}
-
-func (a *AccessSyncer) fetchExistingManagedPolicies(ctx context.Context) (map[string]AccessProviderAction, map[string]set.Set[model.PolicyBinding], error) {
-	utils.Logger.Info("Fetching existing managed policies")
-
-	managedPolicies, err := a.repo.GetManagedPolicies(ctx)
-	if err != nil {
-		return nil, nil, fmt.Errorf("error fetching existing managed policies: %w", err)
-	}
-
-	a.managedPolicies = managedPolicies
-
-	policyMap := map[string]AccessProviderAction{}
-	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
-
-	for ind := range managedPolicies {
-		policy := managedPolicies[ind]
-
-		policyMap[policy.Name] = ActionExisting
-
-		existingPolicyBindings[policy.Name] = set.Set[model.PolicyBinding]{}
-
-		existingPolicyBindings[policy.Name].Add(removeArn(policy.UserBindings)...)
-		existingPolicyBindings[policy.Name].Add(removeArn(policy.GroupBindings)...)
-		existingPolicyBindings[policy.Name].Add(removeArn(policy.RoleBindings)...)
-	}
-
-	utils.Logger.Info(fmt.Sprintf("Fetched existing %d managed policies", len(policyMap)))
-
-	return policyMap, existingPolicyBindings, nil
-}
-
-func (a *AccessSyncer) fetchExistingAccessPoints(ctx context.Context, configMap *config.ConfigMap) (map[string]AccessProviderAction, map[string]set.Set[model.PolicyBinding], error) {
-	utils.Logger.Info("Fetching existing access points")
-
-	accessPointMap := map[string]AccessProviderAction{}
-	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
-
-	for _, region := range utils.GetRegions(configMap) {
-		err := a.fetchExistingAccessPointsForRegion(ctx, region, accessPointMap, existingPolicyBindings)
-		if err != nil {
-			return nil, nil, fmt.Errorf("fetching existing access points for region %s: %w", region, err)
-		}
-	}
-
-	return accessPointMap, existingPolicyBindings, nil
-}
-
-func (a *AccessSyncer) fetchExistingAccessPointsForRegion(ctx context.Context, region string, accessPointMap map[string]AccessProviderAction, existingPolicyBindings map[string]set.Set[model.PolicyBinding]) error {
-	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
-	if err != nil {
-		return fmt.Errorf("error fetching existing access points: %w", err)
-	}
-
-	for ind := range accessPoints {
-		accessPoint := accessPoints[ind]
-
-		accessPointMap[accessPoint.Name] = ActionExisting
-
-		existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
-
-		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
-		if who != nil {
-			// Note: Groups are not supported here in AWS.
-			for _, userName := range who.Users {
-				key := model.PolicyBinding{
-					Type:         iam.UserResourceType,
-					ResourceName: userName,
-				}
-				existingPolicyBindings[accessPoint.Name].Add(key)
-			}
-
-			for _, ap := range who.AccessProviders {
-				key := model.PolicyBinding{
-					Type:         iam.RoleResourceType,
-					ResourceName: ap,
-				}
-				existingPolicyBindings[accessPoint.Name].Add(key)
-			}
-		}
-	}
-
-	utils.Logger.Info(fmt.Sprintf("Fetched existing %d access points", len(accessPointMap)))
-
-	return nil
 }
 
 func removeArn(input []model.PolicyBinding) []model.PolicyBinding {

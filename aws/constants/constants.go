@@ -7,9 +7,9 @@ const (
 
 	AwsConcurrency = "aws-concurrency"
 
-	AwsOrganizationProfile = "aws-organization-profile"
-
-	AwsOrganizationRegion = "aws-organization-region"
+	AwsOrganizationProfile                   = "aws-organization-profile"
+	AwsOrganizationRegion                    = "aws-organization-region"
+	AwsOrganizationIdentityCenterInstanceArn = "aws-organization-identity-center-instance-arn"
 
 	AwsS3Enabled                = "aws-s3-enabled"
 	AwsS3EmulateFolderStructure = "aws-s3-emulate-folder-structure"
@@ -37,6 +37,7 @@ const (
 	InlinePrefix          = "inline:"
 	PolicyTypePrefix      = "policy:"
 	RoleTypePrefix        = "role:"
+	SsoRoleTypePrefix     = "ssorole:"
 	AccessPointTypePrefix = "accesspoint:"
 	UserTypePrefix        = "user:"
 	GroupTypePrefix       = "group:"

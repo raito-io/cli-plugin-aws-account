@@ -33,9 +33,10 @@ import (
 )
 
 const (
-	UserResourceType  string = "user"
-	GroupResourceType string = "group"
-	RoleResourceType  string = "role"
+	UserResourceType    string = "user"
+	GroupResourceType   string = "group"
+	RoleResourceType    string = "role"
+	SsoRoleResourceType string = "ssorole"
 )
 
 var smu sync.Mutex
@@ -286,7 +287,7 @@ func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleNa
 		return nil
 	}
 
-	policyDoc, err := repo.createPolicyDocument(statements)
+	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
 		return err
 	}
@@ -320,7 +321,7 @@ func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyNam
 		return nil, nil
 	}
 
-	policyDoc, err := repo.createPolicyDocument(statements)
+	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
 		return nil, err
 	}
@@ -349,7 +350,7 @@ func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyNam
 	return resp.Policy, nil
 }
 
-func (repo *AwsIamRepository) createPolicyDocument(statements []*awspolicy.Statement) (string, error) {
+func createPolicyDocument(statements []*awspolicy.Statement) (string, error) {
 	stms := make([]awspolicy.Statement, 0, len(statements))
 	for _, statement := range statements {
 		stms = append(stms, *statement)
@@ -378,7 +379,7 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 
 	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.configMap)
 
-	policyDoc, err := repo.createPolicyDocument(statements)
+	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
 		return fmt.Errorf("updating management policy: %w", err)
 	}
@@ -642,7 +643,7 @@ func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, policyName
 		return err
 	}
 
-	policyDocument, err := repo.createPolicyDocument(statements)
+	policyDocument, err := createPolicyDocument(statements)
 	if err != nil {
 		return err
 	}
@@ -1169,7 +1170,7 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 		return fmt.Errorf("creating access point %s: %w", name, err)
 	}
 
-	policyDoc, err := repo.createPolicyDocument(statements)
+	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}
@@ -1191,7 +1192,7 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error {
 	client := repo.getS3ControlClient(ctx, &region)
 
-	policyDoc, err := repo.createPolicyDocument(statements)
+	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}

@@ -18,77 +18,33 @@ import (
 )
 
 type UserGroupMapFunc func(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error)
-type InheritanceResolverFunc func(aps ...string) ([]string, error)
 
-type AccessProviderDetails struct {
-	ap                 *sync_to_target.AccessProvider
-	name               string
-	apType             model.AccessProviderType
-	action             AccessProviderAction
-	inheritance        set.Set[string]
-	inverseInheritance set.Set[string]
-	newBindings        set.Set[model.PolicyBinding]
-	existingBindings   set.Set[model.PolicyBinding]
-	apFeedback         *sync_to_target.AccessProviderSyncFeedback
+type AccessProvidersByType struct {
+	Roles          map[string]*AccessProviderDetails
+	Policies       map[string]*AccessProviderDetails
+	AccessPoints   map[string]*AccessProviderDetails
+	PermissionSets map[string]*AccessProviderDetails
+
+	AccessProviderById map[string]*AccessProviderDetails
 }
 
-func (a *AccessProviderDetails) GetExistingOrNewBindings() set.Set[model.PolicyBinding] {
-	if a.IsExternal() {
-		return a.existingBindings
-	}
+func NewAccessProvidersByType() AccessProvidersByType {
+	return AccessProvidersByType{
+		Roles:          map[string]*AccessProviderDetails{},
+		Policies:       map[string]*AccessProviderDetails{},
+		AccessPoints:   map[string]*AccessProviderDetails{},
+		PermissionSets: map[string]*AccessProviderDetails{},
 
-	return a.newBindings
-}
-
-func (a *AccessProviderDetails) IsExternal() bool {
-	return a.newBindings == nil
-}
-
-func NewAccessProviderDetails(ap *sync_to_target.AccessProvider, t model.AccessProviderType, apFeedback *sync_to_target.AccessProviderSyncFeedback) *AccessProviderDetails {
-	return &AccessProviderDetails{
-		ap:                 ap,
-		apType:             t,
-		action:             ActionUnknown,
-		inheritance:        set.NewSet[string](),
-		inverseInheritance: set.NewSet[string](),
-		apFeedback:         apFeedback,
+		AccessProviderById: map[string]*AccessProviderDetails{},
 	}
 }
 
-type accessHandlerExecutor interface {
-	HookInlinePolicies(ap *sync_to_target.AccessProvider)
-	ExternalId(name string, t model.AccessProviderType) string
-	HandleGroupBindings(ctx context.Context, configMap *config.ConfigMap, groups []string) (set.Set[model.PolicyBinding], error)
-	HandleInheritance(detailsMap map[string]*AccessProviderDetails, otherAccessDetails map[string]*AccessProviderDetails)
-	ExecuteUpdates(ctx context.Context, details map[string]*AccessProviderDetails, configMap *config.ConfigMap)
-}
-
-func NewAccessHandler(executor accessHandlerExecutor, actionMap map[string]AccessProviderAction, whoBindings map[string]set.Set[model.PolicyBinding], inheritanceResolver InheritanceResolverFunc) *AccessHandler {
-	return &AccessHandler{
-		accessProviderDetails: map[string]*AccessProviderDetails{},
-		executor:              executor,
-		inheritanceResolver:   inheritanceResolver,
-		actionMap:             actionMap,
-		whoBindings:           whoBindings,
-	}
-}
-
-type AccessHandler struct {
-	accessProviderDetails map[string]*AccessProviderDetails
-
-	actionMap   map[string]AccessProviderAction
-	whoBindings map[string]set.Set[model.PolicyBinding]
-
-	inheritanceResolver InheritanceResolverFunc
-	executor            accessHandlerExecutor
-}
-
-func (a *AccessHandler) AddAccessProvider(ap *sync_to_target.AccessProvider, t model.AccessProviderType, apFeedback *sync_to_target.AccessProviderSyncFeedback, configMap *config.ConfigMap) {
-	printDebugAp(ap)
-
+func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider, apFeedback *sync_to_target.AccessProviderSyncFeedback) {
 	details := NewAccessProviderDetails(ap, t, apFeedback)
 
 	apFeedback.Type = ptr.String(string(t))
+
+	a.AccessProviderById[ap.Id] = details
 
 	// Generate nane
 	name, err := utils.GenerateName(ap, t)
@@ -98,12 +54,137 @@ func (a *AccessHandler) AddAccessProvider(ap *sync_to_target.AccessProvider, t m
 		return
 	}
 
-	if existingBindings, found := a.whoBindings[name]; found {
+	apFeedback.ActualName = name
+	details.name = name
+
+	switch t {
+	case model.Role:
+		a.Roles[name] = details
+	case model.SSORole:
+		a.PermissionSets[name] = details
+	case model.Policy:
+		a.Policies[name] = details
+	case model.AccessPoint:
+		a.AccessPoints[name] = details
+	}
+}
+
+func (a *AccessProvidersByType) GetAccessProvider(t model.AccessProviderType, name string) *AccessProviderDetails {
+	switch t {
+	case model.Role:
+		return a.Roles[name]
+	case model.SSORole:
+		return a.PermissionSets[name]
+	case model.Policy:
+		return a.Policies[name]
+	case model.AccessPoint:
+		return a.AccessPoints[name]
+	}
+
+	return nil
+}
+
+func (a *AccessProvidersByType) GetDescendants(t model.AccessProviderType, name string) set.Set[*AccessProviderDetails] {
+	result := set.NewSet[*AccessProviderDetails]()
+
+	details := a.GetAccessProvider(t, name)
+	if details == nil {
+		return result
+	}
+
+	for childType, childNames := range details.inheritance {
+		for _, childName := range childNames {
+			childDetails := a.GetAccessProvider(childType, childName)
+			if childDetails != nil {
+				result.Add(childDetails)
+				result.AddSet(a.GetDescendants(childType, childName))
+			}
+		}
+	}
+
+	return result
+}
+
+func (a *AccessProvidersByType) GetAllAccessProvidersInInheritanceChainForWhat(t model.AccessProviderType, start string, allowedTypes ...model.AccessProviderType) set.Set[*AccessProviderDetails] {
+	allowedTypesSet := set.NewSet(allowedTypes...)
+	if len(allowedTypes) == 0 {
+		allowedTypesSet = set.NewSet(model.Role, model.SSORole, model.AccessPoint, model.Policy)
+	}
+
+	result := set.NewSet[*AccessProviderDetails]()
+
+	details := a.GetAccessProvider(t, start)
+	for parentType, parents := range details.inverseInheritance {
+		if !allowedTypesSet.Contains(parentType) {
+			continue
+		}
+
+		for _, parent := range parents {
+			result.Add(a.GetAccessProvider(parentType, parent))
+			result.AddSet(a.GetAllAccessProvidersInInheritanceChainForWhat(parentType, parent, allowedTypes...))
+		}
+	}
+
+	return result
+}
+
+type AccessHandlerExecutor interface {
+	Initialize(configmap *config.ConfigMap)
+	FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error)
+	HookInlinePolicies(ap *sync_to_target.AccessProvider)
+	ExternalId(details *AccessProviderDetails) *string
+	HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error)
+	HandleInheritance()
+	ExecuteUpdates(ctx context.Context)
+}
+
+func NewAccessHandler(executor AccessHandlerExecutor, handlerType model.AccessProviderType,
+	accessProviderDetails map[string]*AccessProviderDetails, accessProvidersByType *AccessProvidersByType) *AccessHandler {
+	return &AccessHandler{
+		accessProviderDetails: accessProviderDetails,
+		accessProvidersByType: accessProvidersByType,
+		handlerType:           handlerType,
+		executor:              executor,
+	}
+}
+
+type AccessHandler struct {
+	accessProviderDetails map[string]*AccessProviderDetails
+	accessProvidersByType *AccessProvidersByType
+	handlerType           model.AccessProviderType
+
+	//cache
+	existingBindings map[string]set.Set[model.PolicyBinding]
+
+	executor AccessHandlerExecutor
+}
+
+func (a *AccessHandler) Initialize(ctx context.Context, configmap *config.ConfigMap) error {
+	a.executor.Initialize(configmap)
+
+	bindings, err := a.executor.FetchExistingBindings(ctx)
+	if err != nil {
+		return fmt.Errorf("fetch existing bindings: %w", err)
+	}
+
+	a.existingBindings = bindings
+
+	return nil
+}
+
+func (a *AccessHandler) PrepareAccessProviders() {
+	for name, details := range a.accessProviderDetails {
+		a.preparationForAccessProvider(name, details)
+	}
+}
+
+func (a *AccessHandler) preparationForAccessProvider(name string, details *AccessProviderDetails) {
+	if existingBindings, found := a.existingBindings[name]; found {
 		details.existingBindings = existingBindings
 	}
 
-	apFeedback.ActualName = name
-	details.name = name
+	ap := details.ap
+	apFeedback := details.apFeedback
 
 	if ap.Action != sync_to_target.Grant && ap.Action != sync_to_target.Purpose {
 		logFeedbackError(apFeedback, fmt.Sprintf("unsupported access provider action: %d", ap.Action))
@@ -113,7 +194,7 @@ func (a *AccessHandler) AddAccessProvider(ap *sync_to_target.AccessProvider, t m
 
 	a.executor.HookInlinePolicies(ap)
 
-	_, found := a.actionMap[name]
+	_, found := a.existingBindings[name]
 
 	if ap.Delete {
 		if found {
@@ -125,8 +206,7 @@ func (a *AccessHandler) AddAccessProvider(ap *sync_to_target.AccessProvider, t m
 	}
 
 	// Create or update
-	externalId := a.executor.ExternalId(name, t)
-	apFeedback.ExternalId = &externalId
+	apFeedback.ExternalId = a.executor.ExternalId(details)
 
 	details.action = ActionCreate
 	if found {
@@ -134,14 +214,14 @@ func (a *AccessHandler) AddAccessProvider(ap *sync_to_target.AccessProvider, t m
 	}
 
 	// Storing the inheritance information to handle every we covered all APs
-	apInheritFromNames, err := a.inheritanceResolver(ap.Who.InheritFrom...)
+	apInheritFromNames, err := a.resolveInheritance(ap.Who.InheritFrom...)
 	if err != nil {
 		logFeedbackError(apFeedback, fmt.Sprintf("resolving inherited access providers: %s", err.Error()))
 
 		return
 	}
 
-	details.inheritance.Add(apInheritFromNames...)
+	details.inheritance = apInheritFromNames
 
 	// Handling the WHO by converting it to policy bindings
 	details.newBindings = set.NewSet[model.PolicyBinding]()
@@ -154,80 +234,148 @@ func (a *AccessHandler) AddAccessProvider(ap *sync_to_target.AccessProvider, t m
 		details.newBindings.Add(key)
 	}
 
-	groupBindings, err := a.executor.HandleGroupBindings(context.Background(), configMap, ap.Who.Groups)
+	apGroupBindings, err := a.executor.HandleGroupBindings(context.Background(), ap.Who.Groups)
 	if err != nil {
 		logFeedbackError(apFeedback, fmt.Sprintf("handling group bindings: %s", err.Error()))
 
 		return
 	}
 
-	details.newBindings.AddSet(groupBindings)
-
-	a.accessProviderDetails[name] = details
+	details.newBindings.AddSet(apGroupBindings)
 }
 
-func (a *AccessHandler) ProcessInheritance(otherDetailMaps map[string]*AccessProviderDetails) map[string]*AccessProviderDetails {
-	a.executor.HandleInheritance(a.accessProviderDetails, otherDetailMaps)
+func (a *AccessHandler) resolveInheritance(names ...string) (map[model.AccessProviderType][]string, error) {
+	result := map[model.AccessProviderType][]string{}
 
-	return a.accessProviderDetails
+	for _, name := range names {
+		if !strings.HasPrefix(name, "ID:") {
+			// No id is set so we assume the name is the name of the access provider with the same type
+			result[a.handlerType] = append(result[a.handlerType], name)
+		}
+
+		parts := strings.Split(name, "ID:")
+		if len(parts) != 2 {
+			continue
+		}
+
+		apID := parts[1]
+		if details, found := a.accessProvidersByType.AccessProviderById[apID]; found {
+			result[details.apType] = append(result[details.apType], details.name)
+		}
+	}
+
+	return result, nil
 }
 
-func (a *AccessHandler) HandleUpdates(ctx context.Context, configMap *config.ConfigMap) {
+func (a *AccessHandler) ProcessInheritance() map[string]*AccessProviderDetails {
+	a.executor.HandleInheritance()
+
 	// Build inverse inheritance map
 	for name, details := range a.accessProviderDetails {
-		for inheritedFrom := range details.inheritance {
-			if _, f := a.accessProviderDetails[inheritedFrom]; f {
-				a.accessProviderDetails[inheritedFrom].inverseInheritance.Add(name)
+		for apType, inheritedSet := range details.inheritance {
+			var inheritedAccessProviderMap map[string]*AccessProviderDetails
+			switch apType {
+			case model.Role:
+				inheritedAccessProviderMap = a.accessProvidersByType.Roles
+			case model.SSORole:
+				inheritedAccessProviderMap = a.accessProvidersByType.PermissionSets
+			case model.Policy:
+				inheritedAccessProviderMap = a.accessProvidersByType.Policies
+			case model.AccessPoint:
+				inheritedAccessProviderMap = a.accessProvidersByType.AccessPoints
+			}
+
+			for _, inheritedFrom := range inheritedSet {
+				if _, f := a.accessProviderDetails[inheritedFrom]; f {
+					inheritedAccessProviderMap[inheritedFrom].inverseInheritance[a.handlerType] = append(inheritedAccessProviderMap[inheritedFrom].inverseInheritance[a.handlerType], name)
+				}
 			}
 		}
 	}
 
-	a.executor.ExecuteUpdates(ctx, a.accessProviderDetails, configMap)
+	return a.accessProviderDetails
 }
 
-var _ accessHandlerExecutor = (*roleAccessHandler)(nil)
+func (a *AccessHandler) HandleUpdates(ctx context.Context) {
+	a.executor.ExecuteUpdates(ctx)
+}
 
-func NewRoleAccessHandler(repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, actionMap map[string]AccessProviderAction, whoBindings map[string]set.Set[model.PolicyBinding], inheritanceResolver InheritanceResolverFunc) *AccessHandler {
+func NewRoleAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) *AccessHandler {
 	executor := &roleAccessHandler{
+		accessProviders: allAccessProviders,
 		repo:            repo,
 		getUserGroupMap: getUserGroupMap,
+		account:         account,
 	}
 
-	return NewAccessHandler(executor, actionMap, whoBindings, inheritanceResolver)
+	return NewAccessHandler(executor, model.Role, allAccessProviders.Roles, allAccessProviders)
 }
 
 type roleAccessHandler struct {
+	accessProviders *AccessProvidersByType
 	repo            dataAccessRepository
 	getUserGroupMap UserGroupMapFunc
+	account         string
+
+	configMap *config.ConfigMap
 }
 
-func (r *roleAccessHandler) HookInlinePolicies(_ *sync_to_target.AccessProvider) {
+func (r *roleAccessHandler) Initialize(configmap *config.ConfigMap) {
+	r.configMap = configmap
+}
+
+func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+	utils.Logger.Info("Fetching existing roles")
+
+	roles, err := r.repo.GetRoles(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching existing roles: %w", err)
+	}
+
+	existingRoleAssumptions := map[string]set.Set[model.PolicyBinding]{}
+
+	for _, role := range roles {
+		who, _ := iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, r.account)
+		existingRoleAssumptions[role.Name] = set.Set[model.PolicyBinding]{}
+
+		if who != nil {
+			for _, userName := range who.Users {
+				key := model.PolicyBinding{
+					Type:         iam.UserResourceType,
+					ResourceName: userName,
+				}
+				existingRoleAssumptions[role.Name].Add(key)
+			}
+		}
+	}
+
+	utils.Logger.Info(fmt.Sprintf("Fetched existing %d roles", len(existingRoleAssumptions)))
+
+	return existingRoleAssumptions, nil
+}
+
+func (r *roleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {
 	// No-op
 }
 
-func (r *roleAccessHandler) ExternalId(name string, t model.AccessProviderType) string {
-	if t == model.Role {
-		return fmt.Sprintf("%s%s", constants.RoleTypePrefix, name)
-	}
-
-	return name
+func (r *roleAccessHandler) ExternalId(details *AccessProviderDetails) *string {
+	return ptr.String(fmt.Sprintf("%s%s", constants.RoleTypePrefix, details.name))
+}
+func (r *roleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
+	return unpackGroups(ctx, r.configMap, groups, r.getUserGroupMap)
 }
 
-func (r *roleAccessHandler) HandleGroupBindings(ctx context.Context, configMap *config.ConfigMap, groups []string) (set.Set[model.PolicyBinding], error) {
-	return unpackGroups(ctx, configMap, groups, r.getUserGroupMap)
-}
-
-func (r *roleAccessHandler) HandleInheritance(detailsMap map[string]*AccessProviderDetails, _ map[string]*AccessProviderDetails) {
-	for name, details := range detailsMap {
-		descendants := getDescendants(detailsMap, name)
+func (r *roleAccessHandler) HandleInheritance() {
+	for name, details := range r.accessProviders.Roles {
+		descendants := r.accessProviders.GetDescendants(model.Role, name)
 		for descendant := range descendants {
-			details.newBindings.AddSet(detailsMap[descendant].GetExistingOrNewBindings())
+			details.newBindings.AddSet(descendant.GetExistingOrNewBindings())
 		}
 	}
 }
 
-func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context, detailsMap map[string]*AccessProviderDetails, _ *config.ConfigMap) {
-	for name, details := range detailsMap {
+func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context) {
+	for name, details := range r.accessProviders.Roles {
 		utils.Logger.Info(fmt.Sprintf("Processing role %s with action %s", name, details.action))
 
 		switch details.action {
@@ -255,9 +403,9 @@ func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context, detailsMap map[s
 			statements := createPolicyStatementsFromWhat(ap.What)
 
 			// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
-			inheritedAPs := getAllAPsInInheritanceChainForWhatDetails(name, detailsMap)
-			for _, inheritedAP := range inheritedAPs {
-				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.What)...)
+			inheritedAPs := r.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.Role, name, model.Role)
+			for inheritedAP := range inheritedAPs {
+				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
 			}
 
 			if details.action == ActionCreate {
@@ -306,24 +454,55 @@ func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context, detailsMap map[s
 	}
 }
 
-var _ accessHandlerExecutor = (*policyAccessHandler)(nil)
-
-func NewPolicyAccessHandler(repo dataAccessRepository, actionMap map[string]AccessProviderAction, whoBindings map[string]set.Set[model.PolicyBinding], inheritanceResolver InheritanceResolverFunc) *AccessHandler {
+func NewPolicyAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository) *AccessHandler {
 	executor := &policyAccessHandler{
-		repo: repo,
+		accessProviders: allAccessProviders,
+		repo:            repo,
 
 		inlineUserPoliciesToDelete:  map[string][]string{},
 		inlineGroupPoliciesToDelete: map[string][]string{},
 	}
 
-	return NewAccessHandler(executor, actionMap, whoBindings, inheritanceResolver)
+	return NewAccessHandler(executor, model.Policy, allAccessProviders.Policies, allAccessProviders)
 }
 
 type policyAccessHandler struct {
-	repo dataAccessRepository
+	accessProviders *AccessProvidersByType
+	repo            dataAccessRepository
 
 	inlineUserPoliciesToDelete  map[string][]string
 	inlineGroupPoliciesToDelete map[string][]string
+
+	configMap *config.ConfigMap
+}
+
+func (p *policyAccessHandler) Initialize(configmap *config.ConfigMap) {
+	p.configMap = configmap
+}
+
+func (p *policyAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+	utils.Logger.Info("Fetching existing managed policies")
+
+	managedPolicies, err := p.repo.GetManagedPolicies(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("error fetching existing managed policies: %w", err)
+	}
+
+	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
+
+	for ind := range managedPolicies {
+		policy := managedPolicies[ind]
+
+		existingPolicyBindings[policy.Name] = set.Set[model.PolicyBinding]{}
+
+		existingPolicyBindings[policy.Name].Add(removeArn(policy.UserBindings)...)
+		existingPolicyBindings[policy.Name].Add(removeArn(policy.GroupBindings)...)
+		existingPolicyBindings[policy.Name].Add(removeArn(policy.RoleBindings)...)
+	}
+
+	utils.Logger.Info(fmt.Sprintf("Fetched existing %d managed policies", len(existingPolicyBindings)))
+
+	return existingPolicyBindings, nil
 }
 
 func (p *policyAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {
@@ -352,35 +531,24 @@ func (p *policyAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvid
 	}
 }
 
-func (p *policyAccessHandler) ExternalId(name string, _ model.AccessProviderType) string {
-	return fmt.Sprintf("%s%s", constants.PolicyTypePrefix, name)
+func (p *policyAccessHandler) ExternalId(details *AccessProviderDetails) *string {
+	return ptr.String(fmt.Sprintf("%s%s", constants.PolicyTypePrefix, details.name))
 }
 
-func (p *policyAccessHandler) HandleGroupBindings(_ context.Context, _ *config.ConfigMap, groups []string) (set.Set[model.PolicyBinding], error) {
-	result := set.Set[model.PolicyBinding]{}
-
-	for _, group := range groups {
-		key := model.PolicyBinding{
-			Type:         iam.GroupResourceType,
-			ResourceName: group,
-		}
-
-		result.Add(key)
-	}
-
-	return result, nil
+func (p *policyAccessHandler) HandleGroupBindings(_ context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
+	return groupBindings(groups)
 }
 
-func (p *policyAccessHandler) HandleInheritance(detailsMap map[string]*AccessProviderDetails, otherAccessDetails map[string]*AccessProviderDetails) {
-	processPolicyInheritance(detailsMap, otherAccessDetails)
+func (p *policyAccessHandler) HandleInheritance() {
+	processPolicyInheritance(p.accessProviders.Policies, p.accessProviders)
 }
 
-func (p *policyAccessHandler) ExecuteUpdates(ctx context.Context, detailMap map[string]*AccessProviderDetails, configMap *config.ConfigMap) {
-	managedPolicies, skippedPolicies := p.createAndUpdateRaitoPolicies(ctx, detailMap)
+func (p *policyAccessHandler) ExecuteUpdates(ctx context.Context) {
+	managedPolicies, skippedPolicies := p.createAndUpdateRaitoPolicies(ctx, p.accessProviders.Policies)
 
-	p.deleteOldPolicies(ctx, detailMap, managedPolicies)
+	p.deleteOldPolicies(ctx, p.accessProviders.Policies, managedPolicies)
 
-	p.updatePolicyBindings(ctx, detailMap, configMap, skippedPolicies, managedPolicies)
+	p.updatePolicyBindings(ctx, p.accessProviders.Policies, skippedPolicies, managedPolicies)
 
 	// Delete old inline policies on users that are not needed anymore
 	p.deleteInlinePolicies(ctx, p.inlineUserPoliciesToDelete, iam.UserResourceType)
@@ -389,7 +557,7 @@ func (p *policyAccessHandler) ExecuteUpdates(ctx context.Context, detailMap map[
 	p.deleteInlinePolicies(ctx, p.inlineGroupPoliciesToDelete, iam.GroupResourceType)
 }
 
-func (p *policyAccessHandler) updatePolicyBindings(ctx context.Context, detailMap map[string]*AccessProviderDetails, configMap *config.ConfigMap, skippedPolicies set.Set[string], managedPolicies set.Set[string]) {
+func (p *policyAccessHandler) updatePolicyBindings(ctx context.Context, detailMap map[string]*AccessProviderDetails, skippedPolicies set.Set[string], managedPolicies set.Set[string]) {
 	// Now handle the WHO of the policies
 	policyBindingsToAdd := map[string]set.Set[model.PolicyBinding]{}
 	policyBindingsToRemove := map[string]set.Set[model.PolicyBinding]{}
@@ -412,7 +580,7 @@ func (p *policyAccessHandler) updatePolicyBindings(ctx context.Context, detailMa
 	for name, bindings := range policyBindingsToAdd { //nolint:dupl // false positive
 		details := detailMap[name]
 
-		policyArn := p.repo.GetPolicyArn(name, managedPolicies.Contains(name), configMap)
+		policyArn := p.repo.GetPolicyArn(name, managedPolicies.Contains(name), p.configMap)
 
 		for binding := range bindings {
 			switch binding.Type {
@@ -448,7 +616,7 @@ func (p *policyAccessHandler) updatePolicyBindings(ctx context.Context, detailMa
 	for name, bindings := range policyBindingsToRemove { //nolint:dupl // false positive
 		details := detailMap[name]
 
-		policyArn := p.repo.GetPolicyArn(name, managedPolicies.Contains(name), configMap)
+		policyArn := p.repo.GetPolicyArn(name, managedPolicies.Contains(name), p.configMap)
 
 		for binding := range bindings {
 			switch binding.Type {
@@ -552,42 +720,100 @@ func (p *policyAccessHandler) deleteInlinePolicies(ctx context.Context, policies
 	}
 }
 
-var _ accessHandlerExecutor = (*accessPointAccessHandler)(nil)
-
-func NewAccessProviderHandler(account string, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, actionMap map[string]AccessProviderAction, whoBindings map[string]set.Set[model.PolicyBinding], inheritanceResolver InheritanceResolverFunc) *AccessHandler {
-	executor := &accessPointAccessHandler{
-		account:         account,
+func NewAccessProviderHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) *AccessHandler {
+	executor := &accessPointHandler{
+		accessProviders: allAccessProviders,
 		repo:            repo,
 		getUserGroupMap: getUserGroupMap,
+		account:         account,
 	}
 
-	return NewAccessHandler(executor, actionMap, whoBindings, inheritanceResolver)
+	return NewAccessHandler(executor, model.AccessPoint, allAccessProviders.AccessPoints, allAccessProviders)
 }
 
-type accessPointAccessHandler struct {
+type accessPointHandler struct {
+	accessProviders *AccessProvidersByType
 	account         string
 	repo            dataAccessRepository
 	getUserGroupMap UserGroupMapFunc
+
+	configMap *config.ConfigMap
 }
 
-func (a *accessPointAccessHandler) HookInlinePolicies(_ *sync_to_target.AccessProvider) {
+func (a *accessPointHandler) Initialize(configmap *config.ConfigMap) {
+	a.configMap = configmap
+}
+
+func (a *accessPointHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+	utils.Logger.Info("Fetching existing access points")
+
+	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
+
+	for _, region := range utils.GetRegions(a.configMap) {
+		err := a.fetchExistingAccessPointsForRegion(ctx, region, existingPolicyBindings)
+		if err != nil {
+			return nil, fmt.Errorf("fetching existing access points for region %s: %w", region, err)
+		}
+	}
+
+	return existingPolicyBindings, nil
+}
+
+func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Context, region string, existingPolicyBindings map[string]set.Set[model.PolicyBinding]) error {
+	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
+	if err != nil {
+		return fmt.Errorf("error fetching existing access points: %w", err)
+	}
+
+	for ind := range accessPoints {
+		accessPoint := accessPoints[ind]
+
+		existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
+
+		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
+		if who != nil {
+			// Note: Groups are not supported here in AWS.
+			for _, userName := range who.Users {
+				key := model.PolicyBinding{
+					Type:         iam.UserResourceType,
+					ResourceName: userName,
+				}
+				existingPolicyBindings[accessPoint.Name].Add(key)
+			}
+
+			for _, ap := range who.AccessProviders {
+				key := model.PolicyBinding{
+					Type:         iam.RoleResourceType,
+					ResourceName: ap,
+				}
+				existingPolicyBindings[accessPoint.Name].Add(key)
+			}
+		}
+	}
+
+	utils.Logger.Info(fmt.Sprintf("Fetched existing %d access points", len(existingPolicyBindings)))
+
+	return nil
+}
+
+func (a *accessPointHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {
 	// no-op
 }
 
-func (a *accessPointAccessHandler) ExternalId(name string, _ model.AccessProviderType) string {
-	return fmt.Sprintf("%s%s", constants.AccessPointTypePrefix, name)
+func (a *accessPointHandler) ExternalId(details *AccessProviderDetails) *string {
+	return ptr.String(fmt.Sprintf("%s%s", constants.AccessPointTypePrefix, details.name))
 }
 
-func (a *accessPointAccessHandler) HandleGroupBindings(ctx context.Context, configMap *config.ConfigMap, groups []string) (set.Set[model.PolicyBinding], error) {
-	return unpackGroups(ctx, configMap, groups, a.getUserGroupMap)
+func (a *accessPointHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
+	return unpackGroups(ctx, a.configMap, groups, a.getUserGroupMap)
 }
 
-func (a *accessPointAccessHandler) HandleInheritance(detailsMap map[string]*AccessProviderDetails, otherAccessDetails map[string]*AccessProviderDetails) {
-	processPolicyInheritance(detailsMap, otherAccessDetails)
+func (a *accessPointHandler) HandleInheritance() {
+	processPolicyInheritance(a.accessProviders.AccessPoints, a.accessProviders)
 }
 
-func (a *accessPointAccessHandler) ExecuteUpdates(ctx context.Context, detailsMap map[string]*AccessProviderDetails, configMap *config.ConfigMap) {
-	for accessPointName, details := range detailsMap {
+func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
+	for accessPointName, details := range a.accessProviders.AccessPoints {
 		accessPointAp := details.ap
 
 		utils.Logger.Info(fmt.Sprintf("Processing access point %s with action %s", accessPointName, details.action))
@@ -629,7 +855,7 @@ func (a *accessPointAccessHandler) ExecuteUpdates(ctx context.Context, detailsMa
 
 			for _, binding := range who.Slice() {
 				if binding.Type == iam.UserResourceType || binding.Type == iam.RoleResourceType {
-					principals = append(principals, utils.GetTrustPolicyArn(binding.ResourceName, a.account))
+					principals = append(principals, utils.GetTrustPolicyArn(binding.ResourceName, a.account)) // TODO this is not correct for roles
 				}
 			}
 
@@ -641,10 +867,10 @@ func (a *accessPointAccessHandler) ExecuteUpdates(ctx context.Context, detailsMa
 			whatItems = append(whatItems, accessPointAp.What...)
 
 			// Because we need to flatten the WHAT for access points as well, we gather all access point APs from which this access point AP inherits its what (following the reverse inheritance chain)
-			inheritedAPs := getAllAPsInInheritanceChainForWhatDetails(accessPointName, detailsMap)
-			for _, inheritedAP := range inheritedAPs {
-				whatItems = append(whatItems, inheritedAP.What...)
-				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.What)...)
+			inheritedAPs := a.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.AccessPoint, accessPointName, model.AccessPoint)
+			for inheritedAP := range inheritedAPs {
+				whatItems = append(whatItems, inheritedAP.ap.What...)
+				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
 			}
 
 			bucketName, region, err2 := extractBucketForAccessPoint(whatItems)
@@ -689,6 +915,21 @@ func (a *accessPointAccessHandler) ExecuteUpdates(ctx context.Context, detailsMa
 	}
 }
 
+func groupBindings(groups []string) (set.Set[model.PolicyBinding], error) {
+	result := set.Set[model.PolicyBinding]{}
+
+	for _, group := range groups {
+		key := model.PolicyBinding{
+			Type:         iam.GroupResourceType,
+			ResourceName: group,
+		}
+
+		result.Add(key)
+	}
+
+	return result, nil
+}
+
 func unpackGroups(ctx context.Context, configMap *config.ConfigMap, groups []string, getUserGroupMap func(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error)) (set.Set[model.PolicyBinding], error) {
 	result := set.NewSet[model.PolicyBinding]()
 
@@ -717,31 +958,28 @@ func unpackGroups(ctx context.Context, configMap *config.ConfigMap, groups []str
 	return result, nil
 }
 
-func processPolicyInheritance(policyDetails map[string]*AccessProviderDetails, roleDetails map[string]*AccessProviderDetails) {
-	for name, details := range policyDetails {
+func processPolicyInheritance(policyDetails map[string]*AccessProviderDetails, accessProviders *AccessProvidersByType) {
+	for _, details := range policyDetails {
 		if details.IsExternal() {
 			// External policy so we skip it
 			continue
 		}
 
-		policyDescendants := getDescendants(policyDetails, name)
-		roleDescendants := set.NewSet[string]()
+		policyDescendants := accessProviders.GetDescendants(details.apType, details.name)
+		roleDescendants := set.NewSet[*AccessProviderDetails]()
 
 		for descendant := range policyDescendants {
-
-			if _, f := roleDetails[descendant]; f {
-				// If the dependency is a role, we register it as a role descendant
+			if descendant.apType == model.Role {
 				roleDescendants.Add(descendant)
-				roleDescendants.AddSet(getDescendants(roleDetails, descendant))
-			} else if policy, f := policyDetails[descendant]; f {
-				// In this case the descendant is not an internal access provider. Let's see if it is an external one to get those dependencies
+				roleDescendants.AddSet(accessProviders.GetDescendants(descendant.apType, descendant.name))
+			} else if policy, f := policyDetails[descendant.name]; f {
 				if !policy.IsExternal() {
 					// The case where the internal AP depends on an external AP (of type policy). In that case we have to look at the bindings to see if there are roles in there.
 					for binding := range policy.newBindings {
 						if binding.Type == iam.RoleResourceType {
-							if _, f := roleDetails[binding.ResourceName]; f {
-								roleDescendants.Add(binding.ResourceName)
-								roleDescendants.AddSet(getDescendants(roleDetails, binding.ResourceName))
+							if role, f := accessProviders.Roles[binding.ResourceName]; f {
+								roleDescendants.Add(role)
+								roleDescendants.AddSet(accessProviders.GetDescendants(role.apType, binding.ResourceName))
 							}
 						}
 					}
@@ -753,34 +991,21 @@ func processPolicyInheritance(policyDetails map[string]*AccessProviderDetails, r
 		for descendant := range roleDescendants {
 			roleBinding := model.PolicyBinding{
 				Type:         iam.RoleResourceType,
-				ResourceName: descendant,
+				ResourceName: descendant.name,
 			}
 
 			details.newBindings.Add(roleBinding)
 		}
 	}
 
-	for name, details := range policyDetails {
-		policyDescendants := getDescendants(policyDetails, name)
+	for _, details := range policyDetails {
+		policyDescendants := accessProviders.GetDescendants(details.apType, details.name)
 
 		// For descendants that are policies
 		for descendant := range policyDescendants {
-			if policy, f := policyDetails[descendant]; f {
-				details.newBindings.AddSet(policy.GetExistingOrNewBindings())
+			if descendant.apType == model.Policy {
+				details.newBindings.AddSet(descendant.GetExistingOrNewBindings())
 			}
 		}
 	}
-}
-
-func getDescendants(accessDetailsChilds map[string]*AccessProviderDetails, name string) set.Set[string] {
-	descendants := set.NewSet[string]()
-
-	if v, found := accessDetailsChilds[name]; found {
-		for child := range v.inheritance {
-			descendants.Add(child)
-			descendants.AddSet(getDescendants(accessDetailsChilds, child))
-		}
-	}
-
-	return descendants
 }
