@@ -9,11 +9,13 @@ import (
 
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/aws/smithy-go/ptr"
+	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/golang-set/set"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_source/permissions"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
@@ -892,6 +894,7 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 			}
 
 			statements = mergeStatementsOnPermissions(statements)
+			filterAccessPointPermissions(statements)
 
 			accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, a.account, accessPointName)
 			convertResourceURLsForAccessPoint(statements, accessPointArn)
@@ -924,6 +927,22 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 		default:
 			utils.Logger.Debug(fmt.Sprintf("no action needed for access point %q", accessPointName))
 		}
+	}
+}
+
+func filterAccessPointPermissions(statements []*awspolicy.Statement) {
+	applicableActions := permissions.ApplicableS3AccessPointActions()
+
+	for _, statement := range statements {
+		actions := make([]string, 0, len(statement.Action))
+
+		for _, action := range statement.Action {
+			if applicableActions.Contains(action) {
+				actions = append(actions, action)
+			}
+		}
+
+		statement.Action = actions
 	}
 }
 
