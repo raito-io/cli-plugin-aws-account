@@ -1,36 +1,24 @@
-package aws
+package model
 
 import (
 	"time"
 
-	"github.com/raito-io/cli/base/tag"
-
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	ds "github.com/raito-io/cli/base/data_source"
+	"github.com/raito-io/cli/base/tag"
 )
 
-type GroupEntity struct {
-	ARN        string
-	ExternalId string
-	Name       string
-	Members    []string
-}
-
-type UserEntity struct {
-	ARN        string
-	ExternalId string
-	Name       string
-	Email      string //not natively used in AWS
-	Tags       []*tag.Tag
-}
+var GlueTable = "glue-" + ds.Table
 
 type AccessProviderType string
 
 const (
-	Role    AccessProviderType = "aws_role"
-	SSORole AccessProviderType = "aws_sso_role"
-	Policy  AccessProviderType = "aws_policy"
+	Role        AccessProviderType = "aws_role"
+	SSORole     AccessProviderType = "aws_sso_role"
+	Policy      AccessProviderType = "aws_policy"
+	AccessPoint AccessProviderType = "aws_access_point"
 )
 
 type AccessProviderInputExtended struct {
@@ -75,6 +63,31 @@ type PolicyBinding struct {
 	PolicyName   string
 }
 
+type UserIdentity struct {
+	Type          *string     `json:"type"`
+	InvokedBy     *string     `json:"invokedBy"`
+	Arn           *string     `json:"arn"`
+	PrincipalId   *string     `json:"principalId"`
+	AccountId     *string     `json:"accountId"`
+	UserName      *string     `json:"userName"`
+	SessionIssuer interface{} `json:"sessionIssuer"`
+}
+
+type GroupEntity struct {
+	ARN        string
+	ExternalId string
+	Name       string
+	Members    []string
+}
+
+type UserEntity struct {
+	ARN        string
+	ExternalId string
+	Name       string
+	Email      string //not natively used in AWS
+	Tags       []*tag.Tag
+}
+
 type ActionMetadata struct {
 	Action        string
 	Description   string
@@ -88,28 +101,12 @@ type AccessWithWho struct {
 	Who  sync_to_target.WhoItem
 }
 
-type AwsS3Entity struct {
-	Type      string
-	Key       string
-	ParentKey string
-}
-
-type UserIdentity struct {
-	Type          *string     `json:"type"`
-	InvokedBy     *string     `json:"invokedBy"`
-	Arn           *string     `json:"arn"`
-	PrincipalId   *string     `json:"principalId"`
-	AccountId     *string     `json:"accountId"`
-	UserName      *string     `json:"userName"`
-	SessionIssuer interface{} `json:"sessionIssuer"`
-}
-
 type EventBytes struct {
 	BytesIn  float32 `json:"bytesTransferredIn"`
 	BytesOut float32 `json:"bytesTransferredOut"`
 }
 
-type AwsRecource struct {
+type AwsResource struct {
 	AccountId *string `json:"accountId"`
 	Type      *string `json:"type"`
 	Arn       *string `json:"ARN"`
@@ -127,7 +124,7 @@ type CloudtrailRecord struct {
 	Bytes              *EventBytes   `json:"additionalEventData"`
 	EventID            *string       `json:"eventID"`
 	ReadOnly           bool          `json:"readOnly"`
-	Resources          []AwsRecource `json:"resources"`
+	Resources          []AwsResource `json:"resources"`
 	EventType          *string       `json:"eventType"`
 	ManagementEvent    bool          `json:"managementEvent"`
 	RecipientAccountId *string       `json:"recipientAccountId"`
@@ -137,4 +134,19 @@ type CloudtrailRecord struct {
 
 type CloudTrailLog struct {
 	Records []CloudtrailRecord `json:"Records"`
+}
+
+type AwsS3Entity struct {
+	Type      string
+	Region    string
+	Key       string
+	ParentKey string
+}
+
+type AwsS3AccessPoint struct {
+	Name           string
+	Arn            string
+	Bucket         string
+	PolicyDocument *string
+	PolicyParsed   *awspolicy.Policy
 }

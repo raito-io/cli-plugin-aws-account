@@ -1,15 +1,23 @@
-package aws
+package iam
 
 import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 	"net/url"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go-v2/service/s3control"
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
 
 	"github.com/gammazero/workerpool"
 
@@ -18,7 +26,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	awspolicy "github.com/n4ch04/aws-policy"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 )
 
@@ -28,9 +35,17 @@ const (
 	RoleResourceType  string = "role"
 )
 
-var managedPoliciesCache []PolicyEntity
+var smu sync.Mutex
 
-func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyEntity, error) {
+var managedPoliciesCache []model.PolicyEntity
+
+func (repo *AwsIamRepository) ClearManagedPoliciesCache() {
+	managedPoliciesCache = nil
+}
+
+func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error) {
+	excludes := slice.ParseCommaSeparatedList(repo.configMap.GetString(constants.AwsAccessManagedPolicyExcludes))
+
 	if managedPoliciesCache != nil {
 		return managedPoliciesCache, nil
 	}
@@ -41,7 +56,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 	}
 
 	var marker *string
-	var result []PolicyEntity
+	var result []model.PolicyEntity
 
 	for {
 		input := iam.ListPoliciesInput{
@@ -50,17 +65,31 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 			MaxItems:     aws.Int32(50),
 		}
 
+		if repo.configMap.GetBool(constants.AwsAccessSkipAWSManagedPolicies) {
+			input.Scope = types.PolicyScopeTypeLocal
+		}
+
 		resp, err2 := client.ListPolicies(ctx, &input)
 		if err2 != nil {
 			return nil, err
 		}
 
-		workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
-		var smu sync.Mutex
+		utils.Logger.Info(fmt.Sprintf("Listed %d Policies", len(resp.Policies)))
+
+		workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 		var resultErr error
 
 		for i := range resp.Policies {
 			policy := resp.Policies[i]
+
+			matched, err3 := match.MatchesAny(*policy.PolicyName, excludes)
+			if err3 != nil {
+				return nil, fmt.Errorf("matching policy to exlude: %w", err3)
+			}
+
+			if matched {
+				continue
+			}
 
 			workerPool.Submit(func() {
 				policyInput := iam.GetPolicyInput{
@@ -69,7 +98,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 
 				policyRespRaw, err3 := client.GetPolicy(ctx, &policyInput)
 				if err3 != nil {
-					logger.Error(fmt.Sprintf("Error getting policy details for %s", *policy.Arn))
+					utils.Logger.Error(fmt.Sprintf("Error getting policy details for %s", *policy.Arn))
 
 					smu.Lock()
 					resultErr = multierror.Append(resultErr, err3)
@@ -78,7 +107,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 					return
 				}
 				parsedPolicy := policyRespRaw.Policy
-				tags := getTags(parsedPolicy.Tags)
+				tags := utils.GetTags(parsedPolicy.Tags)
 
 				policyVersionInput := iam.GetPolicyVersionInput{
 					PolicyArn: parsedPolicy.Arn,
@@ -87,7 +116,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 
 				policyVersionResp, err3 := client.GetPolicyVersion(ctx, &policyVersionInput)
 				if err3 != nil {
-					logger.Error(fmt.Sprintf("Error getting policy document for %s: %s", *policy.Arn, err3.Error()))
+					utils.Logger.Error(fmt.Sprintf("Error getting policy document for %s: %s", *policy.Arn, err3.Error()))
 
 					smu.Lock()
 					resultErr = multierror.Append(resultErr, err3)
@@ -98,7 +127,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 
 				policyDoc, policyDocReadable, err3 := repo.parsePolicyDocument(policyVersionResp.PolicyVersion.Document, "", *policy.PolicyName)
 				if err3 != nil {
-					logger.Error(fmt.Sprintf("Error parsing policy document for %s: %s", *policy.Arn, err3.Error()))
+					utils.Logger.Error(fmt.Sprintf("Error parsing policy document for %s: %s", *policy.Arn, err3.Error()))
 
 					smu.Lock()
 					resultErr = multierror.Append(resultErr, err3)
@@ -107,7 +136,7 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 					return
 				}
 
-				raitoPolicy := PolicyEntity{
+				raitoPolicy := model.PolicyEntity{
 					ARN:             *policy.Arn,
 					Name:            *policy.PolicyName,
 					Id:              *policy.PolicyId,
@@ -117,19 +146,17 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 					PolicyParsed:    policyDoc,
 				}
 
+				smu.Lock()
+				defer smu.Unlock()
+
 				err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &raitoPolicy)
 				if err != nil {
-					logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
+					utils.Logger.Error(fmt.Sprintf("Error adding attached entities to managed policy %s: %s", raitoPolicy.ARN, err.Error()))
 
-					smu.Lock()
 					resultErr = multierror.Append(resultErr, err)
-					smu.Unlock()
 
 					return
 				}
-
-				smu.Lock()
-				defer smu.Unlock()
 
 				result = append(result, raitoPolicy)
 			})
@@ -141,20 +168,24 @@ func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]PolicyE
 			return nil, resultErr
 		}
 
+		utils.Logger.Info(fmt.Sprintf("Finished processing %d Policies", len(resp.Policies)))
+		utils.Logger.Info(fmt.Sprintf("A total of %d policies have been found so far", len(result)))
+		utils.Logger.Info(fmt.Sprintf("Still more? %v", resp.IsTruncated))
+
 		if !resp.IsTruncated {
 			break
 		}
 		marker = resp.Marker
 	}
 
-	logger.Info(fmt.Sprintf("A total of %d policies have been found", len(result)))
+	utils.Logger.Info(fmt.Sprintf("A total of %d policies have been found", len(result)))
 
 	managedPoliciesCache = result
 
 	return managedPoliciesCache, nil
 }
 
-func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Context, client iam.Client, policy *PolicyEntity) error {
+func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Context, client iam.Client, policy *model.PolicyEntity) error {
 	var marker *string
 
 	for {
@@ -169,7 +200,7 @@ func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Con
 		}
 
 		for _, entity := range attachedEntitiesResp.PolicyGroups {
-			policy.GroupBindings = append(policy.GroupBindings, PolicyBinding{
+			policy.GroupBindings = append(policy.GroupBindings, model.PolicyBinding{
 				Type:         GroupResourceType,
 				ResourceName: *entity.GroupName,
 				ResourceId:   *entity.GroupId,
@@ -177,7 +208,7 @@ func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Con
 		}
 
 		for _, entity := range attachedEntitiesResp.PolicyUsers {
-			policy.UserBindings = append(policy.UserBindings, PolicyBinding{
+			policy.UserBindings = append(policy.UserBindings, model.PolicyBinding{
 				Type:         UserResourceType,
 				ResourceName: *entity.UserName,
 				ResourceId:   *entity.UserId,
@@ -185,7 +216,7 @@ func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Con
 		}
 
 		for _, entity := range attachedEntitiesResp.PolicyRoles {
-			policy.RoleBindings = append(policy.RoleBindings, PolicyBinding{
+			policy.RoleBindings = append(policy.RoleBindings, model.PolicyBinding{
 				Type:         RoleResourceType,
 				ResourceName: *entity.RoleName,
 				ResourceId:   *entity.RoleId,
@@ -205,7 +236,7 @@ func (repo *AwsIamRepository) GetPolicyArn(policyName string, awsManaged bool, c
 	arn := arn.ARN{
 		Partition: "aws",
 		Service:   "iam",
-		AccountID: configMap.GetString(AwsAccountId),
+		AccountID: repo.account,
 		Resource:  "policy/" + policyName,
 	}
 
@@ -242,20 +273,20 @@ func (repo *AwsIamRepository) DeleteRoleInlinePolicies(ctx context.Context, role
 			return err
 		}
 
-		logger.Info(fmt.Sprintf("Deleted inline policy %s for role %s", policyName, roleName))
+		utils.Logger.Info(fmt.Sprintf("Deleted inline policy %s for role %s", policyName, roleName))
 	}
 
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []*awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
 	if len(statements) == 0 {
-		logger.Warn(fmt.Sprintf("No statements/What provided for policy %s, skipping create", policyName))
+		utils.Logger.Warn(fmt.Sprintf("No statements/What provided for policy %s, skipping create", policyName))
 		return nil
 	}
 
@@ -264,7 +295,7 @@ func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleNa
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Policy document for role inline policy creation: %s", policyDoc))
+	utils.Logger.Info(fmt.Sprintf("Policy document for role inline policy creation: %s", policyDoc))
 
 	_, err = client.PutRolePolicy(ctx, &iam.PutRolePolicyInput{
 		PolicyDocument: &policyDoc,
@@ -273,23 +304,23 @@ func (repo *AwsIamRepository) CreateRoleInlinePolicy(ctx context.Context, roleNa
 	})
 
 	if err != nil {
-		logger.Info(fmt.Sprintf("Failed to create inline policy %q for role %q: %s", policyName, roleName, err.Error()))
+		utils.Logger.Info(fmt.Sprintf("Failed to create inline policy %q for role %q: %s", policyName, roleName, err.Error()))
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Inline policy %q for role %q created", policyName, roleName))
+	utils.Logger.Info(fmt.Sprintf("Inline policy %q for role %q created", policyName, roleName))
 
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error) {
+func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyName string, statements []*awspolicy.Statement) (*types.Policy, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	if len(statements) == 0 {
-		logger.Warn(fmt.Sprintf("No statements/What provided for policy %s, skipping create", policyName))
+		utils.Logger.Warn(fmt.Sprintf("No statements/What provided for policy %s, skipping create", policyName))
 		return nil, nil
 	}
 
@@ -298,7 +329,7 @@ func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyNam
 		return nil, err
 	}
 
-	logger.Debug(fmt.Sprintf("Policy document for managed policy creation: %s", policyDoc))
+	utils.Logger.Debug(fmt.Sprintf("Policy document for managed policy creation: %s", policyDoc))
 
 	input := iam.CreatePolicyInput{
 		PolicyDocument: &policyDoc,
@@ -313,19 +344,24 @@ func (repo *AwsIamRepository) CreateManagedPolicy(ctx context.Context, policyNam
 
 	resp, err := client.CreatePolicy(ctx, &input)
 	if err != nil {
-		logger.Info(fmt.Sprintf("Failed to create managed policy %q: %s", *input.PolicyName, err.Error()))
+		utils.Logger.Info(fmt.Sprintf("Failed to create managed policy %q: %s", *input.PolicyName, err.Error()))
 		return nil, err
 	}
 
-	logger.Info(fmt.Sprintf("Managed policy %q created", *input.PolicyName))
+	utils.Logger.Info(fmt.Sprintf("Managed policy %q created", *input.PolicyName))
 
 	return resp.Policy, nil
 }
 
-func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statement) (string, error) {
+func (repo *AwsIamRepository) createPolicyDocument(statements []*awspolicy.Statement) (string, error) {
+	stms := make([]awspolicy.Statement, 0, len(statements))
+	for _, statement := range statements {
+		stms = append(stms, *statement)
+	}
+
 	policy := awspolicy.Policy{
 		Version:    "2012-10-17",
-		Statements: statements,
+		Statements: stms,
 	}
 
 	bytes, err := json.Marshal(policy)
@@ -337,13 +373,13 @@ func (repo *AwsIamRepository) createPolicyDocument(statements []awspolicy.Statem
 	return policyDoc, nil
 }
 
-func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.ConfigMap)
+	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.configMap)
 
 	policyDoc, err := repo.createPolicyDocument(statements)
 	if err != nil {
@@ -375,11 +411,11 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 			return fmt.Errorf("updating management policy: %w", localErr2)
 		}
 
-		logger.Debug(existingPolicyDoc)
-		logger.Debug(policyDoc)
+		utils.Logger.Debug(existingPolicyDoc)
+		utils.Logger.Debug(policyDoc)
 
-		if strings.EqualFold(stripWhitespace(existingPolicyDoc), stripWhitespace(policyDoc)) {
-			logger.Info(fmt.Sprintf("Policy %s is already up-to-date", policyName))
+		if strings.EqualFold(utils.StripWhitespace(existingPolicyDoc), utils.StripWhitespace(policyDoc)) {
+			utils.Logger.Info(fmt.Sprintf("Policy %s is already up-to-date", policyName))
 
 			return nil
 		}
@@ -428,38 +464,38 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 		return err
 	}
 
-	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.ConfigMap)
+	policyArn := repo.GetPolicyArn(policyName, awsManaged, repo.configMap)
 
-	emptyPolicy := PolicyEntity{
+	emptyPolicy := model.PolicyEntity{
 		ARN: policyArn,
 	}
 
 	err = repo.AddAttachedEntitiesToManagedPolicy(ctx, *client, &emptyPolicy)
 	if err != nil {
-		return fmt.Errorf("deleting management policy: %w", err)
+		return fmt.Errorf("deleting managed policy: %w", err)
 	}
 
-	logger.Info(fmt.Sprintf("Detaching %d users from policy %s", len(emptyPolicy.UserBindings), policyArn))
+	utils.Logger.Info(fmt.Sprintf("Detaching %d users from policy %s", len(emptyPolicy.UserBindings), policyArn))
 
-	if localErr := repo.DetachUserFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.UserBindings)); localErr != nil {
-		return fmt.Errorf("deleting management policy: %w", localErr)
+	if localErr := repo.DetachUserFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.UserBindings)); localErr != nil {
+		return fmt.Errorf("deleting managed policy: %w", localErr)
 	}
 
-	logger.Info(fmt.Sprintf("Detaching %d groups from policy %s", len(emptyPolicy.GroupBindings), policyArn))
+	utils.Logger.Info(fmt.Sprintf("Detaching %d groups from policy %s", len(emptyPolicy.GroupBindings), policyArn))
 
-	if localErr := repo.DetachGroupFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.GroupBindings)); localErr != nil {
-		return fmt.Errorf("deleting management policy: %w", localErr)
+	if localErr := repo.DetachGroupFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.GroupBindings)); localErr != nil {
+		return fmt.Errorf("deleting managed policy: %w", localErr)
 	}
 
-	logger.Info(fmt.Sprintf("Detaching %d roles from policy %s", len(emptyPolicy.RoleBindings), policyArn))
+	utils.Logger.Info(fmt.Sprintf("Detaching %d roles from policy %s", len(emptyPolicy.RoleBindings), policyArn))
 
-	if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, getResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
-		return fmt.Errorf("deleting management policy: %w", localErr)
+	if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
+		return fmt.Errorf("deleting managed policy: %w", localErr)
 	}
 
 	versions, err := client.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyArn})
 	if err != nil {
-		return fmt.Errorf("deleting management policy: %w", err)
+		return fmt.Errorf("deleting managed policy: %w", err)
 	}
 
 	for _, version := range versions.Versions {
@@ -470,14 +506,14 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 			})
 
 			if err != nil {
-				return fmt.Errorf("deleting management policy: %w", err)
+				return fmt.Errorf("deleting managed policy: %w", err)
 			}
 		}
 	}
 
 	_, err = client.DeletePolicy(ctx, &iam.DeletePolicyInput{PolicyArn: &policyArn})
 	if err != nil {
-		return fmt.Errorf("deleting management policy: %w", err)
+		return fmt.Errorf("deleting managed policy: %w", err)
 	}
 
 	return nil
@@ -495,7 +531,7 @@ func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, pol
 			UserName:  aws.String(userName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't attach policy %v to user %v: %v\n", policyArn, userName, err.Error()))
+			utils.Logger.Error(fmt.Sprintf("Couldn't attach policy %v to user %v: %v\n", policyArn, userName, err.Error()))
 			return err
 		}
 	}
@@ -515,7 +551,7 @@ func (repo *AwsIamRepository) AttachGroupToManagedPolicy(ctx context.Context, po
 			GroupName: aws.String(groupName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't attach policy %v to group %v. Here's why: %v\n", policyArn, groupName, err.Error()))
+			utils.Logger.Error(fmt.Sprintf("Couldn't attach policy %v to group %v. Here's why: %v\n", policyArn, groupName, err.Error()))
 			return err
 		}
 	}
@@ -535,7 +571,7 @@ func (repo *AwsIamRepository) AttachRoleToManagedPolicy(ctx context.Context, pol
 			RoleName:  aws.String(roleName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't attach policy %v to role %v. Here's why: %v\n", policyArn, roleName, err.Error()))
+			utils.Logger.Error(fmt.Sprintf("Couldn't attach policy %v to role %v. Here's why: %v\n", policyArn, roleName, err.Error()))
 			return err
 		}
 	}
@@ -555,7 +591,7 @@ func (repo *AwsIamRepository) DetachUserFromManagedPolicy(ctx context.Context, p
 			UserName:  aws.String(userName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't detach policy %v from user %v. Here's why: %v\n", policyArn, userName, err.Error()))
+			utils.Logger.Error(fmt.Sprintf("Couldn't detach policy %v from user %v. Here's why: %v\n", policyArn, userName, err.Error()))
 			return err
 		}
 	}
@@ -575,7 +611,7 @@ func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, 
 			GroupName: aws.String(groupName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't detach policy %v from group %v. Here's why: %v\n", policyArn, groupName, err.Error()))
+			utils.Logger.Error(fmt.Sprintf("Couldn't detach policy %v from group %v. Here's why: %v\n", policyArn, groupName, err.Error()))
 			return err
 		}
 	}
@@ -595,7 +631,7 @@ func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, p
 			RoleName:  aws.String(roleName),
 		})
 		if err != nil {
-			logger.Error(fmt.Sprintf("Couldn't detach policy %v from role %v. Here's why: %v\n", policyArn, roleName, err.Error()))
+			utils.Logger.Error(fmt.Sprintf("Couldn't detach policy %v from role %v. Here's why: %v\n", policyArn, roleName, err.Error()))
 			return err
 		}
 	}
@@ -603,7 +639,7 @@ func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, p
 	return nil
 }
 
-func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error {
+func (repo *AwsIamRepository) UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []*awspolicy.Statement) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return err
@@ -645,7 +681,7 @@ func (repo *AwsIamRepository) DeleteInlinePolicy(ctx context.Context, policyName
 		return err
 	}
 
-	logger.Info(fmt.Sprintf("Deleting inline policy %s for %s/%s", policyName, resourceType, resourceName))
+	utils.Logger.Info(fmt.Sprintf("Deleting inline policy %s for %s/%s", policyName, resourceType, resourceName))
 
 	if resourceType == UserResourceType {
 		_, err = client.DeleteUserPolicy(ctx, &iam.DeleteUserPolicyInput{
@@ -669,42 +705,14 @@ func (repo *AwsIamRepository) DeleteInlinePolicy(ctx context.Context, policyName
 	return err
 }
 
-func (repo *AwsIamRepository) GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error) {
-	if ap.ActualName == nil || !strings.HasPrefix(*ap.ActualName, "/inline/") {
-		return "", "", fmt.Errorf("no attached entity found for %s", *ap.ActualName)
-	}
-
-	resourceType := ""
-	resourceName := ""
-	possibleResourceTypes := []string{UserResourceType, GroupResourceType, RoleResourceType}
-
-	for _, rType := range possibleResourceTypes {
-		prefix := fmt.Sprintf("/inline/%s/", rType)
-
-		stripped, ok := strings.CutPrefix(*ap.ActualName, prefix)
-		if !ok {
-			continue
-		}
-
-		parts := strings.Split(stripped, "/")
-		if len(parts) <= 1 {
-			continue
-		}
-
-		return parts[0], rType, nil
-	}
-
-	return resourceName, resourceType, nil
-}
-
-func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]PolicyEntity, error) {
+func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	result := make(map[string][]PolicyEntity)
-	var bindings []PolicyBinding
+	result := make(map[string][]model.PolicyEntity)
+	var bindings []model.PolicyBinding
 
 	if strings.EqualFold(entityType, UserResourceType) {
 		bindings, err = repo.getUserInlinePolicyBindings(ctx, client, entityNames)
@@ -723,7 +731,7 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 		}
 	}
 
-	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var mut sync.Mutex
 	var resultErr error
 
@@ -760,26 +768,26 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 				return
 			}
 
-			var userPolicyBinding, groupPolicyBinding, rolePolicyBinding []PolicyBinding
+			var userPolicyBinding, groupPolicyBinding, rolePolicyBinding []model.PolicyBinding
 
 			if entityType == UserResourceType {
-				userPolicyBinding = append(userPolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
+				userPolicyBinding = append(userPolicyBinding, model.PolicyBinding{ResourceName: entityName, Type: entityType})
 			} else if entityType == GroupResourceType {
-				groupPolicyBinding = append(groupPolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
+				groupPolicyBinding = append(groupPolicyBinding, model.PolicyBinding{ResourceName: entityName, Type: entityType})
 			} else if entityType == RoleResourceType {
-				rolePolicyBinding = append(rolePolicyBinding, PolicyBinding{ResourceName: entityName, Type: entityType})
+				rolePolicyBinding = append(rolePolicyBinding, model.PolicyBinding{ResourceName: entityName, Type: entityType})
 			}
 
 			// Lock to add to map safely
 			mut.Lock()
 			defer mut.Unlock()
 
-			result[entityName] = append(result[entityName], PolicyEntity{
+			result[entityName] = append(result[entityName], model.PolicyEntity{
 				Name:           policyName,
 				Description:    "inline policy",
 				PolicyDocument: policyReadable,
 				PolicyParsed:   policy,
-				PolicyType:     Policy,
+				PolicyType:     model.Policy,
 				InlineParent:   &entityName,
 				UserBindings:   userPolicyBinding,
 				GroupBindings:  groupPolicyBinding,
@@ -793,18 +801,22 @@ func (repo *AwsIamRepository) GetInlinePoliciesForEntities(ctx context.Context, 
 	return result, resultErr
 }
 
-func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) {
+func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]model.PolicyBinding, error) {
 	var marker *string
-	var policyBindings []PolicyBinding
+	var policyBindings []model.PolicyBinding
 
 	entityType := UserResourceType
 
-	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
 	for i := range entityNames {
 		entityName := entityNames[i]
+
+		if entityName == "root" {
+			continue
+		}
 
 		workerPool.Submit(func() {
 			for {
@@ -824,7 +836,7 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 				smu.Lock()
 				for ind := range resp.PolicyNames {
-					policyBindings = append(policyBindings, PolicyBinding{
+					policyBindings = append(policyBindings, model.PolicyBinding{
 						PolicyName:   resp.PolicyNames[ind],
 						ResourceName: entityName,
 						Type:         entityType,
@@ -845,13 +857,13 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 	return policyBindings, resultErr
 }
 
-func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: dupl
+func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]model.PolicyBinding, error) { //nolint: dupl
 	var marker *string
-	var policyBindings []PolicyBinding
+	var policyBindings []model.PolicyBinding
 
 	entityType := GroupResourceType
 
-	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -876,7 +888,7 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 
 				smu.Lock()
 				for _, policyName := range resp.PolicyNames {
-					policyBindings = append(policyBindings, PolicyBinding{
+					policyBindings = append(policyBindings, model.PolicyBinding{
 						PolicyName:   policyName,
 						ResourceName: entityName,
 						Type:         entityType,
@@ -897,13 +909,13 @@ func (repo *AwsIamRepository) getGroupInlinePolicyBindings(ctx context.Context, 
 	return policyBindings, resultErr
 }
 
-func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]PolicyBinding, error) { //nolint: dupl
+func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, client *iam.Client, entityNames []string) ([]model.PolicyBinding, error) { //nolint: dupl
 	var marker *string
-	var policyBindings []PolicyBinding
+	var policyBindings []model.PolicyBinding
 
 	entityType := RoleResourceType
 
-	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -928,7 +940,7 @@ func (repo *AwsIamRepository) getRoleInlinePolicyBindings(ctx context.Context, c
 
 				smu.Lock()
 				for _, policyName := range resp.PolicyNames {
-					policyBindings = append(policyBindings, PolicyBinding{
+					policyBindings = append(policyBindings, model.PolicyBinding{
 						PolicyName:   policyName,
 						ResourceName: entityName,
 						Type:         entityType,
@@ -958,12 +970,12 @@ func (repo *AwsIamRepository) getEntityPolicy(ctx context.Context, client *iam.C
 
 		resp, err := client.GetUserPolicy(ctx, &input)
 		if err != nil {
-			logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
+			utils.Logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
 			return nil, err
 		}
 
 		if resp == nil || resp.PolicyDocument == nil {
-			logger.Info(fmt.Sprintf("inline policy document is nil for %s %s/%s", entityType, entityName, policyName))
+			utils.Logger.Info(fmt.Sprintf("inline policy document is nil for %s %s/%s", entityType, entityName, policyName))
 			return nil, err
 		}
 
@@ -976,12 +988,12 @@ func (repo *AwsIamRepository) getEntityPolicy(ctx context.Context, client *iam.C
 		resp, err := client.GetGroupPolicy(ctx, &input)
 
 		if err != nil {
-			logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
+			utils.Logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
 			return nil, err
 		}
 
 		if resp == nil || resp.PolicyDocument == nil {
-			logger.Info(fmt.Sprintf("inline policy document is nil for %s %s/%s", entityType, entityName, policyName))
+			utils.Logger.Info(fmt.Sprintf("inline policy document is nil for %s %s/%s", entityType, entityName, policyName))
 			return nil, err
 		}
 
@@ -994,12 +1006,12 @@ func (repo *AwsIamRepository) getEntityPolicy(ctx context.Context, client *iam.C
 		resp, err := client.GetRolePolicy(ctx, &input)
 
 		if err != nil {
-			logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
+			utils.Logger.Info(fmt.Sprintf("error getting inline policy %s/%s: %s", entityName, policyName, err.Error()))
 			return nil, err
 		}
 
 		if resp == nil || resp.PolicyDocument == nil {
-			logger.Info(fmt.Sprintf("inline policy document is nil for %s %s/%s", entityType, entityName, policyName))
+			utils.Logger.Info(fmt.Sprintf("inline policy document is nil for %s %s/%s", entityType, entityName, policyName))
 			return nil, err
 		}
 
@@ -1018,15 +1030,147 @@ func (repo *AwsIamRepository) parsePolicyDocument(policyDoc *string, entityName,
 
 	policyDocument, err := url.QueryUnescape(*policyDoc)
 	if err != nil {
-		logger.Info(fmt.Sprintf("Failed to unescape policy document %s/%s: %s", entityName, policyName, *policyDoc))
+		utils.Logger.Info(fmt.Sprintf("Failed to unescape policy document %s/%s: %s", entityName, policyName, *policyDoc))
 		return nil, nil, err
 	}
 
 	err = policy.UnmarshalJSON([]byte(policyDocument))
 	if err != nil {
-		logger.Info(fmt.Sprintf("Failed to parse policy document %s/%s: %s", entityName, policyName, *policyDoc))
+		utils.Logger.Info(fmt.Sprintf("Failed to parse policy document %s/%s: %s", entityName, policyName, *policyDoc))
 		return nil, nil, err
 	}
 
 	return &policy, &policyDocument, err
+}
+
+func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *string) *s3control.Client {
+	cfg, err := baserepo.GetAWSConfig(ctx, repo.configMap, region)
+
+	if err != nil {
+		log.Fatalf("failed to load configuration, %v", err)
+	}
+
+	client := s3control.NewFromConfig(cfg, func(o *s3control.Options) {})
+
+	return client
+}
+
+func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error) {
+	client := repo.getS3ControlClient(ctx, &region)
+
+	moreObjectsAvailable := true
+	var nextToken *string
+
+	aps := make([]model.AwsS3AccessPoint, 0, 100)
+
+	for moreObjectsAvailable {
+		lapo, err2 := client.ListAccessPoints(ctx, &s3control.ListAccessPointsInput{
+			NextToken: nextToken,
+			AccountId: &repo.account,
+		})
+
+		if err2 != nil {
+			return nil, fmt.Errorf("listing access points: %w", err2)
+		}
+
+		moreObjectsAvailable = lapo.NextToken != nil
+		nextToken = lapo.NextToken
+
+		for _, sourceAp := range lapo.AccessPointList {
+			if sourceAp.Name == nil || sourceAp.AccessPointArn == nil {
+				continue
+			}
+
+			ap := model.AwsS3AccessPoint{
+				Name: *sourceAp.Name,
+				Arn:  *sourceAp.AccessPointArn,
+			}
+
+			if sourceAp.Bucket != nil {
+				ap.Bucket = *sourceAp.Bucket
+			}
+
+			policy, err3 := client.GetAccessPointPolicy(ctx, &s3control.GetAccessPointPolicyInput{Name: sourceAp.Name, AccountId: &repo.account})
+			if err3 != nil {
+				return nil, fmt.Errorf("fetching access point policy: %w", err3)
+			}
+
+			if policy.Policy != nil {
+				ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *sourceAp.Name, *sourceAp.Name)
+				if err3 != nil {
+					return nil, err3
+				}
+			}
+
+			aps = append(aps, ap)
+		}
+	}
+
+	return aps, nil
+}
+
+func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string, region string) error {
+	client := repo.getS3ControlClient(ctx, &region)
+
+	_, err := client.DeleteAccessPoint(ctx, &s3control.DeleteAccessPointInput{
+		AccountId: &repo.account,
+		Name:      aws.String(name),
+	})
+	if err != nil {
+		return fmt.Errorf("deleting access point: %w", err)
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) error {
+	client := repo.getS3ControlClient(ctx, &region)
+
+	input := &s3control.CreateAccessPointInput{
+		AccountId: &repo.account,
+		Bucket:    aws.String(bucket),
+		Name:      aws.String(name),
+	}
+
+	_, err := client.CreateAccessPoint(ctx, input)
+
+	if err != nil {
+		return fmt.Errorf("creating access point %s: %w", name, err)
+	}
+
+	policyDoc, err := repo.createPolicyDocument(statements)
+	if err != nil {
+		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
+	}
+
+	_, err = client.PutAccessPointPolicy(ctx, &s3control.PutAccessPointPolicyInput{
+		AccountId: &repo.account,
+		Name:      aws.String(name),
+		Policy:    aws.String(policyDoc),
+	})
+	if err != nil {
+		return fmt.Errorf("putting policy for access point %s: %w", name, err)
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error {
+	client := repo.getS3ControlClient(ctx, &region)
+
+	policyDoc, err := repo.createPolicyDocument(statements)
+	if err != nil {
+		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
+	}
+
+	_, err = client.PutAccessPointPolicy(ctx, &s3control.PutAccessPointPolicyInput{
+		AccountId: &repo.account,
+		Name:      aws.String(name),
+		Policy:    aws.String(policyDoc),
+	})
+	if err != nil {
+		return fmt.Errorf("putting policy for access point %s: %w", name, err)
+	}
+
+	return nil
 }

@@ -6,22 +6,26 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
 	"github.com/raito-io/golang-set/set"
 
 	"github.com/aws/smithy-go/ptr"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name=dataAccessRepository --with-expecter --inpackage
-
 func (a *AccessSyncer) SyncAccessProvidersFromTarget(ctx context.Context, accessProviderHandler wrappers.AccessProviderHandler, configMap *config.ConfigMap) error {
-	a.repo = &AwsIamRepository{
-		ConfigMap: configMap,
+	err := a.initialize(ctx, configMap)
+	if err != nil {
+		return err
 	}
 
 	return a.doSyncAccessProvidersFromTarget(ctx, accessProviderHandler, configMap)
@@ -33,9 +37,9 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 		return err
 	}
 
-	filteredList := filterApImportList(apImportList)
+	filteredList := filterApImportList(apImportList, configMap)
 
-	logger.Info(fmt.Sprintf("Keeping %d acces providers after filtering", len(filteredList)))
+	utils.Logger.Info(fmt.Sprintf("Keeping %d acces providers after filtering", len(filteredList)))
 
 	err = newRoleEnricher(ctx, configMap).enrich(filteredList)
 	if err != nil {
@@ -47,24 +51,34 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 	return err
 }
 
-func filterApImportList(importList []AccessProviderInputExtended) []AccessProviderInputExtended {
-	toKeep := map[string]struct{}{}
+func filterApImportList(importList []model.AccessProviderInputExtended, configMap *config.ConfigMap) []model.AccessProviderInputExtended {
+	toKeep := set.NewSet[string]()
 
-	logger.Debug("Start filtering for relevant access providers")
+	utils.Logger.Debug("Start filtering for relevant access providers")
+
+	// Role excluded get filtered out here, because some may be referenced by policies and so need to get included anyway.
+	roleExcludes := slice.ParseCommaSeparatedList(configMap.GetString(constants.AwsAccessRoleExcludes))
 
 	for _, apInput := range importList {
-		if apInput.PolicyType == Role || apInput.PolicyType == SSORole {
-			// Elements in the WHAT here already means that there are relevant permissions
-			if len(apInput.ApInput.What) > 0 {
-				logger.Debug(fmt.Sprintf("Keeping role %q", apInput.ApInput.ActualName))
+		if apInput.PolicyType == model.Role || apInput.PolicyType == model.SSORole {
+			matched, err := match.MatchesAny(apInput.ApInput.Name, roleExcludes)
+			if err != nil {
+				utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err.Error()))
+			}
 
-				toKeep[apInput.ApInput.ActualName] = struct{}{}
+			if matched {
+				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it was requested to be skipped", apInput.ApInput.ExternalId))
+			} else if len(apInput.ApInput.What) > 0 {
+				// Elements in the WHAT here already means that there are relevant permissions
+				utils.Logger.Debug(fmt.Sprintf("Keeping role %q", apInput.ApInput.ExternalId))
+
+				toKeep.Add(apInput.ApInput.ExternalId)
 			} else {
-				logger.Debug(fmt.Sprintf("Skipping role %q as it has no WHAT elements", apInput.ApInput.ActualName))
+				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it has no WHAT elements", apInput.ApInput.ExternalId))
 			}
 
 			continue
-		} else if apInput.PolicyType == Policy {
+		} else if apInput.PolicyType == model.Policy {
 			hasS3Actions := false
 
 			if apInput.ApInput.What != nil && len(apInput.ApInput.What) > 0 {
@@ -83,23 +97,25 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 			}
 
 			if hasS3Actions {
-				logger.Debug(fmt.Sprintf("Keeping policy %q", apInput.ApInput.ActualName))
-				toKeep[apInput.ApInput.ActualName] = struct{}{}
+				utils.Logger.Debug(fmt.Sprintf("Keeping policy %q", apInput.ApInput.ActualName))
+				toKeep.Add(apInput.ApInput.ExternalId)
 
 				for _, who := range apInput.ApInput.Who.AccessProviders {
-					logger.Debug(fmt.Sprintf("Re-adding role %q", who))
-					toKeep[who] = struct{}{}
+					utils.Logger.Debug(fmt.Sprintf("Re-adding role %q", who))
+					toKeep.Add(who)
 				}
 			} else {
-				logger.Debug(fmt.Sprintf("Skipping policy %q as it has no relevant permissions/resources", apInput.ApInput.ActualName))
+				utils.Logger.Debug(fmt.Sprintf("Skipping policy %q as it has no relevant permissions/resources", apInput.ApInput.ExternalId))
 			}
+		} else if apInput.PolicyType == model.AccessPoint {
+			toKeep.Add(apInput.ApInput.ExternalId)
 		}
 	}
 
-	result := make([]AccessProviderInputExtended, 0, len(toKeep))
+	result := make([]model.AccessProviderInputExtended, 0, len(toKeep))
 
 	for _, apInput := range importList {
-		if _, ok := toKeep[apInput.ApInput.ActualName]; ok {
+		if toKeep.Contains(apInput.ApInput.ExternalId) {
 			result = append(result, apInput)
 		}
 	}
@@ -107,8 +123,8 @@ func filterApImportList(importList []AccessProviderInputExtended) []AccessProvid
 	return result
 }
 
-func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, roles []RoleEntity, aps []AccessProviderInputExtended) []AccessProviderInputExtended {
-	logger.Info("Get all roles")
+func (a *AccessSyncer) fetchRoleAccessProviders(roles []model.RoleEntity, aps []model.AccessProviderInputExtended) []model.AccessProviderInputExtended {
+	utils.Logger.Info("Get all roles")
 
 	for _, role := range roles {
 		isRaito := false
@@ -121,7 +137,7 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 
 		if isRaito {
 			// TODO later, we need to continue as we possibly need to import the (locked) who or what
-			logger.Info(fmt.Sprintf("Ignoring role %q as it is managed by Raito", role.Name))
+			utils.Logger.Info(fmt.Sprintf("Ignoring role %q as it is managed by Raito", role.Name))
 			continue
 		}
 
@@ -129,18 +145,18 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 		incomplete := false
 
 		if role.AssumeRolePolicyDocument != nil {
-			whoItem, incomplete = createWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, configMap)
+			whoItem, incomplete = iam.CreateWhoFromTrustPolicyDocument(role.AssumeRolePolicy, role.Name, a.account)
 		}
 
-		aps = append(aps, AccessProviderInputExtended{
+		aps = append(aps, model.AccessProviderInputExtended{
 			LastUsedDate: role.LastUsedDate,
-			PolicyType:   Role,
+			PolicyType:   model.Role,
 			ApInput: &sync_from_target.AccessProvider{
-				ExternalId: RoleTypePrefix + role.Name,
+				ExternalId: constants.RoleTypePrefix + role.Name,
 				Name:       role.Name,
 				ActualName: role.Name,
 				NamingHint: role.Name,
-				Type:       aws.String(string(Role)),
+				Type:       aws.String(string(model.Role)),
 				Action:     sync_from_target.Grant,
 				Policy:     "",
 				Who:        whoItem,
@@ -152,8 +168,8 @@ func (a *AccessSyncer) fetchRoleAccessProviders(configMap *config.ConfigMap, rol
 	return aps
 }
 
-func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
-	logger.Info("Get all managed policies")
+func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+	utils.Logger.Info("Get all managed policies")
 	policies, err := a.repo.GetManagedPolicies(ctx)
 
 	if err != nil {
@@ -167,7 +183,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 	for ind := range policies {
 		policy := policies[ind]
 
-		logger.Info(fmt.Sprintf("Handling managed policy %q", policy.Name))
+		utils.Logger.Info(fmt.Sprintf("Handling managed policy %q", policy.Name))
 
 		isAWSManaged := strings.HasPrefix(policy.ARN, "arn:aws:iam::aws:")
 
@@ -185,7 +201,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 
 		if isRaito {
 			// TODO later, we need to continue as we possibly need to import the (locked) who or what
-			logger.Info(fmt.Sprintf("Ignoring managed policy %q as it is managed by Raito", policy.Name))
+			utils.Logger.Info(fmt.Sprintf("Ignoring managed policy %q as it is managed by Raito", policy.Name))
 			continue
 		}
 
@@ -198,28 +214,28 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 		}
 
 		for _, roleBinding := range policy.RoleBindings {
-			roleBindings = append(roleBindings, roleBinding.ResourceName)
+			roleBindings = append(roleBindings, constants.RoleTypePrefix+roleBinding.ResourceName)
 		}
 
 		if len(groupBindings) == 0 && len(userBindings) == 0 && len(roleBindings) == 0 {
-			logger.Info(fmt.Sprintf("Skipping managed policy %s, no user/group/role bindings", policy.Name))
+			utils.Logger.Info(fmt.Sprintf("Skipping managed policy %s, no user/group/role bindings", policy.Name))
 			continue
 		}
 
-		whatItems, incomplete := createWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, configMap)
+		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account)
 
 		policyDocument := ""
 		if policy.PolicyDocument != nil {
 			policyDocument = *policy.PolicyDocument
 		}
 
-		prefixedName := fmt.Sprintf("%s%s", PolicyPrefix, policy.Name)
+		prefixedName := fmt.Sprintf("%s%s", constants.PolicyPrefix, policy.Name)
 
 		apInput := sync_from_target.AccessProvider{
-			ExternalId: PolicyTypePrefix + policy.Name,
+			ExternalId: constants.PolicyTypePrefix + policy.Name,
 			Name:       policy.Name,
 			ActualName: prefixedName,
-			Type:       aws.String(string(Policy)),
+			Type:       aws.String(string(model.Policy)),
 			NamingHint: prefixedName,
 			Action:     sync_from_target.Grant,
 			Policy:     policyDocument,
@@ -241,8 +257,8 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 			apInput.DeleteLockedReason = aws.String("This policy is managed by AWS")
 		}
 
-		aps = append(aps, AccessProviderInputExtended{
-			PolicyType: Policy,
+		aps = append(aps, model.AccessProviderInputExtended{
+			PolicyType: model.Policy,
 			ApInput:    &apInput,
 		})
 	}
@@ -250,14 +266,15 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, co
 	return aps, nil
 }
 
-func convertPoliciesToWhat(policies []PolicyEntity, configMap *config.ConfigMap) ([]sync_from_target.WhatItem, bool, string) {
-	var whatItems []sync_from_target.WhatItem
+func (a *AccessSyncer) convertPoliciesToWhat(policies []model.PolicyEntity) ([]sync_from_target.WhatItem, bool, string) {
+	// Making sure to never return nil
+	whatItems := make([]sync_from_target.WhatItem, 0, 10)
 	incomplete := false
 	policyDocuments := ""
 
 	for i := range policies {
 		policy := policies[i]
-		policyWhat, policyIncomplete := createWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, configMap)
+		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account)
 
 		if policy.PolicyDocument != nil {
 			policyDocuments += *policy.PolicyDocument + "\n"
@@ -305,14 +322,14 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	return whatItems
 }
 
-func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, configMap *config.ConfigMap, roles []RoleEntity, aps []AccessProviderInputExtended) ([]AccessProviderInputExtended, error) {
+func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
 	userPolicies, err := a.getInlinePoliciesOnUsers(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for user, policies := range userPolicies {
-		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
+		whatItems, incomplete, policyDocuments := a.convertPoliciesToWhat(policies)
 
 		name := "User " + user + " inline policies"
 
@@ -322,13 +339,13 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			policyIds.WriteString("|")
 		}
 
-		aps = append(aps, AccessProviderInputExtended{
-			PolicyType: Policy,
+		aps = append(aps, model.AccessProviderInputExtended{
+			PolicyType: model.Policy,
 			ApInput: &sync_from_target.AccessProvider{
 				// As internal policies don't have an ID we use the policy ARN
-				ExternalId: UserTypePrefix + user + "|" + InlinePrefix + policyIds.String(),
+				ExternalId: constants.UserTypePrefix + user + "|" + constants.InlinePrefix + policyIds.String(),
 				Name:       name,
-				Type:       aws.String(string(Policy)),
+				Type:       aws.String(string(model.Policy)),
 				NamingHint: "",
 				ActualName: name,
 				Action:     sync_from_target.Grant,
@@ -341,13 +358,17 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			}})
 	}
 
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
 	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx)
 	if err != nil {
 		return nil, err
 	}
 
 	for group, policies := range groupPolicies {
-		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
+		whatItems, incomplete, policyDocuments := a.convertPoliciesToWhat(policies)
 
 		name := "Group " + group + " inline policies"
 
@@ -357,13 +378,13 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			policyIds.WriteString("|")
 		}
 
-		aps = append(aps, AccessProviderInputExtended{
-			PolicyType: Policy,
+		aps = append(aps, model.AccessProviderInputExtended{
+			PolicyType: model.Policy,
 			ApInput: &sync_from_target.AccessProvider{
 				// As internal policies don't have an ID we use the policy ARN
-				ExternalId: GroupTypePrefix + group + "|" + InlinePrefix + policyIds.String(),
+				ExternalId: constants.GroupTypePrefix + group + "|" + constants.InlinePrefix + policyIds.String(),
 				Name:       name,
-				Type:       aws.String(string(Policy)),
+				Type:       aws.String(string(model.Policy)),
 				NamingHint: "",
 				ActualName: name,
 				Action:     sync_from_target.Grant,
@@ -376,6 +397,10 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			}})
 	}
 
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchInlineRolePolicyAccessProviders(ctx context.Context, roles []model.RoleEntity, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	rolePolicies, err := a.getInlinePoliciesOnRoles(ctx, roles)
 	if err != nil {
 		return nil, err
@@ -385,17 +410,17 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 		var roleAp *sync_from_target.AccessProvider
 
 		for _, ap := range aps {
-			if ap.PolicyType == Role && ap.ApInput.Name == role {
+			if ap.PolicyType == model.Role && ap.ApInput.Name == role {
 				roleAp = ap.ApInput
 			}
 		}
 
 		if roleAp == nil {
-			logger.Error(fmt.Sprintf("Could not find role %q", role))
+			utils.Logger.Error(fmt.Sprintf("Could not find role %q", role))
 			continue
 		}
 
-		whatItems, incomplete, policyDocuments := convertPoliciesToWhat(policies, configMap)
+		whatItems, incomplete, policyDocuments := a.convertPoliciesToWhat(policies)
 
 		var policyIds strings.Builder
 		for i := range policies {
@@ -403,7 +428,6 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 			policyIds.WriteString("|")
 		}
 
-		roleAp.ExternalId = RoleTypePrefix + role + "|" + InlinePrefix + policyIds.String()
 		roleAp.Policy = policyDocuments
 		roleAp.What = whatItems
 		roleAp.Incomplete = ptr.Bool(incomplete || (roleAp.Incomplete != nil && *roleAp.Incomplete))
@@ -412,38 +436,110 @@ func (a *AccessSyncer) fetchInlinePolicyAccessProviders(ctx context.Context, con
 	return aps, nil
 }
 
-func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *config.ConfigMap) ([]AccessProviderInputExtended, error) {
-	var apImportList []AccessProviderInputExtended
+func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, configMap *config.ConfigMap, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
+	var err error
 
-	roles, err := a.repo.GetRoles(ctx)
+	for _, region := range utils.GetRegions(configMap) {
+		aps, err = a.fetchS3AccessPointAccessProvidersForRegion(ctx, aps, region)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Context, aps []model.AccessProviderInputExtended, region string) ([]model.AccessProviderInputExtended, error) {
+	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
 	if err != nil {
 		return nil, err
 	}
 
-	// Adding access providers to the list for the roles
-	apImportList = a.fetchRoleAccessProviders(configMap, roles, apImportList)
+	for _, accessPoint := range accessPoints {
+		newAp := model.AccessProviderInputExtended{
+			PolicyType: model.AccessPoint,
+			ApInput: &sync_from_target.AccessProvider{
+				// Adding the region to uniquely identify the access point
+				ExternalId: fmt.Sprintf("%s%s:%s", constants.AccessPointTypePrefix, region, accessPoint.Name),
+				Name:       accessPoint.Name,
+				Type:       aws.String(string(model.AccessPoint)),
+				NamingHint: "",
+				ActualName: accessPoint.Name,
+				Action:     sync_from_target.Grant,
+			}}
 
-	if err != nil {
-		return nil, err
+		if accessPoint.PolicyDocument != nil {
+			newAp.ApInput.Policy = *accessPoint.PolicyDocument
+		}
+
+		incomplete := false
+		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
+
+		if incomplete {
+			newAp.ApInput.Incomplete = ptr.Bool(true)
+		}
+
+		aps = append(aps, newAp)
 	}
 
-	// Adding access providers to the list for the managed policies
-	apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, configMap, apImportList)
-	if err != nil {
-		return nil, err
+	return aps, nil
+}
+
+func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *config.ConfigMap) ([]model.AccessProviderInputExtended, error) {
+	var apImportList []model.AccessProviderInputExtended
+
+	if !configMap.GetBool(constants.AwsAccessSkipIAM) {
+		roles, err := a.repo.GetRoles(ctx)
+		if err != nil {
+			return nil, err
+		}
+
+		// Adding access providers to the list for the roles
+		apImportList = a.fetchRoleAccessProviders(roles, apImportList)
+
+		if !configMap.GetBool(constants.AwsAccessSkipManagedPolicies) {
+			// Adding access providers to the list for the managed policies
+			apImportList, err = a.fetchManagedPolicyAccessProviders(ctx, apImportList)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if !configMap.GetBool(constants.AwsAccessSkipUserInlinePolicies) {
+			apImportList, err = a.fetchInlineUserPolicyAccessProviders(ctx, apImportList)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		if !configMap.GetBool(constants.AwsAccessSkipGroupInlinePolicies) {
+			apImportList, err = a.fetchInlineGroupPolicyAccessProviders(ctx, apImportList)
+			if err != nil {
+				return nil, err
+			}
+		}
+
+		// Adding access providers to the list for the inline policies (existing role access providers will be enriched with inline policies it may have)
+		apImportList, err = a.fetchInlineRolePolicyAccessProviders(ctx, roles, apImportList)
+		if err != nil {
+			return nil, err
+		}
 	}
 
-	// Adding access providers to the list for the inline policies (existing role access providers will be enriched with inline policies it may have)
-	apImportList, err = a.fetchInlinePolicyAccessProviders(ctx, configMap, roles, apImportList)
-	if err != nil {
-		return nil, err
+	if !configMap.GetBool(constants.AwsAccessSkipS3AccessPoints) {
+		var err error
+
+		apImportList, err = a.FetchS3AccessPointAccessProviders(ctx, configMap, apImportList)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	return apImportList, nil
 }
 
-func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[string][]PolicyEntity, error) {
-	logger.Info("Get inline policies from groups")
+func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[string][]model.PolicyEntity, error) {
+	utils.Logger.Info("Get inline policies from groups")
 	groups, err := a.repo.GetGroups(ctx)
 
 	if err != nil {
@@ -455,10 +551,10 @@ func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[strin
 		groupNames = append(groupNames, g.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, groupNames, GroupResourceType)
+	return a.repo.GetInlinePoliciesForEntities(ctx, groupNames, iam.GroupResourceType)
 }
-func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string][]PolicyEntity, error) {
-	logger.Info("Get inline policies from users")
+func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string][]model.PolicyEntity, error) {
+	utils.Logger.Info("Get inline policies from users")
 
 	users, err := a.repo.GetUsers(ctx, false)
 	if err != nil {
@@ -470,26 +566,26 @@ func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string
 		userNames = append(userNames, u.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, userNames, UserResourceType)
+	return a.repo.GetInlinePoliciesForEntities(ctx, userNames, iam.UserResourceType)
 }
 
-func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []RoleEntity) (map[string][]PolicyEntity, error) {
-	logger.Info("Get inline policies from roles")
+func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []model.RoleEntity) (map[string][]model.PolicyEntity, error) {
+	utils.Logger.Info("Get inline policies from roles")
 
 	roleNames := []string{}
 	for _, role := range roles {
 		roleNames = append(roleNames, role.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, roleNames, RoleResourceType)
+	return a.repo.GetInlinePoliciesForEntities(ctx, roleNames, iam.RoleResourceType)
 }
 
-func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_target.AccessProvider {
+func getProperFormatForImport(input []model.AccessProviderInputExtended) []*sync_from_target.AccessProvider {
 	result := make([]*sync_from_target.AccessProvider, 0, len(input))
 
 	for _, ap := range input {
 		if ap.ApInput == nil {
-			logger.Warn(fmt.Sprintf("Access provider input with type %q is nil", ap.PolicyType))
+			utils.Logger.Warn(fmt.Sprintf("Access provider input with type %q is nil", ap.PolicyType))
 			continue
 		}
 
@@ -497,9 +593,4 @@ func getProperFormatForImport(input []AccessProviderInputExtended) []*sync_from_
 	}
 
 	return result
-}
-
-func (a *AccessSyncer) SyncAccessAsCodeToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, prefix string, configMap *config.ConfigMap) error {
-	// TODO implement
-	return nil
 }

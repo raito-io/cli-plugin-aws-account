@@ -1,11 +1,13 @@
-package aws
+package iam
 
 import (
 	"fmt"
-	"github.com/raito-io/golang-set/set"
-	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/golang-set/set"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestApInheritanceHandler(t *testing.T) {
@@ -19,37 +21,43 @@ func TestApInheritanceHandler(t *testing.T) {
 		"Policy1": set.NewSet("Policy2"),
 		"Policy2": set.NewSet("Role1"),
 	}
-	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{
-		"Role1": set.NewSet(PolicyBinding{
+	accessPointInheritanceMap := map[string]set.Set[string]{}
+
+	newRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{
+		"Role1": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user1",
 		}),
-		"Role2": set.NewSet(PolicyBinding{
+		"Role2": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user2",
 		}),
 	}
-	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
-		"Policy1": set.NewSet(PolicyBinding{
+	newPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{
+		"Policy1": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user3",
 		}),
-		"Policy2": set.NewSet(PolicyBinding{
+		"Policy2": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user4",
 		}),
 	}
-	existingRoleWhoBindings := map[string]set.Set[PolicyBinding]{}
-	existingPolicyWhoBindings := map[string]set.Set[PolicyBinding]{}
 
-	processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+	newAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+
+	existingRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+	existingPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+	existingAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+
+	ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, accessPointInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, newAccessPointWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings, existingAccessPointWhoBindings)
 
 	fmt.Printf("Role1 bindings: %+v\n", newRoleWhoBindings["Role1"])
 	fmt.Printf("Role2 bindings: %+v\n", newRoleWhoBindings["Role2"])
 	fmt.Printf("Policy1 bindings: %+v\n", newPolicyWhoBindings["Policy1"])
 	fmt.Printf("Policy2 bindings: %+v\n", newPolicyWhoBindings["Policy2"])
 
-	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+	compareBindings(t, set.NewSet[model.PolicyBinding]([]model.PolicyBinding{
 		{
 			Type:         UserResourceType,
 			ResourceName: "user1",
@@ -60,14 +68,14 @@ func TestApInheritanceHandler(t *testing.T) {
 		},
 	}...), newRoleWhoBindings["Role1"])
 
-	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+	compareBindings(t, set.NewSet[model.PolicyBinding]([]model.PolicyBinding{
 		{
 			Type:         UserResourceType,
 			ResourceName: "user2",
 		},
 	}...), newRoleWhoBindings["Role2"])
 
-	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+	compareBindings(t, set.NewSet[model.PolicyBinding]([]model.PolicyBinding{
 		{
 			Type:         UserResourceType,
 			ResourceName: "user3",
@@ -86,7 +94,7 @@ func TestApInheritanceHandler(t *testing.T) {
 		},
 	}...), newPolicyWhoBindings["Policy1"])
 
-	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+	compareBindings(t, set.NewSet[model.PolicyBinding]([]model.PolicyBinding{
 		{
 			Type:         UserResourceType,
 			ResourceName: "user4",
@@ -112,42 +120,46 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 	policyInheritanceMap := map[string]set.Set[string]{
 		"Policy1": set.NewSet("Policy2"),
 	}
-	newRoleWhoBindings := map[string]set.Set[PolicyBinding]{
-		"Role1": set.NewSet(PolicyBinding{
+	accessPointInheritanceMap := map[string]set.Set[string]{}
+
+	newRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{
+		"Role1": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user1",
 		}),
 	}
-	newPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
-		"Policy1": set.NewSet(PolicyBinding{
+	newPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{
+		"Policy1": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user3",
 		}),
 	}
-	existingRoleWhoBindings := map[string]set.Set[PolicyBinding]{
-		"Role2": set.NewSet(PolicyBinding{
+	newAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
+	existingRoleWhoBindings := map[string]set.Set[model.PolicyBinding]{
+		"Role2": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user2",
 		}),
 	}
-	existingPolicyWhoBindings := map[string]set.Set[PolicyBinding]{
-		"Policy2": set.NewSet(PolicyBinding{
+	existingPolicyWhoBindings := map[string]set.Set[model.PolicyBinding]{
+		"Policy2": set.NewSet(model.PolicyBinding{
 			Type:         UserResourceType,
 			ResourceName: "user4",
-		}, PolicyBinding{
+		}, model.PolicyBinding{
 			Type:         "role",
 			ResourceName: "Role1",
 		}),
 	}
+	existingAccessPointWhoBindings := map[string]set.Set[model.PolicyBinding]{}
 
-	processApInheritance(roleInheritanceMap, policyInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings)
+	ProcessApInheritance(roleInheritanceMap, policyInheritanceMap, accessPointInheritanceMap, newRoleWhoBindings, newPolicyWhoBindings, newAccessPointWhoBindings, existingRoleWhoBindings, existingPolicyWhoBindings, existingAccessPointWhoBindings)
 
 	fmt.Printf("Role1 bindings: %+v\n", newRoleWhoBindings["Role1"])
 	fmt.Printf("Role2 bindings: %+v\n", newRoleWhoBindings["Role2"])
 	fmt.Printf("Policy1 bindings: %+v\n", newPolicyWhoBindings["Policy1"])
 	fmt.Printf("Policy2 bindings: %+v\n", newPolicyWhoBindings["Policy2"])
 
-	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+	compareBindings(t, set.NewSet[model.PolicyBinding]([]model.PolicyBinding{
 		{
 			Type:         UserResourceType,
 			ResourceName: "user1",
@@ -158,7 +170,7 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 		},
 	}...), newRoleWhoBindings["Role1"])
 
-	compareBindings(t, set.NewSet[PolicyBinding]([]PolicyBinding{
+	compareBindings(t, set.NewSet[model.PolicyBinding]([]model.PolicyBinding{
 		{
 			Type:         UserResourceType,
 			ResourceName: "user3",
@@ -178,7 +190,7 @@ func TestApInheritanceHandler_WithExternals(t *testing.T) {
 	}...), newPolicyWhoBindings["Policy1"])
 }
 
-func compareBindings(t *testing.T, expected set.Set[PolicyBinding], actual set.Set[PolicyBinding]) {
+func compareBindings(t *testing.T, expected set.Set[model.PolicyBinding], actual set.Set[model.PolicyBinding]) {
 	if len(expected) != len(actual) {
 		t.Error("Not the same number of bindings")
 	}

@@ -1,10 +1,13 @@
-package aws
+package data_source
 
 import (
-	"github.com/raito-io/cli/base/util/config"
-	"github.com/stretchr/testify/assert"
 	"sort"
 	"testing"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli/base/util/config"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestFilterBuckets(t *testing.T) {
@@ -35,17 +38,17 @@ func TestFilterBuckets(t *testing.T) {
 }
 
 func executeFilterBucketTest(t *testing.T, includes string, excludes string, input []string, expected []string) {
-	buckets := make([]AwsS3Entity, 0, len(input))
+	buckets := make([]model.AwsS3Entity, 0, len(input))
 	for _, in := range input {
-		buckets = append(buckets, AwsS3Entity{
+		buckets = append(buckets, model.AwsS3Entity{
 			Key: in,
 		})
 	}
 
 	filtered, err := filterBuckets(&config.ConfigMap{
 		Parameters: map[string]string{
-			AwsS3IncludeBuckets: includes,
-			AwsS3ExcludeBuckets: excludes,
+			constants.AwsS3IncludeBuckets: includes,
+			constants.AwsS3ExcludeBuckets: excludes,
 		},
 	}, buckets)
 

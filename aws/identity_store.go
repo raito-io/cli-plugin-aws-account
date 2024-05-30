@@ -3,6 +3,9 @@ package aws
 import (
 	"context"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers"
 
@@ -11,9 +14,9 @@ import (
 
 //go:generate go run github.com/vektra/mockery/v2 --name=identityStoreRepository --with-expecter --inpackage
 type identityStoreRepository interface {
-	GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error)
-	GetGroups(ctx context.Context) ([]GroupEntity, error)
-	GetRoles(ctx context.Context) ([]RoleEntity, error)
+	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
+	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
+	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 }
 
 type IdentityStoreSyncer struct {
@@ -25,7 +28,7 @@ func NewIdentityStoreSyncer() *IdentityStoreSyncer {
 }
 
 func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context, configParams *config.ConfigMap) (*is.MetaData, error) {
-	logger.Debug("Returning meta data for AWS identity store")
+	utils.Logger.Debug("Returning meta data for AWS identity store")
 
 	return &is.MetaData{
 		Type: "aws-account",
@@ -33,9 +36,7 @@ func (s *IdentityStoreSyncer) GetIdentityStoreMetaData(ctx context.Context, conf
 }
 
 func newRepoProvider(configMap *config.ConfigMap) identityStoreRepository {
-	return &AwsIamRepository{
-		ConfigMap: configMap,
-	}
+	return iam.NewAwsIamRepository(configMap)
 }
 
 func (s *IdentityStoreSyncer) SyncIdentityStore(ctx context.Context, identityHandler wrappers.IdentityStoreIdentityHandler, configMap *config.ConfigMap) error {

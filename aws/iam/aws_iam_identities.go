@@ -1,4 +1,4 @@
-package aws
+package iam
 
 import (
 	"context"
@@ -8,22 +8,21 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hashicorp/go-multierror"
-
 	"github.com/gammazero/workerpool"
+	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
-	"github.com/raito-io/golang-set/set"
-
 	awspolicy "github.com/n4ch04/aws-policy"
 )
 
-var rolesCache []RoleEntity
+var rolesCache []model.RoleEntity
 
-func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error) {
+func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
@@ -40,7 +39,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 		response, err2 := client.ListUsers(ctx, &input)
 		if err2 != nil {
-			return nil, err
+			return nil, err2
 		}
 
 		allUsers = append(allUsers, response.Users...)
@@ -49,9 +48,9 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 		marker = response.Marker
 	}
 
-	result := make([]UserEntity, 0, len(allUsers))
+	result := make([]model.UserEntity, 0, len(allUsers))
 
-	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 
 	var resultErr error
@@ -70,7 +69,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 				userRaw, err2 := client.GetUser(ctx, &userInput)
 				if err2 != nil {
-					logger.Error(fmt.Sprintf("failed to get user %s: %s", *user.UserName, err2.Error()))
+					utils.Logger.Error(fmt.Sprintf("failed to get user %s: %s", *user.UserName, err2.Error()))
 
 					smu.Lock()
 					resultErr = multierror.Append(resultErr, err2)
@@ -80,14 +79,14 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 				}
 
 				user = *userRaw.User
-				tags = getTags(user.Tags)
-				emailAddress = getEmailAddressFromTags(tags, *user.UserName)
+				tags = utils.GetTags(user.Tags)
+				emailAddress = utils.GetEmailAddressFromTags(tags, *user.UserName)
 			}
 
 			smu.Lock()
 			defer smu.Unlock()
 
-			result = append(result, UserEntity{
+			result = append(result, model.UserEntity{
 				ExternalId: *user.UserId,
 				ARN:        *user.Arn,
 				Name:       *user.UserName,
@@ -99,12 +98,19 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 	workerPool.StopWait()
 
-	logger.Info(fmt.Sprintf("A total of %d users has been found", len(result)))
+	utils.Logger.Info(fmt.Sprintf("A total of %d users has been found", len(result)))
+
+	result = append(result, model.UserEntity{
+		ARN:        fmt.Sprintf("arn:aws:iam::%s:user/root", repo.account),
+		ExternalId: fmt.Sprintf("arn:aws:iam::%s:user/root", repo.account),
+		Name:       "root",
+		Email:      "root@" + repo.account,
+	})
 
 	return result, resultErr
 }
 
-func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, error) {
+func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]model.GroupEntity, error) {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
 		return nil, err
@@ -130,7 +136,7 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, err
 		marker = response.Marker
 	}
 
-	result := make([]GroupEntity, 0, len(allGroups))
+	result := make([]model.GroupEntity, 0, len(allGroups))
 
 	for _, group := range allGroups {
 		moreGroupDetailsAvailable := true
@@ -156,7 +162,7 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, err
 			}
 		}
 
-		result = append(result, GroupEntity{
+		result = append(result, model.GroupEntity{
 			ARN:        *group.Arn,
 			ExternalId: *group.GroupId,
 			Name:       *group.GroupName,
@@ -167,7 +173,11 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]GroupEntity, err
 	return result, nil
 }
 
-func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error) {
+func (repo *AwsIamRepository) ClearRolesCache() {
+	rolesCache = nil
+}
+
+func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity, error) {
 	if rolesCache != nil {
 		return rolesCache, nil
 	}
@@ -198,9 +208,9 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 		marker = resp.Marker
 	}
 
-	result := make([]RoleEntity, 0, len(allRoles))
+	result := make([]model.RoleEntity, 0, len(allRoles))
 
-	workerPool := workerpool.New(getConcurrency(repo.ConfigMap))
+	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
 
@@ -213,7 +223,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 			})
 
 			if err2 != nil {
-				logger.Error(fmt.Sprintf("Error getting role %s: %s", *roleFromList.RoleName, err2.Error()))
+				utils.Logger.Error(fmt.Sprintf("Error getting role %s: %s", *roleFromList.RoleName, err2.Error()))
 
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -246,11 +256,11 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 				Description = *role.Description
 			}
 
-			tags := getTags(role.Tags)
+			tags := utils.GetTags(role.Tags)
 
 			trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
 			if err2 != nil {
-				logger.Error(fmt.Sprintf("Error reading trust policy from role %s: %s", *roleFromList.RoleName, err2.Error()))
+				utils.Logger.Error(fmt.Sprintf("Error reading trust policy from role %s: %s", *roleFromList.RoleName, err2.Error()))
 
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -262,7 +272,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 			smu.Lock()
 			defer smu.Unlock()
 
-			result = append(result, RoleEntity{
+			result = append(result, model.RoleEntity{
 				ARN:                      Arn,
 				Id:                       Id,
 				Name:                     Name,
@@ -277,7 +287,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 
 	workerPool.StopWait()
 
-	logger.Info(fmt.Sprintf("A total of %d roles have been found", len(result)))
+	utils.Logger.Info(fmt.Sprintf("A total of %d roles have been found", len(result)))
 
 	rolesCache = result
 
@@ -288,7 +298,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]RoleEntity, error
 // the principals input parameters define which users will be able to assume the policy initially
 func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) error {
 	if len(userNames) == 0 {
-		logger.Warn("No users provided to assume the role")
+		utils.Logger.Warn("No users provided to assume the role")
 		return nil
 	}
 
@@ -363,7 +373,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 	newPrincipals := []string{}
 
 	for _, userName := range userNames {
-		newPrincipals = append(newPrincipals, getTrustPolicyArn(userName, repo.ConfigMap))
+		newPrincipals = append(newPrincipals, utils.GetTrustPolicyArn(userName, repo.account))
 	}
 
 	var policy *awspolicy.Policy
@@ -413,44 +423,4 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 	existingPolicyDoc = aws.String(string(bytes))
 
 	return *existingPolicyDoc, nil
-}
-
-func (repo *AwsIamRepository) GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error) {
-	// TODO replace with new createWhoFromTrustPolicyDocument method ?
-	principals := set.Set[string]{}
-
-	if policyDocument == nil {
-		return nil, nil
-	}
-
-	policy, _, err := repo.parsePolicyDocument(policyDocument, "", "")
-	if err != nil {
-		return nil, err
-	}
-
-	for ind := range policy.Statements {
-		statement := policy.Statements[ind]
-		containsAssumeRole := false
-
-		for ind := range statement.Action {
-			action := statement.Action[ind]
-			if strings.Contains(action, "sts:AssumeRole") {
-				containsAssumeRole = true
-				break
-			}
-		}
-
-		if containsAssumeRole {
-			for _, principal := range statement.Principal["AWS"] {
-				userName := convertArnToFullname(principal)
-				parts := strings.Split(userName, "/")
-
-				if len(parts) == 2 {
-					principals.Add(parts[1])
-				}
-			}
-		}
-	}
-
-	return principals.Slice(), nil
 }

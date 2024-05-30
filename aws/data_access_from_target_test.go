@@ -2,10 +2,14 @@ package aws
 
 import (
 	"context"
+	"testing"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/stretchr/testify/assert"
-	"testing"
 
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers/mocks"
@@ -21,19 +25,19 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 		managedPolicies: nil,
 	}
 
-	managedPolicies, err := getObjects[PolicyEntity]("testdata/aws/test_managed_policies.json")
+	managedPolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_managed_policies.json")
 	require.Nil(t, err)
-	roles, err := getObjects[RoleEntity]("testdata/aws/test_roles.json")
+	roles, err := getObjects[model.RoleEntity]("testdata/aws/test_roles.json")
 	require.Nil(t, err)
-	groups, err := getObjects[GroupEntity]("testdata/aws/test_groups.json")
+	groups, err := getObjects[model.GroupEntity]("testdata/aws/test_groups.json")
 	require.Nil(t, err)
-	users, err := getObjects[UserEntity]("testdata/aws/test_users.json")
+	users, err := getObjects[model.UserEntity]("testdata/aws/test_users.json")
 	require.Nil(t, err)
-	roleInlinePolicies, err := getObjects[PolicyEntity]("testdata/aws/test_role_inline_policies.json")
+	roleInlinePolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_role_inline_policies.json")
 	require.Nil(t, err)
-	groupInlinePolicies, err := getObjects[PolicyEntity]("testdata/aws/test_group_inline_policies.json")
+	groupInlinePolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_group_inline_policies.json")
 	require.Nil(t, err)
-	userInlinePolicies, err := getObjects[PolicyEntity]("testdata/aws/test_user_inline_policies.json")
+	userInlinePolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_user_inline_policies.json")
 	require.Nil(t, err)
 
 	roleNames := []string{}
@@ -51,21 +55,21 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 		groupNames = append(groupNames, group.Name)
 	}
 
-	roleInlineMap := make(map[string][]PolicyEntity)
+	roleInlineMap := make(map[string][]model.PolicyEntity)
 	for _, rip := range roleInlinePolicies {
 		for _, rb := range rip.RoleBindings {
 			roleInlineMap[rb.ResourceName] = append(roleInlineMap[rb.ResourceName], rip)
 		}
 	}
 
-	userInlineMap := make(map[string][]PolicyEntity)
+	userInlineMap := make(map[string][]model.PolicyEntity)
 	for _, uip := range userInlinePolicies {
 		for _, ub := range uip.RoleBindings {
 			userInlineMap[ub.ResourceName] = append(userInlineMap[ub.ResourceName], uip)
 		}
 	}
 
-	groupInlineMap := make(map[string][]PolicyEntity)
+	groupInlineMap := make(map[string][]model.PolicyEntity)
 	for _, gip := range groupInlinePolicies {
 		for _, gb := range gip.RoleBindings {
 			groupInlineMap[gb.ResourceName] = append(groupInlineMap[gb.ResourceName], gip)
@@ -76,9 +80,10 @@ func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *Acces
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
 	repoMock.EXPECT().GetGroups(mock.Anything).Return(groups, nil).Once()
 	repoMock.EXPECT().GetUsers(mock.Anything, false).Return(users, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, roleNames, RoleResourceType).Return(roleInlineMap, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, userNames, UserResourceType).Return(userInlineMap, nil).Once()
-	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, groupNames, GroupResourceType).Return(groupInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, roleNames, iam.RoleResourceType).Return(roleInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, userNames, iam.UserResourceType).Return(userInlineMap, nil).Once()
+	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, groupNames, iam.GroupResourceType).Return(groupInlineMap, nil).Once()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return([]model.AwsS3AccessPoint{}, nil).Once()
 
 	return repoMock, syncer
 }
@@ -127,14 +132,15 @@ func TestMergeWhatItem(t *testing.T) {
 }
 
 func TestTargetToAccessProvider_BasicImport(t *testing.T) {
-	configmap := config.ConfigMap{}
-	configmap.Parameters = map[string]string{AwsAccountId: "123456"}
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+	}
 	_, syncer := setupMockImportEnvironment(t)
 	ctx := context.Background()
 
 	apHandler := mocks.NewAccessProviderHandler(t)
 
-	inputs := []interface{}{}
+	var inputs []interface{}
 	for i := 0; i < 22; i++ {
 		inputs = append(inputs, mock.Anything)
 	}

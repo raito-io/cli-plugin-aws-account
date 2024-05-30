@@ -2,19 +2,25 @@ package aws
 
 import (
 	"context"
+	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	awspolicy "github.com/n4ch04/aws-policy"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/cli/base/util/config"
 )
 
+//go:generate go run github.com/vektra/mockery/v2 --name=dataAccessRepository --with-expecter --inpackage
+
 type dataAccessRepository interface {
-	GetManagedPolicies(ctx context.Context) ([]PolicyEntity, error)
-	CreateManagedPolicy(ctx context.Context, policyName string, statements []awspolicy.Statement) (*types.Policy, error)
-	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []awspolicy.Statement) error
+	GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error)
+	CreateManagedPolicy(ctx context.Context, policyName string, statements []*awspolicy.Statement) (*types.Policy, error)
+	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement) error
 	DeleteManagedPolicy(ctx context.Context, policyName string, awsManaged bool) error
-	CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []awspolicy.Statement) error
+	CreateRoleInlinePolicy(ctx context.Context, roleName string, policyName string, statements []*awspolicy.Statement) error
 	DeleteRoleInlinePolicies(ctx context.Context, roleName string) error
 	AttachUserToManagedPolicy(ctx context.Context, policyArn string, userNames []string) error
 	AttachGroupToManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error
@@ -22,29 +28,55 @@ type dataAccessRepository interface {
 	DetachUserFromManagedPolicy(ctx context.Context, policyArn string, userNames []string) error
 	DetachGroupFromManagedPolicy(ctx context.Context, policyArn string, groupNames []string) error
 	DetachRoleFromManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error
-	GetUsers(ctx context.Context, withDetails bool) ([]UserEntity, error)
-	GetGroups(ctx context.Context) ([]GroupEntity, error)
-	GetRoles(ctx context.Context) ([]RoleEntity, error)
+	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
+	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
+	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) error
 	DeleteRole(ctx context.Context, name string) error
-	GetPrincipalsFromAssumeRolePolicyDocument(policyDocument *string) ([]string, error)
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
-	// RemoveAssumeRole(ctx context.Context, configMap *config.ConfigMap, roleName string, userNames ...string) error
-	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]PolicyEntity, error)
+	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
+	ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error)
 	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
-	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []awspolicy.Statement) error
-	GetAttachedEntity(ap sync_to_target.AccessProvider) (string, string, error)
+	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []*awspolicy.Statement) error
 	GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string
-	// processApInheritance(inheritanceMap map[string]set.Set[string], policyMap map[string]string, roleMap map[string]string,
-	// 	newBindings *map[string]set.Set[PolicyBinding], existingBindings map[string]set.Set[PolicyBinding]) error
-	// resolveInheritedApNames(exportedAps []*importer.AccessProvider, aps ...string) []string
+	CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) error
+	UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error
+	DeleteAccessPoint(ctx context.Context, name string, region string) error
 }
+
 type AccessSyncer struct {
 	repo            dataAccessRepository
-	managedPolicies []PolicyEntity
+	account         string
+	managedPolicies []model.PolicyEntity
 	userGroupMap    map[string][]string
 }
 
 func NewDataAccessSyncer() *AccessSyncer {
 	return &AccessSyncer{}
+}
+
+func NewDataAccessSyncerFromConfig(configMap *config.ConfigMap) *AccessSyncer {
+	as := &AccessSyncer{}
+
+	err := as.initialize(context.Background(), configMap)
+
+	if err != nil {
+		utils.Logger.Error(fmt.Sprintf("Failed to initialize AccessSyncer: %s", err.Error()))
+		return nil
+	}
+
+	return as
+}
+
+func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigMap) error {
+	a.repo = iam.NewAwsIamRepository(configMap)
+
+	var err error
+
+	a.account, err = repo.GetAccountId(ctx, configMap)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
