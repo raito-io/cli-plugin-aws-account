@@ -11,17 +11,3 @@ variable "demo_dataset" {
   description = "Infrastructure for testing purposes"
   default     = true
 }
-
-variable "aws_access_key_id" {
-  type        = string
-  sensitive   = false
-  description = "AWS access key to connect to the AWS account"
-  nullable    = false
-}
-
-variable "aws_secret_access_key" {
-  type        = string
-  sensitive   = true
-  description = "AWS secret access key to connect to the AWS account"
-  nullable    = false
-}
