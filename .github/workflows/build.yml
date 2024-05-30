@@ -51,7 +51,7 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.57.2
+          version: v1.59.0
 
       - name: Test
         run: make test
