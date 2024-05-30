@@ -57,13 +57,6 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
 
-      - name: Testing account - Assume role using OIDC
-        uses: aws-actions/configure-aws-credentials@v4
-        id: aws_assumed_role_testing_account
-        with:
-          role-to-assume: ${{ secrets.AWS_TEST_OIDC_ROLE }}
-          aws-region: ${{ secrets.AWS_TEST_REGION }}
-
       - name: AWS Shared TF state account - Assume role using OIDC
         uses: aws-actions/configure-aws-credentials@v4
         id: aws_assumed_role_shared_tf_state_account
@@ -83,6 +76,17 @@ jobs:
       - name: AWS Shared TF state account - Check Profile
         shell: bash
         run: aws sts get-caller-identity --profile ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
+
+      - name: Testing account - Assume role using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        id: aws_assumed_role_testing_account
+        with:
+          role-to-assume: ${{ secrets.AWS_TEST_OIDC_ROLE }}
+          aws-region: ${{ secrets.AWS_TEST_REGION }}
+
+      - name: Testing account - Check Profile
+        shell: bash
+        run: aws sts get-caller-identity
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
