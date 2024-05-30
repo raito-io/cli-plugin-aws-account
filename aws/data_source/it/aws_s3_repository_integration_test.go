@@ -6,12 +6,13 @@ import (
 	"context"
 	"testing"
 
+	ds2 "github.com/raito-io/cli/base/data_source"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
-	ds2 "github.com/raito-io/cli/base/data_source"
-	"github.com/stretchr/testify/suite"
 )
 
 type S3RepositoryTestSuite struct {
@@ -35,7 +36,7 @@ func (s *S3RepositoryTestSuite) TestS3Repository_SyncDataSource() {
 	config.Parameters[constants.AwsGlueEnabled] = "false"
 	config.Parameters[constants.AwsS3Enabled] = "true"
 	config.Parameters[constants.AwsRegions] = "eu-central-1,eu-west-1"
-	config.Parameters[constants.AwsS3ExcludeBuckets] = "raito-cloudtrail"
+	config.Parameters[constants.AwsS3ExcludeBuckets] = "raito-cloudtrail,cdk-*"
 
 	err := syncer.SyncDataSource(context.Background(), &dsHandler, &ds2.DataSourceSyncConfig{ConfigMap: config})
 
