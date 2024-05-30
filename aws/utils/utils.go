@@ -146,6 +146,7 @@ func CheckNilInterface(i interface{}) bool {
 	if !iv.IsValid() {
 		return true
 	}
+
 	switch iv.Kind() {
 	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Func, reflect.Interface:
 		return iv.IsNil()
