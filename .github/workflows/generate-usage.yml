@@ -6,21 +6,17 @@ on:
         required: true
         type: string
     secrets:
-      AWS_OIDC_DEPLOY_ROLE:
+      AWS_SHARED_TF_STATE_OIDC_ROLE:
         required: true
-      AWS_REGION:
+      AWS_SHARED_TF_STATE_REGION:
         required: true
       AWS_S3_TERRAFORM_BUCKET:
         required: true
       AWS_S3_TERRAFORM_KEY:
         required: true
+      AWS_TEST_OIDC_ROLE:
+        required: true
       AWS_TEST_REGION:
-        required: true
-      AWS_TEST_ACCOUNT:
-        required: true
-      AWS_TEST_ACCESS_KEY_ID:
-        required: true
-      AWS_TEST_SECRET_ACCESS_KEY:
         required: true
   workflow_dispatch:
     inputs:
@@ -28,13 +24,15 @@ on:
         type: choice
         description: Please select a target environment
         required: true
-        default: 'integration_testing'
+        default: "integration_testing"
         options:
           - integration_testing
           - testing
 permissions:
   id-token: write
   contents: read
+env:
+  AWS_SHARED_TF_STATE_PROFILE: "shared_tf_state"
 jobs:
   generate-usage:
     environment: ${{ inputs.targetEnvironment }}
@@ -43,18 +41,36 @@ jobs:
       - name: Check out repository code
         uses: actions/checkout@v3
 
-      - name: Assume role using OIDC
+      - name: AWS Shared TF state account - Assume role using OIDC
         uses: aws-actions/configure-aws-credentials@v4
+        id: aws_assumed_role_shared_tf_state_account
         with:
-          role-to-assume: ${{ secrets.AWS_OIDC_DEPLOY_ROLE }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_SHARED_TF_STATE_OIDC_ROLE }}
+          aws-region: ${{ secrets.AWS_SHARED_TF_STATE_REGION }}
+          output-credentials: true
 
-      - name: Install Go
-        uses: actions/setup-go@v5
+      - name: AWS Shared TF state account - Setup Profile
+        shell: bash
+        run: |
+          aws configure set region ${{ secrets.AWS_SHARED_TF_STATE_REGION }} --profile ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
+          aws configure set aws_access_key_id ${{ steps.aws_assumed_role_shared_tf_state_account.outputs.aws-access-key-id }} --profile ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
+          aws configure set aws_secret_access_key ${{ steps.aws_assumed_role_shared_tf_state_account.outputs.aws-secret-access-key }} --profile ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
+          aws configure set aws_session_token ${{ steps.aws_assumed_role_shared_tf_state_account.outputs.aws-session-token }} --profile ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
+
+      - name: AWS Shared TF state account - Check Profile
+        shell: bash
+        run: aws sts get-caller-identity --profile ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
+
+      - name: Testing account - Assume role using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        id: aws_assumed_role_testing_account
         with:
-          go-version-file: go.mod
-          check-latest: true
-          cache: true
+          role-to-assume: ${{ secrets.AWS_TEST_OIDC_ROLE }}
+          aws-region: ${{ secrets.AWS_TEST_REGION }}
+
+      - name: Testing account - Check Profile
+        shell: bash
+        run: aws sts get-caller-identity
 
       - name: Install Terraform
         uses: hashicorp/setup-terraform@v3
@@ -73,21 +89,14 @@ jobs:
           terraform init \
             -backend-config=bucket=${AWS_S3_TERRAFORM_BUCKET} \
             -backend-config=key=${AWS_S3_TERRAFORM_KEY} \
-            -backend-config=region=${AWS_REGION} \
-            -backend-config=access_key=${AWS_ACCESS_KEY_ID} \
-            -backend-config=secret_key=${AWS_SECRET_ACCESS_KEY} \
-            -backend-config=token=${AWS_SESSION_TOKEN} \
+            -backend-config=region=${AWS_SHARED_TF_STATE_REGION} \
+            -backend-config=profile=${AWS_SHARED_TF_STATE_PROFILE} \
         working-directory: .infra/infra
         env:
           AWS_S3_TERRAFORM_BUCKET: ${{ secrets.AWS_S3_TERRAFORM_BUCKET }}
           AWS_S3_TERRAFORM_KEY: ${{ secrets.AWS_S3_TERRAFORM_KEY }}
-          TF_VAR_aws_access_key_id: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
-          TF_VAR_aws_secret_access_key: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}
+          AWS_SHARED_TF_STATE_REGION: ${{ secrets.AWS_SHARED_TF_STATE_REGION }}
+          AWS_SHARED_TF_STATE_PROFILE: ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
 
       - name: Generate usage
         run: make gen-test-usage
-        env:
-          TF_VAR_aws_access_key_id: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
-          TF_VAR_aws_secret_access_key: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}

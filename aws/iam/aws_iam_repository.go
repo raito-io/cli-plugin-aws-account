@@ -5,8 +5,11 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
-	repo2 "github.com/raito-io/cli-plugin-aws-account/aws/repo"
+	"github.com/aws/aws-sdk-go-v2/service/identitystore"
+	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/raito-io/cli/base/util/config"
+
+	repo2 "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 )
 
 type AwsIamRepository struct {
@@ -52,4 +55,17 @@ func (repo *AwsIamRepository) GetIamOrgClient(ctx context.Context) (*iam.Client,
 	client := iam.NewFromConfig(cfg)
 
 	return client, nil
+}
+
+func NewSsoClient(ctx context.Context, cfgMap *config.ConfigMap, account string) (*AwsSsoIamRepository, error) {
+	cfg, err := repo2.GetAWSOrgConfig(ctx, cfgMap, nil)
+
+	if err != nil {
+		log.Fatalf("failed to load configuration, %v", err)
+	}
+
+	client := ssoadmin.NewFromConfig(cfg)
+	identityClient := identitystore.NewFromConfig(cfg)
+
+	return NewAwsSsoIamRepository(cfgMap, account, client, identityClient)
 }

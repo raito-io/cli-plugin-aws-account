@@ -7,9 +7,10 @@ const (
 
 	AwsConcurrency = "aws-concurrency"
 
-	AwsOrganizationProfile = "aws-organization-profile"
-
-	AwsOrganizationRegion = "aws-organization-region"
+	AwsOrganizationProfile                   = "aws-organization-profile"
+	AwsOrganizationRegion                    = "aws-organization-region"
+	AwsOrganizationIdentityCenterInstanceArn = "aws-organization-identity-center-instance-arn"
+	AwsOrganizationIdentityStore             = "aws-organization-identity-store"
 
 	AwsS3Enabled                = "aws-s3-enabled"
 	AwsS3EmulateFolderStructure = "aws-s3-emulate-folder-structure"
@@ -37,6 +38,7 @@ const (
 	InlinePrefix          = "inline:"
 	PolicyTypePrefix      = "policy:"
 	RoleTypePrefix        = "role:"
+	SsoRoleTypePrefix     = "ssorole:"
 	AccessPointTypePrefix = "accesspoint:"
 	UserTypePrefix        = "user:"
 	GroupTypePrefix       = "group:"
@@ -44,4 +46,7 @@ const (
 	TagSource = "aws-s3"
 
 	S3PermissionPrefix = "s3"
+
+	SsoRolePrefix     = "RAITO_"
+	SsoReservedPrefix = "AWSReservedSSO_"
 )

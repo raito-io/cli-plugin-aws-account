@@ -10,9 +10,10 @@ import (
 
 	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli/base/tag"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/tag"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -39,7 +40,7 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 		response, err2 := client.ListUsers(ctx, &input)
 		if err2 != nil {
-			return nil, err2
+			return nil, fmt.Errorf("list users: %w", err2)
 		}
 
 		allUsers = append(allUsers, response.Users...)
@@ -151,7 +152,7 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]model.GroupEntit
 
 			groupDetails, err := client.GetGroup(ctx, &groupInput)
 			if err != nil {
-				return nil, nil
+				return nil, fmt.Errorf("get group: %w", err)
 			}
 
 			moreGroupDetailsAvailable = groupDetails.IsTruncated
@@ -296,20 +297,20 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity,
 
 // CreateRole creates an AWS Role. Every role needs a non-empty policy document (otherwise the Role is useless).
 // the principals input parameters define which users will be able to assume the policy initially
-func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) error {
+func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error) {
 	if len(userNames) == 0 {
 		utils.Logger.Warn("No users provided to assume the role")
-		return nil
+		return false, nil
 	}
 
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	initialPolicy, err := repo.CreateAssumeRolePolicyDocument(nil, userNames...)
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	_, err = client.CreateRole(ctx, &iam.CreateRoleInput{
@@ -325,10 +326,10 @@ func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description 
 		},
 	})
 	if err != nil {
-		return err
+		return false, fmt.Errorf("create role: %w", err)
 	}
 
-	return nil
+	return true, nil
 }
 
 func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error {
@@ -341,7 +342,7 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error
 		RoleName: aws.String(name),
 	})
 	if err != nil {
-		return nil
+		return fmt.Errorf("delete role: %w", err)
 	}
 
 	return nil
@@ -363,7 +364,7 @@ func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, roleName
 		RoleName:       &roleName,
 	})
 	if err != nil {
-		return err
+		return fmt.Errorf("update assume role policy: %w", err)
 	}
 
 	return nil
@@ -383,7 +384,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 
 		policy, _, err = repo.parsePolicyDocument(existingPolicyDoc, "", "")
 		if err != nil {
-			return "", nil
+			return "", fmt.Errorf("parse policy document: %w", nil)
 		}
 
 		for ind := range policy.Statements {
@@ -418,7 +419,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 
 	bytes, err := json.Marshal(policy)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("marshal policy: %w", err)
 	}
 	existingPolicyDoc = aws.String(string(bytes))
 

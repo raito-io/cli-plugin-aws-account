@@ -7,8 +7,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/smithy-go/ptr"
-	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli/base/util/config"
+
+	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 )
 
 type AwsGlueRepository struct {
@@ -40,11 +42,14 @@ func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accoun
 	}
 
 	moreObjectsAvailable := true
+
 	var nextToken *string
 
 	tableMap := make(map[string]string)
 
 	for moreObjectsAvailable {
+		utils.Logger.Debug(fmt.Sprintf("Load more glue tables for database %q", database))
+
 		tbls, err2 := client.GetTables(ctx, &glue.GetTablesInput{
 			NextToken:    nextToken,
 			CatalogId:    &accountId,
@@ -77,11 +82,14 @@ func (repo *AwsGlueRepository) ListDatabases(ctx context.Context, accountId stri
 	}
 
 	moreObjectsAvailable := true
+
 	var nextToken *string
 
 	databases := make([]string, 0, 10)
 
 	for moreObjectsAvailable {
+		utils.Logger.Debug(fmt.Sprintf("Load more glue databases for account %q in region %q", accountId, region))
+
 		dbs, err2 := client.GetDatabases(ctx, &glue.GetDatabasesInput{
 			NextToken: nextToken,
 			CatalogId: &accountId,

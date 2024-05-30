@@ -2,11 +2,12 @@ name: Raito CLI - AWS Account Plugin - Build
 on:
   push:
     branches:
-      - 'main'
+      - "main"
   pull_request:
 
 env:
   GOPRIVATE: "github.com/raito-io/*"
+  AWS_ORGANIZATION_PROFILE: "aws_organization"
 
 permissions:
   id-token: write
@@ -33,7 +34,7 @@ jobs:
         uses: actions/checkout@v3
 
       - name: Install Go
-        uses: actions/setup-go@v3
+        uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
           check-latest: true
@@ -51,15 +52,45 @@ jobs:
       - name: Lint
         uses: golangci/golangci-lint-action@v3
         with:
-          version: v1.57.2
+          version: v1.59.0
+
+      - name: Organization account - Configure AWS Credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        id: aws_assumed_role_organization
+        with:
+          role-to-assume: ${{ secrets.AWS_ORGANIZATION_OIDC_DEPLOY_ROLE }}
+          aws-region: ${{ secrets.AWS_ORGANIZATION_REGION }}
+          output-credentials: true
+
+      - name: Organization account - Setup Profile
+        shell: bash
+        run: |
+          aws configure set region ${{ secrets.AWS_ORGANIZATION_REGION }} --profile ${{ env.AWS_ORGANIZATION_PROFILE }}
+          aws configure set aws_access_key_id ${{ steps.aws_assumed_role_organization.outputs.aws-access-key-id }} --profile ${{ env.AWS_ORGANIZATION_PROFILE }}
+          aws configure set aws_secret_access_key ${{ steps.aws_assumed_role_organization.outputs.aws-secret-access-key }} --profile ${{ env.AWS_ORGANIZATION_PROFILE }}
+          aws configure set aws_session_token ${{ steps.aws_assumed_role_organization.outputs.aws-session-token }} --profile ${{ env.AWS_ORGANIZATION_PROFILE }}
+
+      - name: Organization account - Check Profile
+        shell: bash
+        run: aws sts get-caller-identity --profile ${{ env.AWS_ORGANIZATION_PROFILE }}
+
+      - name: Testing account - Assume role using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_TEST_OIDC_ROLE }}
+          aws-region: ${{ secrets.AWS_TEST_REGION }}
+
+      - name: Testing account - Check Profile
+        shell: bash
+        run: aws sts get-caller-identity
 
       - name: Test
-        run: make test
         env:
-          AWS_ACCOUNT: ${{ secrets.AWS_TEST_ACCOUNT }}
-          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_TEST_ACCESS_KEY_ID }}
-          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_TEST_SECRET_ACCESS_KEY }}
-          AWS_REGION: ${{ secrets.AWS_TEST_REGION }}
+          AWS_ORGANIZATION_PROFILE: ${{ env.AWS_ORGANIZATION_PROFILE}}
+          AWS_ORGANIZATION_REGION: ${{ secrets.AWS_ORGANIZATION_REGION}}
+          AWS_ORGANIZATION_IDENTITY_CENTER_INSTANCE_ARN: ${{ secrets.AWS_ORGANIZATION_IDENTITY_CENTER_INSTANCE_ARN}}
+          AWS_ORGANIZATION_IDENTITY_STORE: ${{ secrets.AWS_ORGANIZATION_IDENTITY_STORE}}
+        run: make test
 
       - uses: codecov/codecov-action@v3
         with:

@@ -4,12 +4,14 @@ import (
 	"fmt"
 
 	"github.com/hashicorp/go-hclog"
-	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
-	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli/base"
 	"github.com/raito-io/cli/base/info"
 	"github.com/raito-io/cli/base/util/plugin"
 	"github.com/raito-io/cli/base/wrappers"
+
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_access"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws"
 )
@@ -18,6 +20,8 @@ var version = "0.0.0"
 
 var logger hclog.Logger
 
+//go:generate go run github.com/vektra/mockery/v2 --config .mockery.yaml
+
 func main() {
 	logger = base.Logger()
 	logger.SetLevel(hclog.Debug)
@@ -25,7 +29,7 @@ func main() {
 	err := base.RegisterPlugins(
 		wrappers.IdentityStoreSync(aws.NewIdentityStoreSyncer()),
 		wrappers.DataSourceSync(data_source.NewDataSourceSyncer()),
-		wrappers.DataAccessSync(aws.NewDataAccessSyncer()),
+		wrappers.DataAccessSync(data_access.NewDataAccessSyncer()),
 		wrappers.DataUsageSync(aws.NewDataUsageSyncer()), &info.InfoImpl{
 			Info: &plugin.PluginInfo{
 				Name:    "AWS Account",
@@ -35,6 +39,8 @@ func main() {
 					{Name: constants.AwsRegions, Description: "A comma separated list of AWS regions to deal with. When not specified, only the default region as found by the AWS SDK is used. The first region in the list must be the default region.", Mandatory: false},
 					{Name: constants.AwsOrganizationProfile, Description: "The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.", Mandatory: false},
 					{Name: constants.AwsOrganizationRegion, Description: fmt.Sprintf("The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and %s parameter is defined, the default region for the profile will be used", constants.AwsOrganizationProfile), Mandatory: false},
+					{Name: constants.AwsOrganizationIdentityCenterInstanceArn, Description: "The ARN of the AWS IAM Identity Center instance.", Mandatory: false},
+					{Name: constants.AwsOrganizationIdentityStore, Description: "The ARN of the AWS Identity Store.", Mandatory: false},
 					// AWS S3 parameters
 					{Name: constants.AwsS3Enabled, Description: fmt.Sprintf("If set to true (default), S3 buckets and objects will be retrieved directly from the S3 API. See all other 'aws-s3-' parameters for more control over what is imported and what not. This cannot be enabled together with the %q parameter.", constants.AwsGlueEnabled), Mandatory: false},
 					{Name: constants.AwsS3EmulateFolderStructure, Description: "Emulate a folder structure for S3 objects, just like in the AWS UI", Mandatory: false},

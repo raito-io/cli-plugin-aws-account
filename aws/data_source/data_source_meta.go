@@ -5,9 +5,10 @@ import (
 	"strings"
 	"sync"
 
+	ds "github.com/raito-io/cli/base/data_source"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
-	ds "github.com/raito-io/cli/base/data_source"
 )
 
 var metaData *ds.MetaData
@@ -88,7 +89,7 @@ func GetS3MetaData() *ds.MetaData {
 					CanBeCreated:                  true,
 					CanBeAssumed:                  true,
 					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(model.Role)},
+					AllowedWhoAccessProviderTypes: []string{string(model.Role), string(model.SSORole)},
 				},
 				{
 					Type:                          string(model.SSORole),
@@ -98,7 +99,7 @@ func GetS3MetaData() *ds.MetaData {
 					CanBeCreated:                  false,
 					CanBeAssumed:                  true,
 					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{},
+					AllowedWhoAccessProviderTypes: []string{string(model.SSORole)},
 					IdentityStoreTypeForWho:       "aws-organization",
 				},
 				{

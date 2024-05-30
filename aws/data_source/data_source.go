@@ -8,11 +8,12 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/golang-set/set"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/golang-set/set"
 
 	"github.com/gammazero/workerpool"
 
@@ -34,8 +35,8 @@ func NewDataSourceSyncer() *DataSourceSyncer {
 }
 
 // GetAvailableObjects is used by the data usage component to fetch all available data objects in a map structure for easy lookup of what is available
-func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, config *config.ConfigMap) (map[string]interface{}, error) {
-	err := s.initialize(ctx, config)
+func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, cfg *config.ConfigMap) (map[string]interface{}, error) {
+	err := s.initialize(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initializing data source syncer: %w", err)
 	}
@@ -54,12 +55,12 @@ func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, config *conf
 	return bucketMap, nil
 }
 
-func (s *DataSourceSyncer) initialize(ctx context.Context, config *config.ConfigMap) error {
-	s.config = config
+func (s *DataSourceSyncer) initialize(ctx context.Context, cfg *config.ConfigMap) error {
+	s.config = cfg
 
 	var err error
 
-	s.account, err = repo.GetAccountId(ctx, config)
+	s.account, err = repo.GetAccountId(ctx, cfg)
 	if err != nil {
 		return fmt.Errorf("getting account id: %w", err)
 	}
@@ -67,14 +68,14 @@ func (s *DataSourceSyncer) initialize(ctx context.Context, config *config.Config
 	return nil
 }
 
-func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, config *ds.DataSourceSyncConfig) error {
-	err := s.initialize(ctx, config.ConfigMap)
+func (s *DataSourceSyncer) SyncDataSource(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler, cfg *ds.DataSourceSyncConfig) error {
+	err := s.initialize(ctx, cfg.ConfigMap)
 	if err != nil {
 		return fmt.Errorf("initializing data source syncer: %w", err)
 	}
 
-	s.dataObjectParent = config.DataObjectParent
-	s.dataObjectExcludes = config.DataObjectExcludes
+	s.dataObjectParent = cfg.DataObjectParent
+	s.dataObjectExcludes = cfg.DataObjectExcludes
 
 	err = s.addAwsAsDataSource(dataSourceHandler, nil)
 	if err != nil {
@@ -94,18 +95,31 @@ func (s *DataSourceSyncer) fetchDataObjects(ctx context.Context, dataSourceHandl
 		return fmt.Errorf("neither AWS S3 nor AWS Glue are enabled; at least one of them must be enabled")
 	}
 
-	var err error
 	if s3Enabled {
-		err = s.FetchS3DataObjects(ctx, dataSourceHandler)
+		utils.Logger.Debug(fmt.Sprintf("Fetching data objects for account %s using AWS S3", s.account))
+
+		err := s.FetchS3DataObjects(ctx, dataSourceHandler)
+		if err != nil {
+			return fmt.Errorf("fetch s3 data objects: %w", err)
+		}
 	} else {
+		utils.Logger.Debug(fmt.Sprintf("Start fetching glue tables in account %q", s.account))
+
+		var err error
+
 		// Glue is not cross-regional so needs to be fetched per region
 		for _, region := range utils.GetRegions(s.config) {
-			err = s.FetchGlueDataObjects(ctx, dataSourceHandler, region)
-		}
-	}
+			utils.Logger.Debug(fmt.Sprintf("Fetching glue tables in region %q", region))
 
-	if err != nil {
-		return err
+			glueErr := s.FetchGlueDataObjects(ctx, dataSourceHandler, region)
+			if glueErr != nil {
+				err = multierror.Append(err, fmt.Errorf("fetch glue data objects in region %q: %w", region, glueErr))
+			}
+		}
+
+		if err != nil {
+			return err
+		}
 	}
 
 	return nil
@@ -286,7 +300,7 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 	lock.Lock()
 	defer lock.Unlock()
 
-	return dataSourceHandler.AddDataObjects(&ds.DataObject{
+	err := dataSourceHandler.AddDataObjects(&ds.DataObject{
 		ExternalId:       s.account,
 		Name:             s.account,
 		FullName:         s.account,
@@ -294,6 +308,12 @@ func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSou
 		Description:      fmt.Sprintf("DataSource for AWS account %s", s.account),
 		ParentExternalId: "",
 	})
+
+	if err != nil {
+		return fmt.Errorf("add data object to handler: %w", err)
+	}
+
+	return nil
 }
 
 func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, region string, dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
@@ -325,7 +345,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, region st
 			lock.Unlock()
 
 			if err != nil {
-				return err
+				return fmt.Errorf("add data object to handler: %w", err)
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
@@ -375,7 +395,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, region st
 					lock.Unlock()
 
 					if err != nil {
-						return err
+						return fmt.Errorf("add data object to handler: %w", err)
 					}
 
 					// If we don't need to go deeper
@@ -405,7 +425,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, region st
 				lock.Unlock()
 
 				if err != nil {
-					return err
+					return fmt.Errorf("add data object to handler: %w", err)
 				}
 			}
 		}

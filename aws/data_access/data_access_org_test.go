@@ -1,8 +1,9 @@
-package aws
+package data_access
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
 func TestOrgAccess_ConvertName(t *testing.T) {

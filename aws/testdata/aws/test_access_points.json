@@ -1,0 +1,24 @@
+[
+  {
+    "name": "existingaccesspoint",
+    "Arn": "arn:aws:s3:eu-central-1:905418221878:accesspoint/existingaccesspoint",
+    "Bucket": "somebucket",
+    "PolicyDocument" : "{\n\"Version\": \"2012-10-17\",\n\"Statement\": [\n{\n\"Effect\": \"Allow\",\n\"Principal\": {\n\"AWS\": [\n\"arn:aws:iam::905418221878:role/MarketingRole\",\n\"arn:aws:iam::905418221878:user/m_carissa\"\n]\n},\n\"Action\": \"s3:GetObject\",\n\"Resource\": \"arn:aws:s3:eu-central-1:905418221878:accesspoint/operations/object/operations/*\"\n}\n]\n}",
+    "PolicyParsed": {
+      "Version": "2012-10-17",
+      "Statement": [
+        {
+          "Effect": "Allow",
+          "Principal": {
+            "AWS": [
+              "arn:aws:iam::905418221878:role/MarketingRole",
+              "arn:aws:iam::905418221878:user/m_carissa"
+            ]
+          },
+          "Action": "s3:GetObject",
+          "Resource": "arn:aws:s3:eu-central-1:905418221878:accesspoint/operations/object/operations/*"
+        }
+      ]
+    }
+  }
+]

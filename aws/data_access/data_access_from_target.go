@@ -1,4 +1,4 @@
-package aws
+package data_access
 
 import (
 	"context"
@@ -6,13 +6,14 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
+	"github.com/raito-io/golang-set/set"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/match"
-	"github.com/raito-io/cli/base/util/slice"
-	"github.com/raito-io/golang-set/set"
 
 	"github.com/aws/smithy-go/ptr"
 
@@ -43,12 +44,15 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 
 	err = newRoleEnricher(ctx, configMap).enrich(filteredList)
 	if err != nil {
-		return err
+		return fmt.Errorf("enrich: %w", err)
 	}
 
 	err = accessProviderHandler.AddAccessProviders(getProperFormatForImport(filteredList)...)
+	if err != nil {
+		return fmt.Errorf("add access provider to handler: %w", err)
+	}
 
-	return err
+	return nil
 }
 
 func filterApImportList(importList []model.AccessProviderInputExtended, configMap *config.ConfigMap) []model.AccessProviderInputExtended {
@@ -170,14 +174,14 @@ func (a *AccessSyncer) fetchRoleAccessProviders(roles []model.RoleEntity, aps []
 
 func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) {
 	utils.Logger.Info("Get all managed policies")
-	policies, err := a.repo.GetManagedPolicies(ctx)
 
+	policies, err := a.repo.GetManagedPolicies(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get managed policies: %w", err)
 	}
 
 	if policies == nil {
-		return nil, err
+		return nil, nil
 	}
 
 	for ind := range policies {
@@ -322,7 +326,7 @@ func mergeWhatItem(whatItems []sync_from_target.WhatItem, what sync_from_target.
 	return whatItems
 }
 
-func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
+func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl //We may want to optimise this later
 	userPolicies, err := a.getInlinePoliciesOnUsers(ctx)
 	if err != nil {
 		return nil, err
@@ -361,7 +365,7 @@ func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context,
 	return aps, nil
 }
 
-func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl
+func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context, aps []model.AccessProviderInputExtended) ([]model.AccessProviderInputExtended, error) { //nolint:dupl //We may want to optimise this later
 	groupPolicies, err := a.getInlinePoliciesOnGroups(ctx)
 	if err != nil {
 		return nil, err
@@ -442,7 +446,7 @@ func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, co
 	for _, region := range utils.GetRegions(configMap) {
 		aps, err = a.fetchS3AccessPointAccessProvidersForRegion(ctx, aps, region)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("fetch s3 access point access provider for region %q: %w", region, err)
 		}
 	}
 
@@ -452,7 +456,7 @@ func (a *AccessSyncer) FetchS3AccessPointAccessProviders(ctx context.Context, co
 func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Context, aps []model.AccessProviderInputExtended, region string) ([]model.AccessProviderInputExtended, error) {
 	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list access points: %w", err)
 	}
 
 	for _, accessPoint := range accessPoints {
@@ -491,7 +495,7 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 	if !configMap.GetBool(constants.AwsAccessSkipIAM) {
 		roles, err := a.repo.GetRoles(ctx)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("get roles: %w", err)
 		}
 
 		// Adding access providers to the list for the roles
@@ -540,10 +544,10 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 
 func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[string][]model.PolicyEntity, error) {
 	utils.Logger.Info("Get inline policies from groups")
-	groups, err := a.repo.GetGroups(ctx)
 
+	groups, err := a.repo.GetGroups(ctx)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get groups: %w", err)
 	}
 
 	groupNames := []string{}
@@ -551,14 +555,19 @@ func (a *AccessSyncer) getInlinePoliciesOnGroups(ctx context.Context) (map[strin
 		groupNames = append(groupNames, g.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, groupNames, iam.GroupResourceType)
+	policies, err := a.repo.GetInlinePoliciesForEntities(ctx, groupNames, iam.GroupResourceType)
+	if err != nil {
+		return nil, fmt.Errorf("get inline policies for entities: %w", err)
+	}
+
+	return policies, nil
 }
 func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string][]model.PolicyEntity, error) {
 	utils.Logger.Info("Get inline policies from users")
 
 	users, err := a.repo.GetUsers(ctx, false)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("get users: %w", err)
 	}
 
 	userNames := []string{}
@@ -566,7 +575,12 @@ func (a *AccessSyncer) getInlinePoliciesOnUsers(ctx context.Context) (map[string
 		userNames = append(userNames, u.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, userNames, iam.UserResourceType)
+	policies, err := a.repo.GetInlinePoliciesForEntities(ctx, userNames, iam.UserResourceType)
+	if err != nil {
+		return nil, fmt.Errorf("get inline policies for entities: %w", err)
+	}
+
+	return policies, nil
 }
 
 func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []model.RoleEntity) (map[string][]model.PolicyEntity, error) {
@@ -577,7 +591,12 @@ func (a *AccessSyncer) getInlinePoliciesOnRoles(ctx context.Context, roles []mod
 		roleNames = append(roleNames, role.Name)
 	}
 
-	return a.repo.GetInlinePoliciesForEntities(ctx, roleNames, iam.RoleResourceType)
+	policies, err := a.repo.GetInlinePoliciesForEntities(ctx, roleNames, iam.RoleResourceType)
+	if err != nil {
+		return nil, fmt.Errorf("get inline policies for entities: %w", err)
+	}
+
+	return policies, nil
 }
 
 func getProperFormatForImport(input []model.AccessProviderInputExtended) []*sync_from_target.AccessProvider {

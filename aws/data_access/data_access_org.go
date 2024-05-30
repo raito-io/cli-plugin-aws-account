@@ -1,4 +1,4 @@
-package aws
+package data_access
 
 import (
 	"context"
@@ -9,11 +9,12 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/raito-io/cli/base/util/config"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
-	"github.com/raito-io/cli/base/util/config"
 )
 
 const ReservedSSOPrefix = "AWSReservedSSO_"
@@ -204,7 +205,7 @@ func (e *roleEnricher) fetchSSOInstances() error {
 
 	instances, err := client.ListInstances(e.ctx, &ssoadmin.ListInstancesInput{})
 	if err != nil {
-		return err
+		return fmt.Errorf("list instances: %w", err)
 	}
 
 	e.identityStores = make([]string, 0)
@@ -278,7 +279,7 @@ func (e *roleEnricher) fetchPermissionSetAssignees(client *ssoadmin.Client, inst
 	})
 
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("list account assignments: %w", err)
 	}
 
 	var ret []Assignee
@@ -310,7 +311,7 @@ func (e *roleEnricher) fetchPermissionSetName(client *ssoadmin.Client, instanceA
 	})
 
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("describe permission set: %w", err)
 	}
 
 	return *details.PermissionSet.Name, nil

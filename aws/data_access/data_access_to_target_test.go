@@ -1,17 +1,20 @@
-package aws
+package data_access
 
 import (
 	"context"
 	"fmt"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
+	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
+	"github.com/raito-io/golang-set/set"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils/bimap"
 
 	"reflect"
 	"slices"
-	"sort"
 	"testing"
 	"time"
 
@@ -22,30 +25,42 @@ import (
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers/mocks"
-	"github.com/raito-io/golang-set/set"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )
 
-func setupMockExportEnvironment(t *testing.T) (*mockDataAccessRepository, *AccessSyncer) {
-	repoMock := newMockDataAccessRepository(t)
+func setupMockExportEnvironment(t *testing.T, ssoEnabled bool) (*MockdataAccessRepository, *MockdataAccessSsoRepository, *AccessSyncer) {
+	t.Helper()
 
-	syncer := &AccessSyncer{
-		repo:            repoMock,
-		managedPolicies: nil,
+	repoMock := NewMockdataAccessRepository(t)
+
+	var ssoRepoMock *MockdataAccessSsoRepository
+	if ssoEnabled {
+		ssoRepoMock = NewMockdataAccessSsoRepository(t)
 	}
 
-	roles, err := getObjects[model.RoleEntity]("testdata/aws/test_roles.json")
-	require.Nil(t, err)
-	managedPolicies, err := getObjects[model.PolicyEntity]("testdata/aws/test_managed_policies.json")
-	require.Nil(t, err)
+	nameGenerator, err := NewNameGenerator("123456789012")
+	require.NoError(t, err)
+
+	syncer := &AccessSyncer{
+		repo:          repoMock,
+		ssoRepo:       ssoRepoMock,
+		nameGenerator: nameGenerator,
+	}
+
+	roles, err := getObjects[model.RoleEntity]("../testdata/aws/test_roles.json")
+	require.NoError(t, err)
+	managedPolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_managed_policies.json")
+	require.NoError(t, err)
+	accessPoints, err := getObjects[model.AwsS3AccessPoint]("../testdata/aws/test_access_points.json")
+	require.NoError(t, err)
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
-	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return([]model.AwsS3AccessPoint{}, nil).Once()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return(accessPoints, nil).Once()
 
-	return repoMock, syncer
+	return repoMock, ssoRepoMock, syncer
 }
 
 func TestSimplifyPermissions(t *testing.T) {
@@ -103,7 +118,7 @@ func TestSimplifyPermissions(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -128,7 +143,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(true, nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(constants.RoleTypePrefix + "test_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
@@ -157,7 +172,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -192,7 +207,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(true, nil).Once()
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -228,7 +243,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -285,8 +300,8 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(nil).Once()
-	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "test_role", "a test role", []string{"stewart_b"}).Return(true, nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n", "stewart_b"}).Return(true, nil).Once()
 
 	repoMock.EXPECT().CreateRoleInlinePolicy(ctx, "test_role", "Raito_Inline_test_role", mock.Anything).RunAndReturn(func(ctx context.Context, s string, s2 string, statements []*awspolicy.Statement) error {
 		assert.Equal(t, 2, len(statements))
@@ -342,7 +357,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -354,6 +369,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 			{
 				Id:          "something",
 				Name:        "Data Engineering Sync",
+				ExternalId:  ptr.String("role:data_engineer_sync"),
 				Description: "a test role",
 				NamingHint:  "data engineering sync",
 				Type:        aws.String(string(model.Role)),
@@ -395,7 +411,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -407,6 +423,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 			{
 				Id:          "something",
 				Name:        "TestRole",
+				ExternalId:  ptr.String("role:TestRole"),
 				Description: "a test role",
 				Delete:      true,
 				NamingHint:  "data_engineering_sync",
@@ -446,7 +463,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -524,7 +541,7 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -599,7 +616,7 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 }
 
 func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -692,8 +709,8 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p2", []string{"user3"}).Return(nil).Once()
 	repoMock.EXPECT().AttachUserToManagedPolicy(ctx, "arn:p3", []string{"user3"}).Return(nil).Once()
 
-	repoMock.EXPECT().CreateRole(ctx, "r1", "test role1", []string{"user4", "user5"}).Return(nil).Once()
-	repoMock.EXPECT().CreateRole(ctx, "r2", "test role2", []string{"user5"}).Return(nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "r1", "test role1", []string{"user4", "user5"}).Return(true, nil).Once()
+	repoMock.EXPECT().CreateRole(ctx, "r2", "test role2", []string{"user5"}).Return(true, nil).Once()
 
 	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p1", []string{"r1"}).Return(nil).Once()
 	repoMock.EXPECT().AttachRoleToManagedPolicy(ctx, "arn:p2", []string{"r1"}).Return(nil).Once()
@@ -733,7 +750,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -783,7 +800,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 }
 
 func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -830,39 +847,8 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
 }
 
-func TestGetRecursiveInheritedAPs(t *testing.T) {
-	var tests = []struct {
-		Start          string
-		InheritanceMap map[string]set.Set[string]
-		ExpectedResult []string
-	}{
-		{"r1", map[string]set.Set[string]{
-			"r1": set.NewSet("r2"),
-			"r2": set.NewSet("r3"),
-		}, []string{"r2", "r3"}},
-
-		{"r1", map[string]set.Set[string]{
-			"r0": set.NewSet("r1"),
-			"r1": set.NewSet("r2", "r3"),
-			"r3": set.NewSet("r5"),
-			"r4": set.NewSet("r2"),
-		}, []string{"r2", "r3", "r5"}},
-	}
-
-	for _, test := range tests {
-		inherited := set.NewSet[string]()
-
-		getRecursiveInheritedAPs(test.Start, test.InheritanceMap, inherited)
-
-		res := inherited.Slice()
-		sort.Strings(res)
-
-		assert.Equal(t, res, test.ExpectedResult)
-	}
-}
-
 func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
-	repoMock, syncer := setupMockExportEnvironment(t)
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
@@ -900,7 +886,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
 		Principal: map[string][]string{
-			"AWS": {"stewart_b"},
+			"AWS": {"arn:aws:iam:::user/stewart_b"},
 		},
 		Resource: []string{
 			"arn:aws:s3:us-west-1::accesspoint/test-access-point/object/folder1/folder2/*",
@@ -931,6 +917,231 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
 	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestSyncAccessProviderToTarget_UpdateAccessPoint(t *testing.T) {
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
+	ctx := context.Background()
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+	}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "existingaccesspoint",
+				Name:        "existingaccesspoint",
+				ExternalId:  ptr.String("accessPoint:TestAccessPoint"),
+				Description: "a test access point",
+				NamingHint:  "existingaccesspoint",
+				Type:        aws.String(string(model.AccessPoint)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					Users: []string{"stewart_b"},
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "account:us-west-1:bucketname/folder1/folder2",
+							Type:     "glue-table",
+						},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
+					},
+				},
+			},
+		},
+	}
+
+	repoMock.EXPECT().UpdateAccessPoint(ctx, "existingaccesspoint", "us-west-1", []*awspolicy.Statement{{
+		Effect: "Allow",
+		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
+		Principal: map[string][]string{
+			"AWS": {"arn:aws:iam:::user/stewart_b"},
+		},
+		Resource: []string{
+			"arn:aws:s3:us-west-1::accesspoint/existingaccesspoint/object/folder1/folder2/*",
+		},
+	}}).Return(nil).Once()
+
+	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", ExternalId: ptr.String(constants.AccessPointTypePrefix + "existingaccesspoint"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestSyncAccessProviderToTarget_DeleteAccessPoint(t *testing.T) {
+	repoMock, _, syncer := setupMockExportEnvironment(t, false)
+	ctx := context.Background()
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+	}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "existingaccesspoint",
+				Name:        "existingaccesspoint",
+				ExternalId:  ptr.String("accessPoint:us-west-1:TestAccessPoint"),
+				Description: "a test access point",
+				NamingHint:  "existingaccesspoint",
+				Type:        aws.String(string(model.AccessPoint)),
+
+				Action: sync_to_target.Grant,
+				Delete: true,
+
+				Who: sync_to_target.WhoItem{
+					Users: []string{"stewart_b"},
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "account:us-west-1:bucketname/folder1/folder2",
+							Type:     "glue-table",
+						},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
+					},
+				},
+			},
+		},
+	}
+
+	repoMock.EXPECT().DeleteAccessPoint(ctx, "existingaccesspoint", "us-west-1").Return(nil).Once()
+
+	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestSyncAccessProviderToTarget_CreateSsoRole(t *testing.T) {
+	repo, ssoRepoMock, syncer := setupMockExportEnvironment(t, true)
+
+	ctx := context.Background()
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{
+			constants.AwsRegions:             "us-west-1",
+			constants.AwsOrganizationProfile: "master",
+		},
+	}
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something",
+				Name:        "TestSsoRole",
+				Description: "a test sso role",
+				NamingHint:  "sso test role",
+
+				Action: sync_to_target.Purpose,
+
+				Who: sync_to_target.WhoItem{
+					Users: []string{"stewart_b"},
+				},
+			},
+			{
+				Id:          "another",
+				Name:        "AnotherRole",
+				Description: "another role",
+				NamingHint:  "another role",
+				Type:        aws.String(string(model.Role)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{
+					InheritFrom: []string{"ID:something"},
+					Users:       []string{"nick_n"},
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "folder1",
+							Type:     "folder",
+						},
+						Permissions: []string{"s3:GetObjectAttributes"},
+					},
+				},
+			},
+		},
+	}
+
+	repo.EXPECT().CreateRole(ctx, "another_role", "another role", []string{"nick_n"}).Return(true, nil).Once()
+
+	ssoRepoMock.EXPECT().ListSsoRole(ctx).Return([]string{}, nil).Once()
+	ssoRepoMock.EXPECT().GetUsers(ctx).Return(bimap.Of(map[string]string{"stewart_b_id": "stewart_b"}), nil).Maybe()
+	ssoRepoMock.EXPECT().GetGroups(ctx).Return(bimap.New[string, string](), nil).Maybe()
+	ssoRepoMock.EXPECT().CreateSsoRole(ctx, "RAITO_sso_test_role_123456789012", "a test sso role").Return("arn::::permissionset:id", nil).Once()
+	ssoRepoMock.EXPECT().AssignPermissionSet(ctx, "arn::::permissionset:id", ssoTypes.PrincipalTypeUser, "stewart_b_id").Return(nil).Once()
+	ssoRepoMock.EXPECT().UpdateInlinePolicyToPermissionSet(ctx, "arn::::permissionset:id", []*awspolicy.Statement{
+		{
+			StatementID: "",
+			Effect:      "Allow",
+			Action:      []string{"s3:GetObjectAttributes"},
+			Resource:    []string{"arn:aws:s3:::folder1"},
+		},
+	}).Return(nil).Once()
+	ssoRepoMock.EXPECT().ListAwsManagedPolicyFromPermissionSet(ctx, "arn::::permissionset:id").Return(set.NewSet[string](), nil).Once()
+	ssoRepoMock.EXPECT().ListCustomerManagedPolicyFromPermissionSet(ctx, "arn::::permissionset:id").Return(set.NewSet[string](), nil).Once()
+	ssoRepoMock.EXPECT().ProvisionPermissionSet(ctx, "arn::::permissionset:id").Return(&ssoTypes.PermissionSetProvisioningStatus{Status: ssoTypes.StatusValuesSucceeded}, nil).Once()
+
+	repo.EXPECT().GetManagedPolicies(ctx).Return([]model.PolicyEntity{}, nil).Once()
+	repo.EXPECT().CreateRoleInlinePolicy(ctx, "another_role", "Raito_Inline_another_role", []*awspolicy.Statement{{
+		Effect:   "Allow",
+		Action:   []string{"s3:GetObjectAttributes"},
+		Resource: []string{"arn:aws:s3:::folder1"},
+	}}).Return(nil).Once()
+
+	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_role", ExternalId: ptr.String(constants.RoleTypePrefix + "another_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "RAITO_sso_test_role_123456789012", ExternalId: ptr.String(constants.SsoRoleTypePrefix + "arn::::permissionset:id"), Type: ptr.String(string(model.SSORole))}).Return(nil).Once()
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	require.Nil(t, err)
 }
 
 func TestMergeStatementsOnPermissions(t *testing.T) {

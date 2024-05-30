@@ -14,17 +14,12 @@ linters-settings:
     disabled-checks:
       - dupImport # https://github.com/go-critic/go-critic/issues/845
       - ifElseChain
-      - octalLiteral
-      - whyNoLint
-      - wrapperFunc
-      - importShadow # not important for now
       - unnamedResult # not important
-      - hugeParam #to be checked
-      - commentFormatting
       - paramTypeCombine
 
   govet:
-    check-shadowing: true
+    enable:
+      - shadow
 
   revive:
     rules:
@@ -40,28 +35,51 @@ linters-settings:
     require-explanation: false
     require-specific: false
 
-  gosec:
-    excludes:
-      - G404 # To be checked: Insecure random number source (rand)
-
   stylecheck:
     checks: [ "all", "-ST1003"] # ST1003: No underscores in package names should be fixed and removed?
 
   predeclared:
     ignore: "error"
 
-  gomnd:
-    ignored-functions:
-      - 'math.*' # Magic number generation, should be fixed and removed?
+  cyclop:
+    max-complexity: 20
+    skip-tests: true
+    package-average: 0.0
+
+  errorlint:
+    errorf: true
+    errorf-multi: true
+    asserts: true
+    comparison: true
+
+  exhaustive:
+    default-signifies-exhaustive: true
+
+  wrapcheck:
+    ignoreSigs:
+      - .Errorf(
+      - errors.New(
+      - errors.Unwrap(
+      - .Wrap(
+      - .Wrapf(
+      - .WithMessage(
+      - .WithMessagef(
+      - .WithStack(
+      - go-multierror.Append(
 
 linters:
   disable-all: true
   enable:
+    - asasalint
     - bodyclose
-    - deadcode
+#    - cyclop #To be enabled in the future
+    #- depguard #We should create a correct config to enabe depguard
     - dogsled
     - dupl
+    - dupword
+    - durationcheck
     - errcheck
+    - errorlint
     - exportloopref
     - exhaustive
     - forbidigo
@@ -69,29 +87,29 @@ linters:
     - gocritic
     - gofmt
     - goimports
-    #- gomnd # Magic numbers should be fixed and enable gomnd,
-    #- gocyclo
+    - gocyclo
     - gosec
     - gosimple
     - govet
     - ineffassign
     - misspell
+#    - mnd # Magic numbers should be fixed and enable gomnd,
+    - nilerr
     - nolintlint
     - nakedret
     - prealloc
     - predeclared
     - revive
     - staticcheck
-    - structcheck
     - stylecheck
     - thelper
     - tparallel
     - typecheck
     - unconvert
     - unparam
-    - varcheck
+    - unused
     - whitespace
-    # - wrapcheck # 3th party errors should be wrapped to not lose context
+    - wrapcheck
     - wsl
 
 run:
@@ -101,7 +119,9 @@ run:
 output:
   path-prefix: ""
   sort-results: true
-  format: tab
+  formats:
+    - path: stdout
+      format: colored-line-number
   print-issued-lines: false
   print-linter-name: true
   uniq-by-line: false
