@@ -213,8 +213,14 @@ func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Con
 		}
 
 		for _, entity := range attachedEntitiesResp.PolicyRoles {
+			entityType := RoleResourceType
+
+			if strings.HasPrefix(*entity.RoleName, constants.SsoReservedPrefix+constants.SsoRolePrefix) {
+				entityType = SsoRoleResourceType
+			}
+
 			policy.RoleBindings = append(policy.RoleBindings, model.PolicyBinding{
-				Type:         RoleResourceType,
+				Type:         entityType,
 				ResourceName: *entity.RoleName,
 				ResourceId:   *entity.RoleId,
 			})

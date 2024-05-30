@@ -18,12 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func setupMockImportEnvironment(t *testing.T) (*mockDataAccessRepository, *AccessSyncer) {
-	repoMock := newMockDataAccessRepository(t)
+func setupMockImportEnvironment(t *testing.T) (*MockdataAccessRepository, *AccessSyncer) {
+	repoMock := NewMockdataAccessRepository(t)
 
 	syncer := &AccessSyncer{
-		repo:            repoMock,
-		managedPolicies: nil,
+		repo: repoMock,
 	}
 
 	managedPolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_managed_policies.json")

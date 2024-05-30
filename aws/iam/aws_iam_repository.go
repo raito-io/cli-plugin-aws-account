@@ -5,6 +5,7 @@ import (
 	"log"
 
 	"github.com/aws/aws-sdk-go-v2/service/iam"
+	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	"github.com/raito-io/cli/base/util/config"
 
@@ -64,6 +65,7 @@ func NewSsoClient(ctx context.Context, cfgMap *config.ConfigMap, account string)
 	}
 
 	client := ssoadmin.NewFromConfig(cfg)
+	identityClient := identitystore.NewFromConfig(cfg)
 
-	return NewAwsSsoIamRepository(cfgMap, account, client)
+	return NewAwsSsoIamRepository(cfgMap, account, client, identityClient)
 }

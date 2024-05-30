@@ -14,7 +14,6 @@ import (
 	is "github.com/raito-io/cli/base/identity_store"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name=identityStoreRepository --with-expecter --inpackage
 type identityStoreRepository interface {
 	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
 	GetGroups(ctx context.Context) ([]model.GroupEntity, error)

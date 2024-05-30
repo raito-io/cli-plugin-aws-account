@@ -15,9 +15,8 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils/bimap"
 )
-
-//go:generate go run github.com/vektra/mockery/v2 --name=dataAccessRepository --with-expecter --inpackage
 
 type dataAccessRepository interface {
 	GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error)
@@ -53,9 +52,11 @@ type dataAccessSsoRepository interface {
 	CreateSsoRole(ctx context.Context, name, description string) (arn string, err error)
 	UpdateSsoRole(ctx context.Context, arn string, description string) error
 	DeleteSsoRole(ctx context.Context, permissionSetArn string) error
+	ListSsoRole(ctx context.Context) ([]string, error)
 	AssignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error
 	UnassignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error
-	ProvisionPermissionSet(ctx context.Context, permissionSetArn string) error
+	ListPermissionSetAssignment(ctx context.Context, permissionSetArn string) ([]ssoTypes.AccountAssignment, error)
+	ProvisionPermissionSet(ctx context.Context, permissionSetArn string) (*ssoTypes.PermissionSetProvisioningStatus, error)
 	AttachAwsManagedPolicyToPermissionSet(ctx context.Context, permissionSetArn string, policyArn string) error
 	DetachAwsManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string, policyArn string) error
 	ListAwsManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string) (set.Set[string], error)
@@ -63,14 +64,17 @@ type dataAccessSsoRepository interface {
 	DetachCustomerManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string, name string, path *string) error
 	ListCustomerManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string) (set.Set[string], error)
 	UpdateInlinePolicyToPermissionSet(ctx context.Context, permissionSetArn string, statements []*awspolicy.Statement) error
+	GetUsers(ctx context.Context) (bimap.Bimap[string, string], error)
+	GetGroups(ctx context.Context) (bimap.Bimap[string, string], error)
 }
 
 type AccessSyncer struct {
-	repo            dataAccessRepository
-	ssoRepo         dataAccessSsoRepository
-	account         string
-	managedPolicies []model.PolicyEntity
-	userGroupMap    map[string][]string
+	repo         dataAccessRepository
+	ssoRepo      dataAccessSsoRepository
+	account      string
+	userGroupMap map[string][]string
+
+	nameGenerator *NameGenerator
 }
 
 func NewDataAccessSyncer() *AccessSyncer {
@@ -102,10 +106,17 @@ func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigM
 
 	instanceArn := configMap.GetStringWithDefault(constants.AwsOrganizationIdentityCenterInstanceArn, "")
 	if instanceArn != "" {
-		a.ssoRepo, err = iam.NewSsoClient(ctx, configMap, a.account)
-		if err != nil {
-			utils.Logger.Error(fmt.Sprintf("Error while setting up iam SSO admin client: %s", err.Error()))
+		ssoRepo, err2 := iam.NewSsoClient(ctx, configMap, a.account)
+		if err2 != nil {
+			utils.Logger.Error(fmt.Sprintf("Error while setting up iam SSO admin client: %s", err2.Error()))
+		} else {
+			a.ssoRepo = ssoRepo
 		}
+	}
+
+	a.nameGenerator, err = NewNameGenerator(a.account)
+	if err != nil {
+		return fmt.Errorf("new name generator: %w", err)
 	}
 
 	return nil

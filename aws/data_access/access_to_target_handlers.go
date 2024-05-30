@@ -2,10 +2,12 @@ package data_access
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
 
+	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/aws/smithy-go/ptr"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
@@ -39,7 +41,7 @@ func NewAccessProvidersByType() AccessProvidersByType {
 	}
 }
 
-func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider, apFeedback *sync_to_target.AccessProviderSyncFeedback) {
+func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider, apFeedback *sync_to_target.AccessProviderSyncFeedback, nameGenerator *NameGenerator) {
 	details := NewAccessProviderDetails(ap, t, apFeedback)
 
 	apFeedback.Type = ptr.String(string(t))
@@ -47,7 +49,7 @@ func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap
 	a.AccessProviderById[ap.Id] = details
 
 	// Generate nane
-	name, err := utils.GenerateName(ap, t)
+	name, err := nameGenerator.GenerateName(ap, t)
 	if err != nil {
 		logFeedbackError(apFeedback, fmt.Sprintf("failed to generate actual name for access provider %q: %s", ap.Name, err.Error()))
 
@@ -84,7 +86,12 @@ func (a *AccessProvidersByType) GetAccessProvider(t model.AccessProviderType, na
 	return nil
 }
 
-func (a *AccessProvidersByType) GetDescendants(t model.AccessProviderType, name string) set.Set[*AccessProviderDetails] {
+func (a *AccessProvidersByType) GetDescendants(t model.AccessProviderType, name string, allowedTypes ...model.AccessProviderType) set.Set[*AccessProviderDetails] {
+	allowedTypesSet := set.NewSet(allowedTypes...)
+	if len(allowedTypes) == 0 {
+		allowedTypesSet = set.NewSet(model.Role, model.SSORole, model.AccessPoint, model.Policy)
+	}
+
 	result := set.NewSet[*AccessProviderDetails]()
 
 	details := a.GetAccessProvider(t, name)
@@ -93,11 +100,15 @@ func (a *AccessProvidersByType) GetDescendants(t model.AccessProviderType, name 
 	}
 
 	for childType, childNames := range details.inheritance {
+		if !allowedTypesSet.Contains(childType) {
+			continue
+		}
+
 		for _, childName := range childNames {
 			childDetails := a.GetAccessProvider(childType, childName)
 			if childDetails != nil {
 				result.Add(childDetails)
-				result.AddSet(a.GetDescendants(childType, childName))
+				result.AddSet(a.GetDescendants(childType, childName, allowedTypesSet.Slice()...))
 			}
 		}
 	}
@@ -139,8 +150,8 @@ type AccessHandlerExecutor interface {
 }
 
 func NewAccessHandler(executor AccessHandlerExecutor, handlerType model.AccessProviderType,
-	accessProviderDetails map[string]*AccessProviderDetails, accessProvidersByType *AccessProvidersByType) *AccessHandler {
-	return &AccessHandler{
+	accessProviderDetails map[string]*AccessProviderDetails, accessProvidersByType *AccessProvidersByType) AccessHandler {
+	return AccessHandler{
 		accessProviderDetails: accessProviderDetails,
 		accessProvidersByType: accessProvidersByType,
 		handlerType:           handlerType,
@@ -153,7 +164,7 @@ type AccessHandler struct {
 	accessProvidersByType *AccessProvidersByType
 	handlerType           model.AccessProviderType
 
-	//cache
+	// cache
 	existingBindings map[string]set.Set[model.PolicyBinding]
 
 	executor AccessHandlerExecutor
@@ -179,7 +190,9 @@ func (a *AccessHandler) PrepareAccessProviders() {
 }
 
 func (a *AccessHandler) preparationForAccessProvider(name string, details *AccessProviderDetails) {
-	if existingBindings, found := a.existingBindings[name]; found {
+	existingBindings, found := a.existingBindings[name]
+
+	if found {
 		details.existingBindings = existingBindings
 	}
 
@@ -194,8 +207,6 @@ func (a *AccessHandler) preparationForAccessProvider(name string, details *Acces
 
 	a.executor.HookInlinePolicies(ap)
 
-	_, found := a.existingBindings[name]
-
 	if ap.Delete {
 		if found {
 			details.action = ActionDelete
@@ -206,20 +217,15 @@ func (a *AccessHandler) preparationForAccessProvider(name string, details *Acces
 	}
 
 	// Create or update
-	apFeedback.ExternalId = a.executor.ExternalId(details)
-
 	details.action = ActionCreate
 	if found {
 		details.action = ActionUpdate
 	}
 
-	// Storing the inheritance information to handle every we covered all APs
-	apInheritFromNames, err := a.resolveInheritance(ap.Who.InheritFrom...)
-	if err != nil {
-		logFeedbackError(apFeedback, fmt.Sprintf("resolving inherited access providers: %s", err.Error()))
+	apFeedback.ExternalId = a.executor.ExternalId(details)
 
-		return
-	}
+	// Storing the inheritance information to handle every we covered all APs
+	apInheritFromNames := a.resolveInheritance(ap.Who.InheritFrom...)
 
 	details.inheritance = apInheritFromNames
 
@@ -244,7 +250,7 @@ func (a *AccessHandler) preparationForAccessProvider(name string, details *Acces
 	details.newBindings.AddSet(apGroupBindings)
 }
 
-func (a *AccessHandler) resolveInheritance(names ...string) (map[model.AccessProviderType][]string, error) {
+func (a *AccessHandler) resolveInheritance(names ...string) map[model.AccessProviderType][]string {
 	result := map[model.AccessProviderType][]string{}
 
 	for _, name := range names {
@@ -264,7 +270,7 @@ func (a *AccessHandler) resolveInheritance(names ...string) (map[model.AccessPro
 		}
 	}
 
-	return result, nil
+	return result
 }
 
 func (a *AccessHandler) ProcessInheritance() map[string]*AccessProviderDetails {
@@ -274,6 +280,7 @@ func (a *AccessHandler) ProcessInheritance() map[string]*AccessProviderDetails {
 	for name, details := range a.accessProviderDetails {
 		for apType, inheritedSet := range details.inheritance {
 			var inheritedAccessProviderMap map[string]*AccessProviderDetails
+
 			switch apType {
 			case model.Role:
 				inheritedAccessProviderMap = a.accessProvidersByType.Roles
@@ -286,8 +293,11 @@ func (a *AccessHandler) ProcessInheritance() map[string]*AccessProviderDetails {
 			}
 
 			for _, inheritedFrom := range inheritedSet {
-				if _, f := a.accessProviderDetails[inheritedFrom]; f {
+				if _, f := inheritedAccessProviderMap[inheritedFrom]; f {
+					utils.Logger.Info(fmt.Sprintf("Add %q to inversed inheritance of %q", name, inheritedFrom))
 					inheritedAccessProviderMap[inheritedFrom].inverseInheritance[a.handlerType] = append(inheritedAccessProviderMap[inheritedFrom].inverseInheritance[a.handlerType], name)
+				} else {
+					utils.Logger.Warn(fmt.Sprintf("Didn't found %q to in access providers of expected type %s", inheritedFrom, apType))
 				}
 			}
 		}
@@ -300,7 +310,7 @@ func (a *AccessHandler) HandleUpdates(ctx context.Context) {
 	a.executor.ExecuteUpdates(ctx)
 }
 
-func NewRoleAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) *AccessHandler {
+func NewRoleAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) AccessHandler {
 	executor := &roleAccessHandler{
 		accessProviders: allAccessProviders,
 		repo:            repo,
@@ -367,7 +377,7 @@ func (r *roleAccessHandler) HandleGroupBindings(ctx context.Context, groups []st
 
 func (r *roleAccessHandler) HandleInheritance() {
 	for name, details := range r.accessProviders.Roles {
-		descendants := r.accessProviders.GetDescendants(model.Role, name)
+		descendants := r.accessProviders.GetDescendants(model.Role, name, model.Role)
 		for descendant := range descendants {
 			details.newBindings.AddSet(descendant.GetExistingOrNewBindings())
 		}
@@ -454,8 +464,9 @@ func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context) {
 	}
 }
 
-func NewPolicyAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository) *AccessHandler {
+func NewPolicyAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, account string) AccessHandler {
 	executor := &policyAccessHandler{
+		account:         account,
 		accessProviders: allAccessProviders,
 		repo:            repo,
 
@@ -467,6 +478,7 @@ func NewPolicyAccessHandler(allAccessProviders *AccessProvidersByType, repo data
 }
 
 type policyAccessHandler struct {
+	account         string
 	accessProviders *AccessProvidersByType
 	repo            dataAccessRepository
 
@@ -720,7 +732,7 @@ func (p *policyAccessHandler) deleteInlinePolicies(ctx context.Context, policies
 	}
 }
 
-func NewAccessProviderHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) *AccessHandler {
+func NewAccessProviderHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) AccessHandler {
 	executor := &accessPointHandler{
 		accessProviders: allAccessProviders,
 		repo:            repo,
@@ -768,10 +780,10 @@ func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Cont
 	for ind := range accessPoints {
 		accessPoint := accessPoints[ind]
 
-		existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
-
 		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
 		if who != nil {
+			existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
+
 			// Note: Groups are not supported here in AWS.
 			for _, userName := range who.Users {
 				key := model.PolicyBinding{
@@ -911,6 +923,417 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 			}
 		default:
 			utils.Logger.Debug(fmt.Sprintf("no action needed for access point %q", accessPointName))
+		}
+	}
+}
+
+func NewSSORoleAccessHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, ssoAdmin dataAccessSsoRepository, getUserGroupMap UserGroupMapFunc, account string) AccessHandler {
+	executor := &ssoRoleAccessHandler{
+		accessProviders: allAccessProviders,
+		repo:            repo,
+		ssoAdmin:        ssoAdmin,
+		getUserGroupMap: getUserGroupMap,
+		account:         account,
+	}
+
+	return NewAccessHandler(executor, model.SSORole, allAccessProviders.PermissionSets, allAccessProviders)
+}
+
+type ssoRoleAccessHandler struct {
+	accessProviders *AccessProvidersByType
+	account         string
+	repo            dataAccessRepository
+	ssoAdmin        dataAccessSsoRepository
+	getUserGroupMap UserGroupMapFunc
+
+	config *config.ConfigMap
+}
+
+func (s *ssoRoleAccessHandler) Initialize(configmap *config.ConfigMap) {
+	s.config = configmap
+}
+
+func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+	result := make(map[string]set.Set[model.PolicyBinding])
+
+	permissionSetArns, err := s.ssoAdmin.ListSsoRole(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("fetching existing permission sets: %w", err)
+	}
+
+	users, err := s.ssoAdmin.GetUsers(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get users: %w", err)
+	}
+
+	groups, err := s.ssoAdmin.GetGroups(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get groups: %w", err)
+	}
+
+	for _, arn := range permissionSetArns {
+		permissionSetDetails, err := s.ssoAdmin.GetSsoRole(ctx, arn)
+		if err != nil {
+			return nil, fmt.Errorf("get permission set details: %w", err)
+		}
+
+		assignments, err := s.ssoAdmin.ListPermissionSetAssignment(ctx, arn)
+		if err != nil {
+			return nil, fmt.Errorf("error fetching existing permission set assignments: %w", err)
+		}
+
+		bindings := set.NewSet[model.PolicyBinding]()
+
+		for _, assignment := range assignments {
+			var assignmentType string
+			var principleName string
+			var found bool
+
+			if assignment.PrincipalType == ssoTypes.PrincipalTypeUser {
+				assignmentType = iam.UserResourceType
+
+				principleName, found = users.GetForward(*assignment.PrincipalId)
+				if !found {
+					utils.Logger.Warn(fmt.Sprintf("No username found for %q", *assignment.PrincipalId))
+					principleName = *assignment.PrincipalId
+				}
+			} else if assignment.PrincipalType == ssoTypes.PrincipalTypeGroup {
+				assignmentType = iam.GroupResourceType
+
+				principleName, found = groups.GetForward(*assignment.PrincipalId)
+				if !found {
+					utils.Logger.Warn(fmt.Sprintf("No groupname found for %q", *assignment.PrincipalId))
+					principleName = *assignment.PrincipalId
+				}
+			} else {
+				continue
+			}
+
+			bindings.Add(model.PolicyBinding{
+				Type:         assignmentType,
+				ResourceName: principleName,
+			})
+		}
+
+		result[*permissionSetDetails.Name] = bindings
+	}
+
+	return result, nil
+}
+
+func (s *ssoRoleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {
+	// no-op
+}
+
+func (s *ssoRoleAccessHandler) ExternalId(details *AccessProviderDetails) *string {
+	return details.ap.ExternalId // The external ID should contain the permission set ARN. If external id is nil an external ID would be created during creation
+}
+
+func (s *ssoRoleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
+	return groupBindings(groups)
+}
+
+func (s *ssoRoleAccessHandler) HandleInheritance() {
+	for name, details := range s.accessProviders.PermissionSets {
+		descendants := s.accessProviders.GetDescendants(model.SSORole, name)
+		for descendant := range descendants {
+			details.newBindings.AddSet(descendant.GetExistingOrNewBindings())
+		}
+	}
+}
+
+func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
+	permissionSetArnFromExternalId := func(externalId *string) (string, bool) {
+		if externalId == nil || !strings.HasPrefix(*externalId, constants.SsoRoleTypePrefix) {
+			return "", false
+		}
+
+		return (*externalId)[len(constants.SsoRoleTypePrefix):], true
+	}
+
+	for name, details := range s.accessProviders.PermissionSets {
+		utils.Logger.Info(fmt.Sprintf("Processing sso role %s with action %s", name, details.action))
+
+		switch details.action {
+		case ActionDelete:
+			s.deletePermissionSet(ctx, name, permissionSetArnFromExternalId, details)
+		case ActionCreate, ActionUpdate:
+			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", name, details.existingBindings))
+			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", name, details.newBindings))
+
+			permissionSetArn, err := s.updateOrCreatePermissionSet(ctx, details, permissionSetArnFromExternalId)
+			if err != nil {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update or create permission set %q: %s", name, err.Error()))
+
+				continue
+			}
+
+			// Update who
+			s.updateWho(ctx, details, permissionSetArn, name)
+
+			// Update What
+			s.updateWhat(ctx, details, name, permissionSetArn)
+
+			_, err = s.ssoAdmin.ProvisionPermissionSet(ctx, permissionSetArn)
+			if err != nil {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to provision permission set %q: %s", name, err.Error()))
+			}
+		default:
+			continue
+		}
+	}
+}
+
+func (s *ssoRoleAccessHandler) updateWhat(ctx context.Context, details *AccessProviderDetails, name string, permissionSetArn string) {
+	s.updateWhatDataObjects(ctx, details, name, permissionSetArn)
+
+	err := s.updateWhatPolicies(ctx, name, permissionSetArn, details)
+	if err != nil {
+		logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update roles for permission set %q: %s", name, err.Error()))
+	}
+}
+
+func (s *ssoRoleAccessHandler) updateWhatPolicies(ctx context.Context, name string, permissionSetArn string, details *AccessProviderDetails) error {
+	inheritedPolicies := s.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.SSORole, name, model.Policy)
+
+	managedPolicies, err := s.repo.GetManagedPolicies(ctx)
+	if err != nil {
+		return fmt.Errorf("fetching existing managed policies: %w", err)
+	}
+
+	managedPolicyMap := make(map[string]*model.PolicyEntity)
+
+	for i := range managedPolicies {
+		managedPolicyMap[managedPolicies[i].Name] = &managedPolicies[i]
+	}
+
+	existingAwsManagedPolicies, err := s.ssoAdmin.ListAwsManagedPolicyFromPermissionSet(ctx, permissionSetArn)
+	if err != nil {
+		return fmt.Errorf("fetching existing aws managed policies: %w", err)
+	}
+
+	existingCustomerPolicies, err := s.ssoAdmin.ListCustomerManagedPolicyFromPermissionSet(ctx, permissionSetArn)
+	if err != nil {
+		return fmt.Errorf("fetching existing customer managed policies: %w", err)
+	}
+
+	utils.Logger.Info(fmt.Sprintf("Existing aws managed policies for %s: %v", name, existingAwsManagedPolicies.Slice()))
+	utils.Logger.Info(fmt.Sprintf("Existing customer managed policies for %s: %v", name, existingCustomerPolicies.Slice()))
+
+	newAwsManagedPolicies := set.NewSet[string]()
+	newCustomerManagedPolicies := set.NewSet[string]()
+
+	for inheritedPolicy := range inheritedPolicies {
+		if managedPolicy, ok := managedPolicyMap[inheritedPolicy.name]; ok {
+			if managedPolicy.AwsManaged {
+				newAwsManagedPolicies.Add(inheritedPolicy.name)
+			} else {
+				newCustomerManagedPolicies.Add(inheritedPolicy.name)
+			}
+		} else {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("policy %q not found in managed policies", inheritedPolicy.name))
+		}
+	}
+
+	awsPoliciesToRemove := utils.SetSubtract(existingAwsManagedPolicies, newAwsManagedPolicies)
+	awsPoliciesToAdd := utils.SetSubtract(newAwsManagedPolicies, existingAwsManagedPolicies)
+
+	for policyName := range awsPoliciesToRemove {
+		policy := managedPolicyMap[policyName]
+
+		err = s.ssoAdmin.DetachAwsManagedPolicyFromPermissionSet(ctx, permissionSetArn, policy.ARN)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("removing aws managed policy %q from permission set: %s", policy.Name, err.Error()))
+		}
+	}
+
+	for policyName := range awsPoliciesToAdd {
+		policy := managedPolicyMap[policyName]
+
+		err = s.ssoAdmin.AttachAwsManagedPolicyToPermissionSet(ctx, permissionSetArn, policy.ARN)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("adding customer managed policy %q from permission set: %s", policy.Name, err.Error()))
+		}
+	}
+
+	customerPoliciesToRemove := utils.SetSubtract(existingCustomerPolicies, newCustomerManagedPolicies)
+	customerPoliciesToAdd := utils.SetSubtract(newCustomerManagedPolicies, existingCustomerPolicies)
+
+	for policyName := range customerPoliciesToRemove {
+		policy := managedPolicyMap[policyName]
+
+		err = s.ssoAdmin.DetachCustomerManagedPolicyFromPermissionSet(ctx, permissionSetArn, policy.Name, nil)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("removing customer managed policy %q from permission set: %s", policy.Name, err.Error()))
+		}
+	}
+
+	for policyName := range customerPoliciesToAdd {
+		policy := managedPolicyMap[policyName]
+
+		err = s.ssoAdmin.AttachCustomerManagedPolicyToPermissionSet(ctx, permissionSetArn, policy.Name, nil)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("adding customer managed policy %q from permission set: %s", policy.Name, err.Error()))
+		}
+	}
+
+	return nil
+}
+
+func (s *ssoRoleAccessHandler) updateWhatDataObjects(ctx context.Context, details *AccessProviderDetails, name string, permissionSetArn string) {
+	statements := createPolicyStatementsFromWhat(details.ap.What) // this should be empty as it is purpose
+
+	// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
+	inheritedWhatToFlatten := s.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.SSORole, name, model.Role, model.SSORole, model.AccessPoint)
+
+	for inheritedAP := range inheritedWhatToFlatten {
+		statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+	}
+
+	err := s.ssoAdmin.UpdateInlinePolicyToPermissionSet(ctx, permissionSetArn, statements)
+	if err != nil {
+		logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update inline policy for permission set %q: %s", name, err.Error()))
+	}
+}
+
+func (s *ssoRoleAccessHandler) updateWho(ctx context.Context, details *AccessProviderDetails, permissionSetArn string, name string) {
+	bindings := utils.SetSubtract(details.existingBindings, details.newBindings)
+
+	users, err := s.ssoAdmin.GetUsers(ctx)
+	if err != nil {
+		logFeedbackError(details.apFeedback, fmt.Sprintf("failed to get users: %s", err.Error()))
+
+		return
+	}
+
+	groups, err := s.ssoAdmin.GetGroups(ctx)
+	if err != nil {
+		logFeedbackError(details.apFeedback, fmt.Sprintf("failed to get groups: %s", err.Error()))
+
+		return
+	}
+
+	for binding := range bindings {
+		var principalType ssoTypes.PrincipalType
+		var principalId string
+
+		if binding.Type == iam.UserResourceType {
+			principalType = ssoTypes.PrincipalTypeUser
+			principalId, _ = users.GetBackwards(binding.ResourceName)
+
+			if principalId == "" {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to find user to unassign %q", binding.ResourceName))
+
+				continue
+			}
+		} else if binding.Type == iam.GroupResourceType {
+			principalType = ssoTypes.PrincipalTypeGroup
+			principalId, _ = groups.GetBackwards(binding.ResourceName)
+
+			if principalId == "" {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to find group to unassign %q", binding.ResourceName))
+
+				continue
+			}
+		} else {
+			continue
+		}
+
+		err := s.ssoAdmin.UnassignPermissionSet(ctx, permissionSetArn, principalType, principalId)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to remove %s %q from permission set %q: %s", principalType, binding.ResourceName, name, err.Error()))
+		}
+	}
+
+	bindings = utils.SetSubtract(details.newBindings, details.existingBindings)
+
+	for binding := range bindings {
+		var principalType ssoTypes.PrincipalType
+		var principalId string
+
+		if binding.Type == iam.UserResourceType {
+			principalType = ssoTypes.PrincipalTypeUser
+			principalId, _ = users.GetBackwards(binding.ResourceName)
+
+			if principalId == "" {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to find user to assign %q", binding.ResourceName))
+
+				continue
+			}
+		} else if binding.Type == iam.GroupResourceType {
+			principalType = ssoTypes.PrincipalTypeGroup
+			principalId, _ = groups.GetBackwards(binding.ResourceName)
+
+			if principalId == "" {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to find group to assign %q", binding.ResourceName))
+
+				continue
+			}
+		} else {
+			continue
+		}
+
+		err := s.ssoAdmin.AssignPermissionSet(ctx, permissionSetArn, principalType, principalId)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to add %s %q from permission set %q: %s", principalType, binding.ResourceName, name, err.Error()))
+		}
+	}
+}
+
+func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, details *AccessProviderDetails, permissionSetArnFn func(externalId *string) (string, bool)) (string, error) {
+	permissionSetArn, _ := permissionSetArnFn(details.ap.ExternalId)
+
+	shouldBeCreated := details.action == ActionCreate
+
+	if details.action == ActionUpdate {
+		originalPermissionSet, err := s.ssoAdmin.GetSsoRole(ctx, permissionSetArn)
+		if err != nil {
+			return permissionSetArn, fmt.Errorf("get sso role: %w", err)
+		}
+
+		if originalPermissionSet.Name == nil || *originalPermissionSet.Name != details.name {
+			shouldBeCreated = true
+
+			err = s.ssoAdmin.DeleteSsoRole(ctx, permissionSetArn)
+			if err != nil {
+				return permissionSetArn, fmt.Errorf("delete sso role: %w", err)
+			}
+
+			permissionSetArn = ""
+		} else {
+			// Update the permission set name
+			err = s.ssoAdmin.UpdateSsoRole(ctx, permissionSetArn, details.ap.Description)
+			if err != nil {
+				return permissionSetArn, fmt.Errorf("update sso role: %w", err)
+			}
+		}
+	}
+
+	if shouldBeCreated {
+		var err error
+
+		permissionSetArn, err = s.ssoAdmin.CreateSsoRole(ctx, details.name, details.ap.Description)
+		if err != nil {
+			return permissionSetArn, fmt.Errorf("create sso role: %w", err)
+		}
+
+		if permissionSetArn == "" {
+			return "", errors.New("create sso role: empty permission set arn")
+		}
+
+		details.apFeedback.ExternalId = ptr.String(fmt.Sprintf("%s%s", constants.SsoRoleTypePrefix, permissionSetArn))
+	}
+
+	return permissionSetArn, nil
+}
+
+func (s *ssoRoleAccessHandler) deletePermissionSet(ctx context.Context, name string, permissionSetArnFromExternalId func(externalId *string) (string, bool), details *AccessProviderDetails) {
+	utils.Logger.Info(fmt.Sprintf("Removing sso role %s", name))
+
+	if permissionSetArn, f := permissionSetArnFromExternalId(details.ap.ExternalId); f {
+		err := s.ssoAdmin.DeleteSsoRole(ctx, permissionSetArn)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete sso role %q: %s", name, err.Error()))
 		}
 	}
 }

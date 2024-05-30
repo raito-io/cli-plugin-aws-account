@@ -26,7 +26,6 @@ import (
 	ap "github.com/raito-io/cli/base/access_provider/sync_from_target"
 )
 
-//go:generate go run github.com/vektra/mockery/v2 --name=dataUsageRepository --with-expecter --inpackage
 type dataUsageRepository interface {
 	ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error)
 	GetFile(ctx context.Context, bucket string, key string, region string) (io.ReadCloser, error)

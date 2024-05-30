@@ -2,11 +2,11 @@ package utils
 
 import (
 	"fmt"
+	"reflect"
 	"strings"
 
-	"github.com/raito-io/cli/base/access_provider/sync_to_target"
-	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
 	"github.com/raito-io/cli/base/tag"
+	"github.com/raito-io/golang-set/set"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -119,45 +119,6 @@ func GetConcurrency(cfg *config.ConfigMap) int {
 	return cfg.GetIntWithDefault(constants.AwsConcurrency, 5)
 }
 
-func GenerateName(ap *sync_to_target.AccessProvider, apType model.AccessProviderType) (string, error) {
-	var uniqueRoleNameGenerator naming_hint.UniqueGenerator
-
-	if apType == model.AccessPoint {
-		var err error
-
-		uniqueRoleNameGenerator, err = naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
-			UpperCaseLetters:  false,
-			LowerCaseLetters:  true,
-			Numbers:           true,
-			SpecialCharacters: "-",
-			MaxLength:         30,
-		})
-		if err != nil {
-			return "", fmt.Errorf("new unique name generator for access point: %w", err)
-		}
-	} else {
-		var err error
-
-		uniqueRoleNameGenerator, err = naming_hint.NewUniqueNameGenerator(Logger, "", &naming_hint.NamingConstraints{
-			UpperCaseLetters:  true,
-			LowerCaseLetters:  true,
-			Numbers:           true,
-			SpecialCharacters: "+_",
-			MaxLength:         64,
-		})
-		if err != nil {
-			return "", fmt.Errorf("new unique name generator non access point: %w", err)
-		}
-	}
-
-	name, err := uniqueRoleNameGenerator.Generate(ap)
-	if err != nil {
-		return "", fmt.Errorf("generate unique name: %w", err)
-	}
-
-	return name, nil
-}
-
 func GetRegions(cfg *config.ConfigMap) []string {
 	regions := cfg.GetString(constants.AwsRegions)
 
@@ -166,4 +127,29 @@ func GetRegions(cfg *config.ConfigMap) []string {
 	}
 
 	return strings.Split(regions, ",")
+}
+
+func SetSubtract[T comparable](setA set.Set[T], setB set.Set[T]) set.Set[T] {
+	result := set.NewSet[T]()
+
+	for a := range setA {
+		if !setB.Contains(a) {
+			result.Add(a)
+		}
+	}
+
+	return result
+}
+
+func CheckNilInterface(i interface{}) bool {
+	iv := reflect.ValueOf(i)
+	if !iv.IsValid() {
+		return true
+	}
+	switch iv.Kind() {
+	case reflect.Ptr, reflect.Slice, reflect.Map, reflect.Func, reflect.Interface:
+		return iv.IsNil()
+	default:
+		return false
+	}
 }

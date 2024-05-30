@@ -35,11 +35,6 @@ linters-settings:
     require-explanation: false
     require-specific: false
 
-  gosec:
-    excludes:
-      - G601 # performance issue: https://github.com/golangci/golangci-lint/issues/4735
-      - G113 # performance issue: https://github.com/golangci/golangci-lint/issues/4735
-
   stylecheck:
     checks: [ "all", "-ST1003"] # ST1003: No underscores in package names should be fixed and removed?
 
@@ -127,7 +122,6 @@ output:
   formats:
     - path: stdout
       format: colored-line-number
-    - format: github-actions
   print-issued-lines: false
   print-linter-name: true
   uniq-by-line: false

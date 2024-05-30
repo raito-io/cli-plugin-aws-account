@@ -8,12 +8,10 @@ import (
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
-	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
-	importer "github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/golang-set/set"
 )
@@ -365,35 +363,4 @@ func mapResourceActions(actions []string, resourceType string) ([]string, bool) 
 	}
 
 	return mappedActions, incomplete
-}
-
-func ResolveInheritedApNames(apTypeResolver func(*importer.AccessProvider) (model.AccessProviderType, error), exportedAps []*importer.AccessProvider, aps ...string) ([]string, error) {
-	result := make([]string, 0, len(aps))
-
-	for _, ap := range aps {
-		if !strings.HasPrefix(ap, "ID:") {
-			result = append(result, ap)
-			continue
-		}
-
-		parts := strings.Split(ap, "ID:")
-		if len(parts) != 2 {
-			continue
-		}
-
-		apID := parts[1]
-		for _, ap2 := range exportedAps {
-			if ap2 != nil && ap2.Id == apID {
-				ap2Type, err := apTypeResolver(ap2)
-				if err != nil {
-					return nil, err
-				}
-
-				apName, _ := utils.GenerateName(ap2, ap2Type)
-				result = append(result, apName)
-			}
-		}
-	}
-
-	return result, nil
 }

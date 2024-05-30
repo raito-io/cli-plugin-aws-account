@@ -116,16 +116,10 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 		feedbackMap[accessProvider.Id] = apFeedback
 
-		apType, err2 := resolveApType(accessProvider, configMap)
-		if err2 != nil {
-			logFeedbackError(apFeedback, fmt.Sprintf("Unable to resolve access provider type: %s", err2.Error()))
-
-			continue
-		}
-
+		apType := resolveApType(accessProvider, configMap)
 		apFeedback.Type = ptr.String(string(apType))
 
-		typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback)
+		typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback, a.nameGenerator)
 	}
 
 	// Based on AWS dependencies we handle the access providers in the following order:
@@ -135,12 +129,17 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// 4. Permission Sets
 
 	roleHandler := NewRoleAccessHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
-	policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo)
+	policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo, a.account)
 	accessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
 
-	handlers := []*AccessHandler{roleHandler, policyHandler, accessPointHandler}
+	handlers := []*AccessHandler{&roleHandler, &policyHandler, &accessPointHandler}
 
-	// Initialize handers
+	if !utils.CheckNilInterface(a.ssoRepo) {
+		ssoRoleHandler := NewSSORoleAccessHandler(&typeSortedAccessProviders, a.repo, a.ssoRepo, a.getUserGroupMap, a.account)
+		handlers = append(handlers, &ssoRoleHandler)
+	}
+
+	// Initialize handlers
 	for _, handler := range handlers {
 		err = handler.Initialize(ctx, configMap)
 		if err != nil {
@@ -160,28 +159,29 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	// Update access providers
 	for _, handler := range handlers {
+		utils.Logger.Info(fmt.Sprintf("Handling access providers of type %s", handler.handlerType))
 		handler.HandleUpdates(ctx)
 	}
 
 	return nil
 }
 
-func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMap) (model.AccessProviderType, error) {
+func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMap) model.AccessProviderType {
 	if ap.Type != nil {
-		return model.AccessProviderType(*ap.Type), nil
+		return model.AccessProviderType(*ap.Type)
 	}
 
-	if ap.Action == sync_to_target.Promise {
+	if ap.Action == sync_to_target.Purpose {
 		if configmap.GetStringWithDefault(constants.AwsOrganizationProfile, "") != "" {
-			return model.SSORole, nil
+			return model.SSORole
 		} else {
-			return model.Role, nil
+			return model.Role
 		}
 	}
 
 	utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
 
-	return model.Policy, nil
+	return model.Policy
 }
 
 // convertResourceURLsForAccessPoint converts all the resource ARNs in the policy statements to the corresponding ones for the access point.

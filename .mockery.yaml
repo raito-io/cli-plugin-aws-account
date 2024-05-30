@@ -1,0 +1,19 @@
+with-expecter: True
+packages:
+  github.com/raito-io/cli-plugin-aws-account/aws:
+    config:
+      dir: "{{.InterfaceDir}}"
+    interfaces:
+      dataUsageRepository:
+      identityStoreRepository:
+  github.com/raito-io/cli-plugin-aws-account/aws/data_access:
+    config:
+      dir: "{{.InterfaceDir}}"
+    interfaces:
+      dataAccessRepository:
+      dataAccessSsoRepository:
+  github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint:
+    config:
+      dir: "mocks/{{.PackageName}}"
+    interfaces:
+      UniqueGenerator:
