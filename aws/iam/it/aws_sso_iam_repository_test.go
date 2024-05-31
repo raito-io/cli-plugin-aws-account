@@ -86,12 +86,15 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_AssignUnassignPermis
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), arn)
 
-	defer func() {
+	s.T().Cleanup(func() {
+		s.T().Logf("Cleaning up %s", arn)
+
 		err2 := s.repo.DeleteSsoRole(context.Background(), arn)
 		if err2 != nil {
-			s.T().Logf("Failed to delete role: %s", err2)
+			s.T().Logf("Failed to cleanup %s: %s", arn, err2)
 		}
-	}()
+
+	})
 
 	var user string
 
@@ -126,6 +129,9 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_AssignUnassignPermis
 	s.T().Run("Unassign permission set", func(t *testing.T) {
 		err = s.repo.UnassignPermissionSet(context.Background(), arn, ssoTypes.PrincipalTypeUser, user)
 		require.NoError(s.T(), err)
+
+		err = s.repo.ProvisionPermissionSetAndWait(context.Background(), arn)
+		assert.NoError(t, err)
 	})
 
 }

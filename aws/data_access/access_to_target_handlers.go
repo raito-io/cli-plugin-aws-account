@@ -991,6 +991,17 @@ func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context) (map[s
 	}
 
 	for _, arn := range permissionSetArns {
+		createdByRaito, err := s.ssoAdmin.HasRaitoCreatedTag(ctx, arn)
+		if err != nil {
+			return nil, fmt.Errorf("get raito created tag: %w", err)
+		}
+
+		if !createdByRaito {
+			utils.Logger.Info(fmt.Sprintf("Skipping permission set %q as it was not created by Raito", arn))
+
+			continue
+		}
+
 		permissionSetDetails, err := s.ssoAdmin.GetSsoRole(ctx, arn)
 		if err != nil {
 			return nil, fmt.Errorf("get permission set details: %w", err)

@@ -66,6 +66,7 @@ type dataAccessSsoRepository interface {
 	UpdateInlinePolicyToPermissionSet(ctx context.Context, permissionSetArn string, statements []*awspolicy.Statement) error
 	GetUsers(ctx context.Context) (bimap.Bimap[string, string], error)
 	GetGroups(ctx context.Context) (bimap.Bimap[string, string], error)
+	HasRaitoCreatedTag(ctx context.Context, permissionSetArn string) (bool, error)
 }
 
 type AccessSyncer struct {

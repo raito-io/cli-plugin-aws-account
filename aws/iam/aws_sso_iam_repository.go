@@ -88,6 +88,24 @@ func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, 
 	return nil
 }
 
+func (repo *AwsSsoIamRepository) HasRaitoCreatedTag(ctx context.Context, permissionSetArn string) (bool, error) {
+	result, err := repo.client.ListTagsForResource(ctx, &ssoadmin.ListTagsForResourceInput{
+		InstanceArn: &repo.instanceArn,
+		ResourceArn: &permissionSetArn,
+	})
+	if err != nil {
+		return false, fmt.Errorf("list tags for resource: %w", err)
+	}
+
+	for _, tag := range result.Tags {
+		if *tag.Key == "creator" && *tag.Value == "RAITO" {
+			return true, nil
+		}
+	}
+
+	return false, nil
+}
+
 func (repo *AwsSsoIamRepository) GetSsoRole(ctx context.Context, permissionSetArn string) (*ssoTypes.PermissionSet, error) {
 	permissionSet, err := repo.client.DescribePermissionSet(ctx, &ssoadmin.DescribePermissionSetInput{
 		InstanceArn:      &repo.instanceArn,
@@ -180,7 +198,7 @@ func (repo *AwsSsoIamRepository) UnassignPermissionSet(ctx context.Context, perm
 	})
 
 	if err != nil {
-		return fmt.Errorf("create account assignment: %w", err)
+		return fmt.Errorf("delete account assignment: %w", err)
 	}
 
 	return nil

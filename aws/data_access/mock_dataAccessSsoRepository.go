@@ -547,6 +547,63 @@ func (_c *MockdataAccessSsoRepository_GetUsers_Call) RunAndReturn(run func(conte
 	return _c
 }
 
+// HasRaitoCreatedTag provides a mock function with given fields: ctx, permissionSetArn
+func (_m *MockdataAccessSsoRepository) HasRaitoCreatedTag(ctx context.Context, permissionSetArn string) (bool, error) {
+	ret := _m.Called(ctx, permissionSetArn)
+
+	if len(ret) == 0 {
+		panic("no return value specified for HasRaitoCreatedTag")
+	}
+
+	var r0 bool
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string) (bool, error)); ok {
+		return rf(ctx, permissionSetArn)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string) bool); ok {
+		r0 = rf(ctx, permissionSetArn)
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
+		r1 = rf(ctx, permissionSetArn)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
+}
+
+// MockdataAccessSsoRepository_HasRaitoCreatedTag_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'HasRaitoCreatedTag'
+type MockdataAccessSsoRepository_HasRaitoCreatedTag_Call struct {
+	*mock.Call
+}
+
+// HasRaitoCreatedTag is a helper method to define mock.On call
+//   - ctx context.Context
+//   - permissionSetArn string
+func (_e *MockdataAccessSsoRepository_Expecter) HasRaitoCreatedTag(ctx interface{}, permissionSetArn interface{}) *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call {
+	return &MockdataAccessSsoRepository_HasRaitoCreatedTag_Call{Call: _e.mock.On("HasRaitoCreatedTag", ctx, permissionSetArn)}
+}
+
+func (_c *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call) Run(run func(ctx context.Context, permissionSetArn string)) *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run(args[0].(context.Context), args[1].(string))
+	})
+	return _c
+}
+
+func (_c *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call) Return(_a0 bool, _a1 error) *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call {
+	_c.Call.Return(_a0, _a1)
+	return _c
+}
+
+func (_c *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call) RunAndReturn(run func(context.Context, string) (bool, error)) *MockdataAccessSsoRepository_HasRaitoCreatedTag_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // ListAwsManagedPolicyFromPermissionSet provides a mock function with given fields: ctx, permissionSetArn
 func (_m *MockdataAccessSsoRepository) ListAwsManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string) (set.Set[string], error) {
 	ret := _m.Called(ctx, permissionSetArn)
