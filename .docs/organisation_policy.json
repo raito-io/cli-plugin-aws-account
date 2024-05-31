@@ -1,0 +1,173 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ssoInstanceReadWrite",
+      "Effect": "Allow",
+      "Action": [
+        "sso:CreatePermissionSet",
+        "sso:DescribePermissionSet",
+        "sso:DescribePermissionSetProvisioningStatus",
+        "sso:GetInlinePolicyForPermissionSet",
+        "sso:GetPermissionsBoundaryForPermissionSet",
+        "sso:GetPermissionSet",
+        "sso:ListAccountsForProvisionedPermissionSet",
+        "sso:ListCustomerManagedPolicyReferencesInPermissionSet",
+        "sso:ListManagedPoliciesInPermissionSet",
+        "sso:ListPermissionSetProvisioningStatus",
+        "sso:ListPermissionSets",
+        "sso:ListPermissionSetsProvisionedToAccount",
+        "sso:DeleteInlinePolicyFromPermissionSet",
+        "sso:DeletePermissionSet",
+        "sso:ProvisionPermissionSet",
+        "sso:PutInlinePolicyToPermissionSet",
+        "sso:AttachCustomerManagedPolicyReferenceToPermissionSet",
+        "sso:AttachManagedPolicyToPermissionSet",
+        "sso:DeletePermissionsBoundaryFromPermissionSet",
+        "sso:DetachCustomerManagedPolicyReferenceFromPermissionSet",
+        "sso:DetachManagedPolicyFromPermissionSet",
+        "sso:PutPermissionsBoundaryToPermissionSet",
+        "sso:UpdatePermissionSet",
+        "sso:TagResource",
+        "sso:ListAccountAssignments",
+        "sso:ListAccountAssignmentsForPrincipal",
+        "sso:CreateAccountAssignment",
+        "sso:DeleteAccountAssignment"
+      ],
+      "Resource": [
+        "arn:aws:sso:::instance/${sso-instance}"
+      ]
+    },
+    {
+      "Sid": "ssoPermissionSetReadWrite",
+      "Effect": "Allow",
+      "Action": [
+        "sso:ListAccountAssignments",
+        "sso:ListAccountsForProvisionedPermissionSet",
+        "sso:ListManagedPoliciesInPermissionSet",
+        "sso:ListTagsForResource",
+        "sso:DescribePermissionSet",
+        "sso:GetInlinePolicyForPermissionSet",
+        "sso:GetPermissionsBoundaryForPermissionSet",
+        "sso:GetPermissionSet",
+        "sso:CreateAccountAssignment",
+        "sso:DeleteAccountAssignment",
+        "sso:DeletePermissionSet",
+        "sso:ProvisionPermissionSet",
+        "sso:AttachCustomerManagedPolicyReferenceToPermissionSet",
+        "sso:AttachManagedPolicyToPermissionSet",
+        "sso:DeletePermissionsBoundaryFromPermissionSet",
+        "sso:DeletePermissionsPolicy",
+        "sso:DetachCustomerManagedPolicyReferenceFromPermissionSet",
+        "sso:DetachManagedPolicyFromPermissionSet",
+        "sso:PutPermissionsBoundaryToPermissionSet",
+        "sso:PutPermissionsPolicy",
+        "sso:UpdatePermissionSet",
+        "sso:TagResource",
+        "sso:DeleteInlinePolicyFromPermissionSet",
+        "sso:ListCustomerManagedPolicyReferencesInPermissionSet",
+        "sso:PutInlinePolicyToPermissionSet",
+        "sso:ListPermissionSetProvisioningStatus",
+        "sso:ListPermissionSets",
+        "sso:ListPermissionSetsProvisionedToAccount",
+        "sso:DescribePermissionSetProvisioningStatus"
+      ],
+      "Resource": [
+        "arn:aws:sso:::permissionSet/${sso-instance}/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/creator": "RAITO"
+        }
+      }
+    },
+    {
+      "Sid": "ssoPermissionSetCreate",
+      "Effect": "Allow",
+      "Action": [
+        "sso:CreatePermissionSet"
+      ],
+      "Resource": [
+        "arn:aws:sso:::permissionSet/${sso-instance}/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestTag/creator": "RAITO"
+        }
+      }
+    },
+    {
+      "Sid": "ssoPermissionSetTag",
+      "Effect": "Allow",
+      "Action": [
+        "sso:TagResource"
+      ],
+      "Resource": [
+        "arn:aws:sso:::permissionSet/${sso-instance}/*"
+      ],
+      "Condition": {
+        "StringEquals": {
+          "aws:ResourceTag/creator": "RAITO",
+          "aws:RequestTag/creator": "RAITO"
+        }
+      }
+    },
+    {
+      "Sid": "ssoListTags",
+      "Effect": "Allow",
+      "Action": [
+        "sso:ListTagsForResource"
+      ],
+      "Resource": [
+        "arn:aws:sso:::permissionSet/${sso-instance}/*",
+        "arn:aws:sso:::instance/${sso-instance}"
+      ]
+    },
+    {
+      "Sid": "accountAssignment",
+      "Effect": "Allow",
+      "Action": [
+        "sso:CreateAccountAssignment",
+        "sso:DeleteAccountAssignment",
+        "sso:ProvisionPermissionSet",
+        "sso:ListAccountAssignments"
+      ],
+      "Resource": [
+        "arn:aws:sso:::account/*"
+      ]
+    },
+    {
+      "Sid": "identitystoreRead",
+      "Effect": "Allow",
+      "Action": [
+        "identitystore:ListGroupMemberships",
+        "identitystore:ListGroupMembershipsForMember",
+        "identitystore:ListGroups",
+        "identitystore:ListUsers",
+        "identitystore:DescribeGroup",
+        "identitystore:DescribeGroupMembership",
+        "identitystore:DescribeUser",
+        "identitystore:GetGroupId",
+        "identitystore:GetGroupMembershipId",
+        "identitystore:GetUserId",
+        "identitystore:IsMemberInGroups"
+      ],
+      "Resource": [
+        "*"
+      ]
+    },
+    {
+      "Sid": "enrichRoles",
+      "Effect": "Allow",
+      "Action": [
+        "sso:ListInstances",
+        "sso:ListPermissionSets",
+        "sso:DescribePermissionSet",
+        "sso:ListAccountAssignments"
+      ],
+      "Resource": [
+        "*"
+      ]
+    }
+  ]
+}
