@@ -1,38 +1,43 @@
 package trie
 
+import "strings"
+
 type leafNode[T any] struct {
-	key   []byte
+	key   string
 	value T
 }
 
 type edge[T any] struct {
-	label byte
+	label string
 	node  *Node[T]
 }
 
 type Node[T any] struct {
 	leaf  *leafNode[T]
-	edges map[byte]edge[T]
+	edges map[string]edge[T]
 }
 
 type Trie[T any] struct {
+	sep  string
 	root *Node[T]
 }
 
-func New[T any]() *Trie[T] {
-	return &Trie[T]{}
+func New[T any](keySeparator string) *Trie[T] {
+	return &Trie[T]{sep: keySeparator}
 }
 
-func (t *Trie[T]) Insert(key []byte, value T) {
+func (t *Trie[T]) Insert(key string, value T) {
 	if t.root == nil {
 		t.root = &Node[T]{}
 	}
 
 	n := t.root
 
-	for _, k := range key {
+	keyParts := strings.Split(key, t.sep)
+
+	for _, k := range keyParts {
 		if n.edges == nil {
-			n.edges = make(map[byte]edge[T])
+			n.edges = make(map[string]edge[T])
 		}
 
 		e, ok := n.edges[k]
@@ -47,10 +52,12 @@ func (t *Trie[T]) Insert(key []byte, value T) {
 	n.leaf = &leafNode[T]{key: key, value: value}
 }
 
-func (t *Trie[T]) SearchPrefix(key []byte) []T {
+func (t *Trie[T]) SearchPrefix(key string) []T {
 	n := t.root
 
-	for _, k := range key {
+	keyParts := strings.Split(key, t.sep)
+
+	for _, k := range keyParts {
 		if n.edges == nil {
 			return nil
 		}
@@ -63,15 +70,7 @@ func (t *Trie[T]) SearchPrefix(key []byte) []T {
 		n = e.node
 	}
 
-	var result []T
-
-	if n.leaf != nil {
-		result = append(result, n.leaf.value)
-	}
-
-	result = append(result, n.GetAllLeafs()...)
-
-	return result
+	return n.GetAllLeafs()
 }
 
 func (t *Trie[T]) Size() int {
@@ -85,7 +84,7 @@ func (t *Trie[T]) Size() int {
 func (n *Node[T]) GetAllLeafs() []T {
 	var result []T
 
-	n.Iterate(func(_ []byte, value T) {
+	n.Iterate(func(_ string, value T) {
 		result = append(result, value)
 	})
 
@@ -106,7 +105,7 @@ func (n *Node[T]) Count() int {
 	return count
 }
 
-func (n *Node[T]) Iterate(f func(key []byte, value T)) {
+func (n *Node[T]) Iterate(f func(key string, value T)) {
 	if n.leaf != nil {
 		f(n.leaf.key, n.leaf.value)
 	}
