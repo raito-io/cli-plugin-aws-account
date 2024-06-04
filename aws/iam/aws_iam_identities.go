@@ -370,6 +370,7 @@ func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context) error 
 		roleNameWithOutSsoReservedPrefix := role.Name[len(constants.SsoReservedPrefix):]
 		utils.Logger.Info(fmt.Sprintf("Insert sso role %s to radixTree", roleNameWithOutSsoReservedPrefix))
 
+		// Add role to roleTrie so we can search for it based on prefix
 		roleTrie.Insert(roleNameWithOutSsoReservedPrefix, role)
 	}
 
@@ -388,7 +389,7 @@ func (repo *AwsIamRepository) GetSsoRoleWithPrefix(ctx context.Context, prefixNa
 
 	utils.Logger.Info(fmt.Sprintf("Search for prefix: %s in tree with length %d", prefixName, ssoRolesCache.Size()))
 
-	possibleRoles := ssoRolesCache.SearchPrefix(prefixName)
+	possibleRoles := ssoRolesCache.SearchPrefix(prefixName) // Search for all roles with that starts with prefixName
 
 	if len(possibleRoles) == 0 {
 		return nil, fmt.Errorf("sso role with prefix %s not found", prefixName)

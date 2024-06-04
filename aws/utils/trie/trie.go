@@ -17,15 +17,20 @@ type Node[T any] struct {
 	edges map[string]edge[T]
 }
 
+// Trie is a simplified version of a Radix tree (https://en.wikipedia.org/wiki/Radix_tree#:~:text=In%20computer%20science%2C%20a%20radix,is%20merged%20with%20its%20parent.)
+// Trie can be used to search for objects based on a key prefix
+// To improve performance, the key is split by a separator instead of a common characters.
 type Trie[T any] struct {
 	sep  string
 	root *Node[T]
 }
 
+// New creates a new (Radix) Trie
 func New[T any](keySeparator string) *Trie[T] {
 	return &Trie[T]{sep: keySeparator}
 }
 
+// Insert a new value with given key
 func (t *Trie[T]) Insert(key string, value T) {
 	if t.root == nil {
 		t.root = &Node[T]{}
@@ -52,6 +57,8 @@ func (t *Trie[T]) Insert(key string, value T) {
 	n.leaf = &leafNode[T]{key: key, value: value}
 }
 
+// SearchPrefix search for all values that within the data structure with a given prefix
+// Note that the prefix key will be split by the separator
 func (t *Trie[T]) SearchPrefix(key string) []T {
 	n := t.root
 
