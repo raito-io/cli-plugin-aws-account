@@ -21,7 +21,7 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 )
 
-type UserGroupMapFunc func(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error)
+type UserGroupMapFunc func(ctx context.Context) (map[string][]string, error)
 
 type AccessProvidersByType struct {
 	Roles          map[string]*AccessProviderDetails
@@ -186,13 +186,13 @@ func (a *AccessHandler) Initialize(ctx context.Context, configmap *config.Config
 	return nil
 }
 
-func (a *AccessHandler) PrepareAccessProviders() {
+func (a *AccessHandler) PrepareAccessProviders(ctx context.Context) {
 	for name, details := range a.accessProviderDetails {
-		a.preparationForAccessProvider(name, details)
+		a.preparationForAccessProvider(ctx, name, details)
 	}
 }
 
-func (a *AccessHandler) preparationForAccessProvider(name string, details *AccessProviderDetails) {
+func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name string, details *AccessProviderDetails) {
 	existingBindings, found := a.existingBindings[name]
 
 	if found {
@@ -243,7 +243,7 @@ func (a *AccessHandler) preparationForAccessProvider(name string, details *Acces
 		details.newBindings.Add(key)
 	}
 
-	apGroupBindings, err := a.executor.HandleGroupBindings(context.Background(), ap.Who.Groups)
+	apGroupBindings, err := a.executor.HandleGroupBindings(ctx, ap.Who.Groups)
 	if err != nil {
 		logFeedbackError(apFeedback, fmt.Sprintf("handling group bindings: %s", err.Error()))
 
@@ -379,7 +379,7 @@ func (r *roleAccessHandler) ExternalId(details *AccessProviderDetails) *string {
 	return ptr.String(fmt.Sprintf("%s%s", constants.RoleTypePrefix, details.name))
 }
 func (r *roleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
-	return unpackGroups(ctx, r.configMap, groups, r.getUserGroupMap)
+	return unpackGroups(ctx, groups, r.getUserGroupMap)
 }
 
 func (r *roleAccessHandler) HandleInheritance() {
@@ -847,7 +847,7 @@ func (a *accessPointHandler) ExternalId(details *AccessProviderDetails) *string 
 }
 
 func (a *accessPointHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
-	return unpackGroups(ctx, a.configMap, groups, a.getUserGroupMap)
+	return unpackGroups(ctx, groups, a.getUserGroupMap)
 }
 
 func (a *accessPointHandler) HandleInheritance() {
@@ -1485,14 +1485,14 @@ func groupBindings(groups []string) (set.Set[model.PolicyBinding], error) {
 	return result, nil
 }
 
-func unpackGroups(ctx context.Context, configMap *config.ConfigMap, groups []string, getUserGroupMap func(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error)) (set.Set[model.PolicyBinding], error) {
+func unpackGroups(ctx context.Context, groups []string, getUserGroupMap func(ctx context.Context) (map[string][]string, error)) (set.Set[model.PolicyBinding], error) {
 	result := set.NewSet[model.PolicyBinding]()
 
 	if len(groups) == 0 {
 		return result, nil
 	}
 
-	userGroupMap, err := getUserGroupMap(ctx, configMap)
+	userGroupMap, err := getUserGroupMap(ctx)
 	if err != nil {
 		return nil, err
 	}

@@ -70,9 +70,15 @@ type dataAccessSsoRepository interface {
 	HasRaitoCreatedTag(ctx context.Context, permissionSetArn string) (bool, error)
 }
 
+type dataAccessIamRepository interface {
+	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
+	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
+}
+
 type AccessSyncer struct {
 	repo         dataAccessRepository
 	ssoRepo      dataAccessSsoRepository
+	iamRepo      dataAccessIamRepository
 	account      string
 	userGroupMap map[string][]string
 
@@ -115,6 +121,8 @@ func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigM
 			a.ssoRepo = ssoRepo
 		}
 	}
+
+	a.iamRepo = iam.NewAwsIamRepository(configMap)
 
 	a.nameGenerator, err = NewNameGenerator(a.account)
 	if err != nil {
