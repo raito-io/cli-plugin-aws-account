@@ -133,5 +133,4 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_AssignUnassignPermis
 		err = s.repo.ProvisionPermissionSetAndWait(context.Background(), arn)
 		assert.NoError(t, err)
 	})
-
 }

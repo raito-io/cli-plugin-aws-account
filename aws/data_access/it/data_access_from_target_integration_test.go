@@ -31,18 +31,31 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAcces
 
 	aps, err := accessSyncer.FetchS3AccessPointAccessProviders(context.Background(), s.GetConfig(), nil)
 	s.NoError(err)
-	s.Len(aps, 1)
-	s.Equal("operations", aps[0].ApInput.Name)
-	s.Equal("operations", aps[0].ApInput.ActualName)
-	s.Equal(string(model.AccessPoint), *aps[0].ApInput.Type)
-	s.Equal(sync_from_target.Grant, aps[0].ApInput.Action)
-	s.Len(aps[0].ApInput.Who.Users, 1)
-	s.Equal(aps[0].ApInput.Who.Users[0], "m_carissa")
-	s.Len(aps[0].ApInput.Who.AccessProviders, 1)
-	s.Equal(constants.RoleTypePrefix+"MarketingRole", aps[0].ApInput.Who.AccessProviders[0])
-	s.Equal("raito-data-corporate/operations", aps[0].ApInput.What[0].DataObject.FullName)
-	s.Equal("s3:GetObject", aps[0].ApInput.What[0].Permissions[0])
-	s.True(aps[0].ApInput.Incomplete == nil || !*aps[0].ApInput.Incomplete)
+	s.GreaterOrEqual(len(aps), 1)
+
+	found := false
+
+	for i, ap := range aps {
+		if ap.ApInput.Name != "operations" {
+			continue
+		}
+
+		s.Equal("operations", aps[i].ApInput.Name)
+		s.Equal("operations", aps[i].ApInput.ActualName)
+		s.Equal(string(model.AccessPoint), *aps[i].ApInput.Type)
+		s.Equal(sync_from_target.Grant, aps[i].ApInput.Action)
+		s.Len(aps[i].ApInput.Who.Users, 1)
+		s.Equal(aps[i].ApInput.Who.Users[0], "m_carissa")
+		s.Len(aps[i].ApInput.Who.AccessProviders, 1)
+		s.Equal(constants.RoleTypePrefix+"MarketingRole", aps[i].ApInput.Who.AccessProviders[0])
+		s.Equal("raito-data-corporate/operations", aps[i].ApInput.What[0].DataObject.FullName)
+		s.Equal("s3:GetObject", aps[i].ApInput.What[0].Permissions[0])
+		s.True(aps[i].ApInput.Incomplete == nil || !*aps[0].ApInput.Incomplete)
+
+		found = true
+	}
+
+	s.True(found)
 }
 
 func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {

@@ -5,7 +5,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 )
 
 func TestBimap_Add(t *testing.T) {
@@ -80,11 +79,13 @@ func TestBimap_Each(t *testing.T) {
 	bimap := Of(m)
 
 	newMap := make(map[int]int)
+	keys := make([]int, 0, len(m))
 
 	// When
 	bimap.Each(func(k int, v int) {
-		require.NotContains(t, maps.Keys(newMap), k)
+		require.NotContains(t, keys, k)
 
+		keys = append(keys, k)
 		newMap[k] = v
 	})
 

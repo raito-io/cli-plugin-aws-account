@@ -12,8 +12,10 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli/base/tag"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils/trie"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
@@ -22,6 +24,7 @@ import (
 )
 
 var rolesCache []model.RoleEntity
+var ssoRolesCache *trie.Trie[*model.RoleEntity]
 
 func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error) {
 	client, err := repo.GetIamClient(ctx)
@@ -176,6 +179,7 @@ func (repo *AwsIamRepository) GetGroups(ctx context.Context) ([]model.GroupEntit
 
 func (repo *AwsIamRepository) ClearRolesCache() {
 	rolesCache = nil
+	ssoRolesCache = nil
 }
 
 func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity, error) {
@@ -348,6 +352,54 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error
 	return nil
 }
 
+func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context) error {
+	roles, err := repo.GetRoles(ctx)
+	if err != nil {
+		return fmt.Errorf("get roles: %w", err)
+	}
+
+	roleTrie := trie.New[*model.RoleEntity]("_")
+
+	for i := range roles {
+		role := &roles[i]
+
+		if !strings.HasPrefix(role.Name, constants.SsoReservedPrefix) {
+			continue
+		}
+
+		roleNameWithOutSsoReservedPrefix := role.Name[len(constants.SsoReservedPrefix):]
+		utils.Logger.Info(fmt.Sprintf("Insert sso role %s to radixTree", roleNameWithOutSsoReservedPrefix))
+
+		// Add role to roleTrie so we can search for it based on prefix
+		roleTrie.Insert(roleNameWithOutSsoReservedPrefix, role)
+	}
+
+	ssoRolesCache = roleTrie
+
+	return nil
+}
+
+func (repo *AwsIamRepository) GetSsoRoleWithPrefix(ctx context.Context, prefixName string) (*model.RoleEntity, error) {
+	if ssoRolesCache == nil {
+		err := repo.loadSsoRolesWithPrefix(ctx)
+		if err != nil {
+			return nil, fmt.Errorf("load sso roles: %w", err)
+		}
+	}
+
+	utils.Logger.Info(fmt.Sprintf("Search for prefix: %s in tree with length %d", prefixName, ssoRolesCache.Size()))
+
+	possibleRoles := ssoRolesCache.SearchPrefix(prefixName) // Search for all roles with that starts with prefixName
+
+	if len(possibleRoles) == 0 {
+		return nil, fmt.Errorf("sso role with prefix %s not found", prefixName)
+	} else if len(possibleRoles) > 1 {
+		return nil, fmt.Errorf("multiple sso roles (%d) with prefix %s found", len(possibleRoles), prefixName)
+	}
+
+	return possibleRoles[0], nil
+}
+
 func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {
@@ -374,7 +426,7 @@ func (repo *AwsIamRepository) CreateAssumeRolePolicyDocument(existingPolicyDoc *
 	newPrincipals := []string{}
 
 	for _, userName := range userNames {
-		newPrincipals = append(newPrincipals, utils.GetTrustPolicyArn(userName, repo.account))
+		newPrincipals = append(newPrincipals, utils.GetTrustUserPolicyArn(UserResourceType, userName, repo.account).String())
 	}
 
 	var policy *awspolicy.Policy

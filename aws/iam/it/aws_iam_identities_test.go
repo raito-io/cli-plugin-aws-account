@@ -5,11 +5,13 @@ package it
 import (
 	"context"
 	"fmt"
+	"strings"
 	"testing"
 
 	"github.com/raito-io/golang-set/set"
 	"github.com/stretchr/testify/suite"
 
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -163,7 +165,19 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_UpdateRole() {
 	s.Assert().True(found)
 }
 
+func (s *IAMIdentitiesTestSuite) TestIAMIdentities_GetSsoRoleWithPrefix() {
+	s.repo.ClearRolesCache()
+
+	role, err := s.repo.GetSsoRoleWithPrefix(context.Background(), "AWSAdministratorAccess")
+	s.Assert().NoError(err)
+	s.Assert().NotNil(role)
+
+	s.Assert().True(strings.HasPrefix(role.Name, constants.SsoReservedPrefix+"AWSAdministratorAccess"))
+}
+
 func (s *IAMIdentitiesTestSuite) checkRole(role model.RoleEntity, expectedName string, expectedUsers []string) {
+	s.T().Helper()
+
 	s.Assert().Equal(expectedName, role.Name)
 
 	s.Assert().Len(role.Tags, 1)
