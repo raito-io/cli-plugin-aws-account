@@ -358,7 +358,7 @@ func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context) error 
 		return fmt.Errorf("get roles: %w", err)
 	}
 
-	roleTrie := trie.New[*model.RoleEntity]()
+	roleTrie := trie.New[*model.RoleEntity]("_")
 
 	for i := range roles {
 		role := &roles[i]
@@ -370,7 +370,7 @@ func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context) error 
 		roleNameWithOutSsoReservedPrefix := role.Name[len(constants.SsoReservedPrefix):]
 		utils.Logger.Info(fmt.Sprintf("Insert sso role %s to radixTree", roleNameWithOutSsoReservedPrefix))
 
-		roleTrie.Insert([]byte(roleNameWithOutSsoReservedPrefix), role)
+		roleTrie.Insert(roleNameWithOutSsoReservedPrefix, role)
 	}
 
 	ssoRolesCache = roleTrie
@@ -388,7 +388,7 @@ func (repo *AwsIamRepository) GetSsoRoleWithPrefix(ctx context.Context, prefixNa
 
 	utils.Logger.Info(fmt.Sprintf("Search for prefix: %s in tree with length %d", prefixName, ssoRolesCache.Size()))
 
-	possibleRoles := ssoRolesCache.SearchPrefix([]byte(prefixName))
+	possibleRoles := ssoRolesCache.SearchPrefix(prefixName)
 
 	if len(possibleRoles) == 0 {
 		return nil, fmt.Errorf("sso role with prefix %s not found", prefixName)

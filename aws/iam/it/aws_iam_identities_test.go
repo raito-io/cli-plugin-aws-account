@@ -168,11 +168,11 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_UpdateRole() {
 func (s *IAMIdentitiesTestSuite) TestIAMIdentities_GetSsoRoleWithPrefix() {
 	s.repo.ClearRolesCache()
 
-	role, err := s.repo.GetSsoRoleWithPrefix(context.Background(), "AWSAdministratorAccess_")
+	role, err := s.repo.GetSsoRoleWithPrefix(context.Background(), "AWSAdministratorAccess")
 	s.Assert().NoError(err)
 	s.Assert().NotNil(role)
 
-	s.Assert().True(strings.HasPrefix(role.Name, constants.SsoReservedPrefix+"AWSAdministratorAccess_"))
+	s.Assert().True(strings.HasPrefix(role.Name, constants.SsoReservedPrefix+"AWSAdministratorAccess"))
 }
 
 func (s *IAMIdentitiesTestSuite) checkRole(role model.RoleEntity, expectedName string, expectedUsers []string) {
