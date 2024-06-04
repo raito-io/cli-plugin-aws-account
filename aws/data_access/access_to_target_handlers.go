@@ -149,6 +149,7 @@ type AccessHandlerExecutor interface {
 	HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error)
 	HandleInheritance()
 	ExecuteUpdates(ctx context.Context)
+	ExecuteDeletes(ctx context.Context)
 }
 
 func NewAccessHandler(executor AccessHandlerExecutor, handlerType model.AccessProviderType,
@@ -308,6 +309,10 @@ func (a *AccessHandler) ProcessInheritance() map[string]*AccessProviderDetails {
 	return a.accessProviderDetails
 }
 
+func (a *AccessHandler) HandleDeletes(ctx context.Context) {
+	a.executor.ExecuteDeletes(ctx)
+}
+
 func (a *AccessHandler) HandleUpdates(ctx context.Context) {
 	a.executor.ExecuteUpdates(ctx)
 }
@@ -386,82 +391,93 @@ func (r *roleAccessHandler) HandleInheritance() {
 	}
 }
 
+func (r *roleAccessHandler) ExecuteDeletes(ctx context.Context) {
+	for name, details := range r.accessProviders.Roles {
+		utils.Logger.Info(fmt.Sprintf("Processing role %s with action %s", name, details.action))
+
+		if details.action != ActionDelete {
+			continue
+		}
+
+		utils.Logger.Info(fmt.Sprintf("Removing role %s", name))
+
+		err := r.repo.DeleteRole(ctx, name)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete role %q: %s", name, err.Error()))
+
+			continue
+		}
+	}
+}
+
 func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context) {
 	for name, details := range r.accessProviders.Roles {
 		utils.Logger.Info(fmt.Sprintf("Processing role %s with action %s", name, details.action))
 
-		switch details.action {
-		case ActionDelete:
-			utils.Logger.Info(fmt.Sprintf("Removing role %s", name))
+		if details.action != ActionCreate && details.action != ActionUpdate {
+			continue
+		}
 
-			err := r.repo.DeleteRole(ctx, name)
+		utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", name, details.existingBindings))
+		utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", name, details.newBindings))
+
+		// Getting the who (for roles, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
+		userNames := make([]string, 0, len(details.newBindings))
+		for binding := range details.newBindings {
+			userNames = append(userNames, binding.ResourceName)
+		}
+
+		sort.Strings(userNames)
+
+		// Getting the what
+		ap := details.ap
+		statements := createPolicyStatementsFromWhat(ap.What)
+
+		// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
+		inheritedAPs := r.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.Role, name, model.Role)
+		for inheritedAP := range inheritedAPs {
+			statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+		}
+
+		if details.action == ActionCreate {
+			utils.Logger.Info(fmt.Sprintf("Creating role %s", name))
+
+			// Create the new role with the who
+			created, err2 := r.repo.CreateRole(ctx, name, ap.Description, userNames)
+			if err2 != nil {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create role %q: %s", name, err2.Error()))
+				continue
+			} else if !created {
+				logFeedbackWarning(details.apFeedback, fmt.Sprintf("role %q not created.", name))
+				continue
+			}
+		} else {
+			utils.Logger.Info(fmt.Sprintf("Updating role %s", name))
+
+			// Handle the who
+			err := r.repo.UpdateAssumeEntities(ctx, name, userNames)
 			if err != nil {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete role %q: %s", name, err.Error()))
-			}
-		case ActionCreate, ActionUpdate:
-			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", name, details.existingBindings))
-			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", name, details.newBindings))
-
-			// Getting the who (for roles, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
-			userNames := make([]string, 0, len(details.newBindings))
-			for binding := range details.newBindings {
-				userNames = append(userNames, binding.ResourceName)
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update role %q: %s", name, err.Error()))
+				continue
 			}
 
-			sort.Strings(userNames)
-
-			// Getting the what
-			ap := details.ap
-			statements := createPolicyStatementsFromWhat(ap.What)
-
-			// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
-			inheritedAPs := r.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.Role, name, model.Role)
-			for inheritedAP := range inheritedAPs {
-				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+			// For roles, we always delete all the inline policies.
+			// If we wouldn't do that, we would be blind on what the role actually looks like.
+			// If new permissions are supported later on, we would never see them.
+			err = r.repo.DeleteRoleInlinePolicies(ctx, name)
+			if err != nil {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to cleanup inline policies for role %q: %s", name, err.Error()))
+				continue
 			}
+		}
 
-			if details.action == ActionCreate {
-				utils.Logger.Info(fmt.Sprintf("Creating role %s", name))
-
-				// Create the new role with the who
-				created, err2 := r.repo.CreateRole(ctx, name, ap.Description, userNames)
-				if err2 != nil {
-					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create role %q: %s", name, err2.Error()))
-					continue
-				} else if !created {
-					logFeedbackWarning(details.apFeedback, fmt.Sprintf("role %q not created.", name))
-					continue
-				}
-			} else {
-				utils.Logger.Info(fmt.Sprintf("Updating role %s", name))
-
-				// Handle the who
-				err := r.repo.UpdateAssumeEntities(ctx, name, userNames)
-				if err != nil {
-					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update role %q: %s", name, err.Error()))
-					continue
-				}
-
-				// For roles, we always delete all the inline policies.
-				// If we wouldn't do that, we would be blind on what the role actually looks like.
-				// If new permissions are supported later on, we would never see them.
-				err = r.repo.DeleteRoleInlinePolicies(ctx, name)
-				if err != nil {
-					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to cleanup inline policies for role %q: %s", name, err.Error()))
-					continue
-				}
+		if len(statements) > 0 {
+			// Create the inline policy for the what
+			err := r.repo.CreateRoleInlinePolicy(ctx, name, "Raito_Inline_"+name, statements)
+			if err != nil {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create inline policies for role %q: %s", name, err.Error()))
+				continue
 			}
-
-			if len(statements) > 0 {
-				// Create the inline policy for the what
-				err := r.repo.CreateRoleInlinePolicy(ctx, name, "Raito_Inline_"+name, statements)
-				if err != nil {
-					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create inline policies for role %q: %s", name, err.Error()))
-					continue
-				}
-			}
-		default:
-			utils.Logger.Debug(fmt.Sprintf("no action needed for role %q", name))
 		}
 	}
 }
@@ -557,18 +573,23 @@ func (p *policyAccessHandler) HandleInheritance() {
 	processPolicyInheritance(p.accessProviders.Policies, p.accessProviders)
 }
 
-func (p *policyAccessHandler) ExecuteUpdates(ctx context.Context) {
-	managedPolicies, skippedPolicies := p.createAndUpdateRaitoPolicies(ctx, p.accessProviders.Policies)
+func (p *policyAccessHandler) ExecuteDeletes(ctx context.Context) {
+	managedPolicies := p.getManagedPolicies(p.accessProviders.Policies)
 
 	p.deleteOldPolicies(ctx, p.accessProviders.Policies, managedPolicies)
-
-	p.updatePolicyBindings(ctx, p.accessProviders.Policies, skippedPolicies, managedPolicies)
 
 	// Delete old inline policies on users that are not needed anymore
 	p.deleteInlinePolicies(ctx, p.inlineUserPoliciesToDelete, iam.UserResourceType)
 
 	// Delete old inline policies on groups that are not needed anymore
 	p.deleteInlinePolicies(ctx, p.inlineGroupPoliciesToDelete, iam.GroupResourceType)
+}
+
+func (p *policyAccessHandler) ExecuteUpdates(ctx context.Context) {
+	managedPolicies := p.getManagedPolicies(p.accessProviders.Policies)
+	skippedPolicies := p.createAndUpdateRaitoPolicies(ctx, p.accessProviders.Policies, managedPolicies)
+
+	p.updatePolicyBindings(ctx, p.accessProviders.Policies, skippedPolicies, managedPolicies)
 }
 
 func (p *policyAccessHandler) updatePolicyBindings(ctx context.Context, detailMap map[string]*AccessProviderDetails, skippedPolicies set.Set[string], managedPolicies set.Set[string]) {
@@ -677,15 +698,22 @@ func (p *policyAccessHandler) deleteOldPolicies(ctx context.Context, detailMap m
 	}
 }
 
-func (p *policyAccessHandler) createAndUpdateRaitoPolicies(ctx context.Context, detailMap map[string]*AccessProviderDetails) (set.Set[string], set.Set[string]) {
+func (p *policyAccessHandler) getManagedPolicies(detailMap map[string]*AccessProviderDetails) set.Set[string] {
 	managedPolicies := set.NewSet[string]()
-	skippedPolicies := set.NewSet[string]()
 
 	for name, details := range detailMap {
 		if details.ap.WhatLocked != nil && *details.ap.WhatLocked {
 			managedPolicies.Add(name)
 		}
+	}
 
+	return managedPolicies
+}
+
+func (p *policyAccessHandler) createAndUpdateRaitoPolicies(ctx context.Context, detailMap map[string]*AccessProviderDetails, managedPolicies set.Set[string]) set.Set[string] {
+	skippedPolicies := set.NewSet[string]()
+
+	for name, details := range detailMap {
 		action := details.action
 
 		utils.Logger.Info(fmt.Sprintf("Process policy %s, action: %s", name, action))
@@ -717,7 +745,7 @@ func (p *policyAccessHandler) createAndUpdateRaitoPolicies(ctx context.Context, 
 		}
 	}
 
-	return managedPolicies, skippedPolicies
+	return skippedPolicies
 }
 
 func (p *policyAccessHandler) deleteInlinePolicies(ctx context.Context, policies map[string][]string, resourceType string) {
@@ -823,109 +851,174 @@ func (a *accessPointHandler) HandleGroupBindings(ctx context.Context, groups []s
 }
 
 func (a *accessPointHandler) HandleInheritance() {
-	processPolicyInheritance(a.accessProviders.AccessPoints, a.accessProviders)
+	for _, details := range a.accessProviders.AccessPoints {
+		if details.IsExternal() {
+			// External policy so we skip it
+			continue
+		}
+
+		policyDescendants := a.accessProviders.GetDescendants(details.apType, details.name, model.Role, model.AccessPoint, model.SSORole)
+		roleDescendants := set.NewSet[*AccessProviderDetails]()
+
+		for descendant := range policyDescendants {
+			if descendant.apType == model.Role || descendant.apType == model.SSORole {
+				roleDescendants.Add(descendant)
+				roleDescendants.AddSet(a.accessProviders.GetDescendants(descendant.apType, descendant.name))
+			} else if otherAccessProvider, f := a.accessProviders.AccessPoints[descendant.name]; f {
+				details.newBindings.AddSet(otherAccessProvider.GetExistingOrNewBindings()) // Include groups and users of the other access provider
+
+				if !otherAccessProvider.IsExternal() {
+					// The case where the internal AP depends on an external AP (of type access provider). In that case we have to look at the bindings to see if there are roles in there.
+					for binding := range otherAccessProvider.newBindings {
+						if binding.Type == iam.RoleResourceType {
+							if role, f := a.accessProviders.Roles[binding.ResourceName]; f {
+								roleDescendants.Add(role)
+								roleDescendants.AddSet(a.accessProviders.GetDescendants(role.apType, binding.ResourceName))
+							}
+						}
+					}
+				}
+			}
+		}
+
+		// For descendants that are roles, we need to add that role as a binding for this policy
+		for descendant := range roleDescendants {
+			bindingType := iam.RoleResourceType
+
+			if descendant.apType == model.SSORole {
+				bindingType = iam.SsoRoleResourceType
+			}
+
+			roleBinding := model.PolicyBinding{
+				Type:         bindingType,
+				ResourceName: descendant.name,
+			}
+
+			details.newBindings.Add(roleBinding)
+		}
+	}
+}
+
+func (a *accessPointHandler) ExecuteDeletes(ctx context.Context) {
+	for accessPointName, details := range a.accessProviders.AccessPoints {
+		if details.action != ActionDelete {
+			continue
+		}
+
+		utils.Logger.Info(fmt.Sprintf("Processing access point %s with action %s", accessPointName, details.action))
+
+		accessPointAp := details.ap
+
+		utils.Logger.Info(fmt.Sprintf("Removing access point %s", accessPointName))
+
+		if accessPointAp.ExternalId == nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete access point %q as no external id is found", accessPointName))
+			continue
+		}
+
+		// Extract the region from the access point external ID
+		extId := *accessPointAp.ExternalId
+		extId = extId[len(constants.AccessPointTypePrefix):]
+
+		region := ""
+		if strings.Contains(extId, ":") {
+			region = extId[:strings.Index(extId, ":")] //nolint:gocritic
+		} else {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("invalid external id found %q", *accessPointAp.ExternalId))
+			continue
+		}
+
+		err := a.repo.DeleteAccessPoint(ctx, accessPointName, region)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete access point %q: %s", accessPointName, err.Error()))
+			continue
+		}
+	}
 }
 
 func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 	for accessPointName, details := range a.accessProviders.AccessPoints {
-		accessPointAp := details.ap
+		if details.action != ActionCreate && details.action != ActionUpdate {
+			continue
+		}
 
 		utils.Logger.Info(fmt.Sprintf("Processing access point %s with action %s", accessPointName, details.action))
 
-		switch details.action {
-		case ActionDelete:
-			utils.Logger.Info(fmt.Sprintf("Removing access point %s", accessPointName))
+		accessPointAp := details.ap
 
-			if accessPointAp.ExternalId == nil {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete access point %q as no external id is found", accessPointName))
-				continue
+		utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", accessPointName, details.existingBindings))
+		utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", accessPointName, details.newBindings))
+
+		who := set.NewSet(details.newBindings.Slice()...)
+
+		// Getting the who (for access points, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
+		principals := make([]string, 0, len(who))
+
+		for _, binding := range who.Slice() {
+			if binding.Type == iam.UserResourceType || binding.Type == iam.RoleResourceType {
+				principals = append(principals, utils.GetTrustUserPolicyArn(binding.Type, binding.ResourceName, a.account).String())
+			} else if binding.Type == iam.SsoRoleResourceType {
+				role, err := a.repo.GetSsoRoleWithPrefix(ctx, binding.ResourceName)
+				if err != nil {
+					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to get sso role %q: %s", binding.ResourceName, err.Error()))
+
+					continue
+				}
+
+				principals = append(principals, role.ARN)
 			}
+		}
 
-			// Extract the region from the access point external ID
-			extId := *accessPointAp.ExternalId
-			extId = extId[len(constants.AccessPointTypePrefix):]
+		sort.Strings(principals)
 
-			region := ""
-			if strings.Contains(extId, ":") {
-				region = extId[:strings.Index(extId, ":")] //nolint:gocritic
-			} else {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("invalid external id found %q", *accessPointAp.ExternalId))
-				continue
+		// Getting the what
+		statements := createPolicyStatementsFromWhat(accessPointAp.What)
+		whatItems := make([]sync_to_target.WhatItem, 0, len(accessPointAp.What))
+		whatItems = append(whatItems, accessPointAp.What...)
+
+		// Because we need to flatten the WHAT for access points as well, we gather all access point APs from which this access point AP inherits its what (following the reverse inheritance chain)
+		inheritedAPs := a.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.AccessPoint, accessPointName, model.AccessPoint)
+		for inheritedAP := range inheritedAPs {
+			whatItems = append(whatItems, inheritedAP.ap.What...)
+			statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+		}
+
+		bucketName, region, err2 := extractBucketForAccessPoint(whatItems)
+		if err2 != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to extract bucket name for access point %q: %s", accessPointName, err2.Error()))
+			continue
+		}
+
+		statements = mergeStatementsOnPermissions(statements)
+		filterAccessPointPermissions(statements)
+
+		accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, a.account, accessPointName)
+		convertResourceURLsForAccessPoint(statements, accessPointArn)
+
+		for _, statement := range statements {
+			statement.Principal = map[string][]string{
+				"AWS": principals,
 			}
+		}
 
-			err := a.repo.DeleteAccessPoint(ctx, accessPointName, region)
+		if details.action == ActionCreate {
+			utils.Logger.Info(fmt.Sprintf("Creating access point %s", accessPointName))
+
+			// Create the new access point with the who
+			err := a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, region, statements)
 			if err != nil {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete access point %q: %s", accessPointName, err.Error()))
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create access point %q: %s", accessPointName, err.Error()))
 				continue
 			}
-		case ActionCreate, ActionUpdate:
-			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", accessPointName, details.existingBindings))
-			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", accessPointName, details.newBindings))
+		} else {
+			utils.Logger.Info(fmt.Sprintf("Updating access point %s", accessPointName))
 
-			who := set.NewSet(details.newBindings.Slice()...)
-
-			// Getting the who (for access points, this should already contain the list of unpacked users from the groups (as those are not supported for roles)
-			principals := make([]string, 0, len(who))
-
-			for _, binding := range who.Slice() {
-				if binding.Type == iam.UserResourceType || binding.Type == iam.RoleResourceType {
-					principals = append(principals, utils.GetTrustPolicyArn(binding.ResourceName, a.account)) // TODO this is not correct for roles
-				}
-			}
-
-			sort.Strings(principals)
-
-			// Getting the what
-			statements := createPolicyStatementsFromWhat(accessPointAp.What)
-			whatItems := make([]sync_to_target.WhatItem, 0, len(accessPointAp.What))
-			whatItems = append(whatItems, accessPointAp.What...)
-
-			// Because we need to flatten the WHAT for access points as well, we gather all access point APs from which this access point AP inherits its what (following the reverse inheritance chain)
-			inheritedAPs := a.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.AccessPoint, accessPointName, model.AccessPoint)
-			for inheritedAP := range inheritedAPs {
-				whatItems = append(whatItems, inheritedAP.ap.What...)
-				statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
-			}
-
-			bucketName, region, err2 := extractBucketForAccessPoint(whatItems)
-			if err2 != nil {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to extract bucket name for access point %q: %s", accessPointName, err2.Error()))
+			// Handle the who
+			err := a.repo.UpdateAccessPoint(ctx, accessPointName, region, statements)
+			if err != nil {
+				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update access point %q: %s", accessPointName, err.Error()))
 				continue
 			}
-
-			statements = mergeStatementsOnPermissions(statements)
-			filterAccessPointPermissions(statements)
-
-			accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, a.account, accessPointName)
-			convertResourceURLsForAccessPoint(statements, accessPointArn)
-
-			for _, statement := range statements {
-				statement.Principal = map[string][]string{
-					"AWS": principals,
-				}
-			}
-
-			if details.action == ActionCreate {
-				utils.Logger.Info(fmt.Sprintf("Creating access point %s", accessPointName))
-
-				// Create the new access point with the who
-				err := a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, region, statements)
-				if err != nil {
-					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create access point %q: %s", accessPointName, err.Error()))
-					continue
-				}
-			} else {
-				utils.Logger.Info(fmt.Sprintf("Updating access point %s", accessPointName))
-
-				// Handle the who
-				err := a.repo.UpdateAccessPoint(ctx, accessPointName, region, statements)
-				if err != nil {
-					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update access point %q: %s", accessPointName, err.Error()))
-					continue
-				}
-			}
-		default:
-			utils.Logger.Debug(fmt.Sprintf("no action needed for access point %q", accessPointName))
 		}
 	}
 }
@@ -1072,44 +1165,53 @@ func (s *ssoRoleAccessHandler) HandleInheritance() {
 	}
 }
 
-func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
-	permissionSetArnFromExternalId := func(externalId *string) (string, bool) {
-		if externalId == nil || !strings.HasPrefix(*externalId, constants.SsoRoleTypePrefix) {
-			return "", false
-		}
-
-		return (*externalId)[len(constants.SsoRoleTypePrefix):], true
+func permissionSetArnFromExternalId(externalId *string) (string, bool) {
+	if externalId == nil || !strings.HasPrefix(*externalId, constants.SsoRoleTypePrefix) {
+		return "", false
 	}
 
+	return (*externalId)[len(constants.SsoRoleTypePrefix):], true
+}
+
+func (s *ssoRoleAccessHandler) ExecuteDeletes(ctx context.Context) {
 	for name, details := range s.accessProviders.PermissionSets {
+		if details.action != ActionDelete {
+			continue
+		}
+
 		utils.Logger.Info(fmt.Sprintf("Processing sso role %s with action %s", name, details.action))
 
-		switch details.action {
-		case ActionDelete:
-			s.deletePermissionSet(ctx, name, permissionSetArnFromExternalId, details)
-		case ActionCreate, ActionUpdate:
-			utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", name, details.existingBindings))
-			utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", name, details.newBindings))
+		s.deletePermissionSet(ctx, name, permissionSetArnFromExternalId, details)
+	}
+}
 
-			permissionSetArn, err := s.updateOrCreatePermissionSet(ctx, details, permissionSetArnFromExternalId)
-			if err != nil {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update or create permission set %q: %s", name, err.Error()))
-
-				continue
-			}
-
-			// Update who
-			s.updateWho(ctx, details, permissionSetArn, name)
-
-			// Update What
-			s.updateWhat(ctx, details, name, permissionSetArn)
-
-			_, err = s.ssoAdmin.ProvisionPermissionSet(ctx, permissionSetArn)
-			if err != nil {
-				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to provision permission set %q: %s", name, err.Error()))
-			}
-		default:
+func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
+	for name, details := range s.accessProviders.PermissionSets {
+		if details.action != ActionCreate && details.action != ActionUpdate {
 			continue
+		}
+
+		utils.Logger.Info(fmt.Sprintf("Processing sso role %s with action %s", name, details.action))
+
+		utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", name, details.existingBindings))
+		utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", name, details.newBindings))
+
+		permissionSetArn, err := s.updateOrCreatePermissionSet(ctx, details, permissionSetArnFromExternalId)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update or create permission set %q: %s", name, err.Error()))
+
+			continue
+		}
+
+		// Update who
+		s.updateWho(ctx, details, permissionSetArn, name)
+
+		// Update What
+		s.updateWhat(ctx, details, name, permissionSetArn)
+
+		_, err = s.ssoAdmin.ProvisionPermissionSet(ctx, permissionSetArn)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to provision permission set %q: %s", name, err.Error()))
 		}
 	}
 }
@@ -1214,7 +1316,7 @@ func (s *ssoRoleAccessHandler) updateWhatDataObjects(ctx context.Context, detail
 	statements := createPolicyStatementsFromWhat(details.ap.What) // this should be empty as it is purpose
 
 	// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
-	inheritedWhatToFlatten := s.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.SSORole, name, model.Role, model.SSORole, model.AccessPoint)
+	inheritedWhatToFlatten := s.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.SSORole, name, model.Role, model.SSORole)
 
 	for inheritedAP := range inheritedWhatToFlatten {
 		statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)

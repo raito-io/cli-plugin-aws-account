@@ -5,43 +5,43 @@ go 1.22
 toolchain go1.22.0
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.27.0
-	github.com/aws/aws-sdk-go-v2/config v1.27.11
-	github.com/aws/aws-sdk-go-v2/service/glue v1.80.0
-	github.com/aws/aws-sdk-go-v2/service/iam v1.32.0
-	github.com/aws/aws-sdk-go-v2/service/identitystore v1.23.9
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.53.1
-	github.com/aws/aws-sdk-go-v2/service/s3control v1.44.6
-	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.25.5
-	github.com/aws/aws-sdk-go-v2/service/sts v1.28.6
+	github.com/aws/aws-sdk-go-v2 v1.27.1
+	github.com/aws/aws-sdk-go-v2/config v1.27.17
+	github.com/aws/aws-sdk-go-v2/service/glue v1.82.1
+	github.com/aws/aws-sdk-go-v2/service/iam v1.32.5
+	github.com/aws/aws-sdk-go-v2/service/identitystore v1.23.10
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.54.4
+	github.com/aws/aws-sdk-go-v2/service/s3control v1.44.12
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.25.10
+	github.com/aws/aws-sdk-go-v2/service/sts v1.28.11
 	github.com/aws/smithy-go v1.20.2
 	github.com/gammazero/workerpool v1.1.3
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/n4ch04/aws-policy v1.0.1
-	github.com/raito-io/cli v0.64.1
+	github.com/raito-io/cli v0.65.2
 	github.com/raito-io/enumer v0.1.4
 	github.com/raito-io/golang-set v0.0.4
 	github.com/stretchr/testify v1.9.0
-	github.com/vektra/mockery/v2 v2.43.0
+	github.com/vektra/mockery/v2 v2.43.2
 )
 
 require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.2 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.11 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.1 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.7 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.7 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.17 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.4 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.8 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.8 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.8 // indirect
 	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.37.0 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.7 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.20.5 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.23.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.8 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.20.10 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.4 // indirect
 	github.com/bcicen/jstream v1.0.1 // indirect
 	github.com/chigopher/pathlib v0.19.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect

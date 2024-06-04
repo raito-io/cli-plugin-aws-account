@@ -94,8 +94,14 @@ func RemoveEndingWildcards(name string) string {
 	return strings.TrimSuffix(name, "/*")
 }
 
-func GetTrustPolicyArn(user string, account string) string {
-	return fmt.Sprintf("arn:aws:iam::%s:user/%s", account, user)
+func GetTrustUserPolicyArn(resourceType, resourceId string, account string) arn.ARN {
+	return arn.ARN{
+		Partition: "aws",
+		Service:   "iam",
+		Region:    "",
+		AccountID: account,
+		Resource:  fmt.Sprintf("%s/%s", resourceType, resourceId),
+	}
 }
 
 func StripWhitespace(query string) string {

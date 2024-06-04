@@ -90,16 +90,6 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	feedbackMap := make(map[string]*sync_to_target.AccessProviderSyncFeedback)
 
-	// Making sure we always send the feedback back
-	defer func() {
-		for _, feedback := range feedbackMap {
-			err2 := accessProviderFeedbackHandler.AddAccessProviderFeedback(*feedback)
-			if err2 != nil {
-				err = multierror.Append(err, err2)
-			}
-		}
-	}()
-
 	// Sort access providers on type
 	typeSortedAccessProviders := NewAccessProvidersByType()
 
@@ -125,19 +115,23 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// Based on AWS dependencies we handle the access providers in the following order:
 	// 1. Roles
 	// 2. Policies
-	// 3. Access Points
-	// 4. Permission Sets
+	// 3. Permission Sets (if organization is enabled)
+	// 4. Access Points
+
+	handlers := make([]*AccessHandler, 0, 4)
 
 	roleHandler := NewRoleAccessHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
 	policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo, a.account)
-	accessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
 
-	handlers := []*AccessHandler{&roleHandler, &policyHandler, &accessPointHandler}
+	handlers = append(handlers, &roleHandler, &policyHandler)
 
 	if !utils.CheckNilInterface(a.ssoRepo) {
 		ssoRoleHandler := NewSSORoleAccessHandler(&typeSortedAccessProviders, a.repo, a.ssoRepo, a.getUserGroupMap, a.account)
 		handlers = append(handlers, &ssoRoleHandler)
 	}
+
+	accessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
+	handlers = append(handlers, &accessPointHandler)
 
 	// Initialize handlers
 	for _, handler := range handlers {
@@ -146,6 +140,16 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 			return fmt.Errorf("initialize handler %T: %w", handler, err)
 		}
 	}
+
+	// Making sure we always send the feedback back
+	defer func() {
+		for _, feedback := range feedbackMap {
+			err2 := accessProviderFeedbackHandler.AddAccessProviderFeedback(*feedback)
+			if err2 != nil {
+				err = multierror.Append(err, err2)
+			}
+		}
+	}()
 
 	// Start processing access providers
 	for _, handler := range handlers {
@@ -159,8 +163,15 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	// Update access providers
 	for _, handler := range handlers {
-		utils.Logger.Info(fmt.Sprintf("Handling access providers of type %s", handler.handlerType))
+		utils.Logger.Info(fmt.Sprintf("Handling update and creation of access providers with type %s", handler.handlerType))
 		handler.HandleUpdates(ctx)
+	}
+
+	// Delete old access providers
+	for i := range handlers {
+		handler := handlers[len(handlers)-1-i]
+		utils.Logger.Info(fmt.Sprintf("Handling deletion of access providers with type %s", handler.handlerType))
+		handler.HandleDeletes(ctx)
 	}
 
 	return nil
