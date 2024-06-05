@@ -1,6 +1,8 @@
 package data_access
 
 import (
+	"context"
+	"fmt"
 	"sort"
 	"testing"
 
@@ -303,4 +305,83 @@ func compareBindings(t *testing.T, expected set.Set[model.PolicyBinding], actual
 	})
 
 	assert.Equal(t, expectedSlice, actualSlice)
+}
+
+func Test_unpackGroups(t *testing.T) {
+	type args struct {
+		ctx             context.Context
+		groups          []string
+		getUserGroupMap func(ctx context.Context) (map[string][]string, error)
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    set.Set[model.PolicyBinding]
+		wantErr assert.ErrorAssertionFunc
+	}{
+		{
+			name: "No users in group",
+			args: args{
+				ctx:    context.Background(),
+				groups: []string{"group1", "group2"},
+				getUserGroupMap: func(ctx context.Context) (map[string][]string, error) {
+					return map[string][]string{}, nil
+				},
+			},
+			want:    set.NewSet[model.PolicyBinding](),
+			wantErr: assert.NoError,
+		},
+		{
+			name: "No groups",
+			args: args{
+				ctx:    context.Background(),
+				groups: []string{},
+				getUserGroupMap: func(ctx context.Context) (map[string][]string, error) {
+					return map[string][]string{"group1": {"user1", "user2"}}, nil
+				},
+			},
+			want:    set.NewSet[model.PolicyBinding](),
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Users in group",
+			args: args{
+				ctx:    context.Background(),
+				groups: []string{"group1", "group2"},
+				getUserGroupMap: func(ctx context.Context) (map[string][]string, error) {
+					return map[string][]string{
+						"group1": {"user1", "user2"},
+						"group2": {"user2", "user3"},
+					}, nil
+				},
+			},
+			want: set.NewSet[model.PolicyBinding](
+				model.PolicyBinding{Type: iam.UserResourceType, ResourceName: "user1"},
+				model.PolicyBinding{Type: iam.UserResourceType, ResourceName: "user2"},
+				model.PolicyBinding{Type: iam.UserResourceType, ResourceName: "user3"},
+			),
+			wantErr: assert.NoError,
+		},
+		{
+			name: "Error getting user group map",
+			args: args{
+				ctx:    context.Background(),
+				groups: []string{"group1", "group2"},
+				getUserGroupMap: func(ctx context.Context) (map[string][]string, error) {
+					return nil, fmt.Errorf("error")
+				},
+			},
+			want:    nil,
+			wantErr: assert.Error,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := unpackGroups(tt.args.ctx, tt.args.groups, tt.args.getUserGroupMap)
+			if !tt.wantErr(t, err, fmt.Sprintf("unpackGroups(%v, %v, f())", tt.args.ctx, tt.args.groups)) {
+				return
+			}
+			assert.Equalf(t, tt.want, got, "unpackGroups(%v, %v, f())", tt.args.ctx, tt.args.groups)
+		})
+	}
 }

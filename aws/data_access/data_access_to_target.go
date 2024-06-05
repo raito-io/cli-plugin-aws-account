@@ -13,7 +13,6 @@ import (
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
-	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
@@ -43,21 +42,19 @@ func logFeedbackWarning(apFeedback *sync_to_target.AccessProviderSyncFeedback, m
 	apFeedback.Warnings = append(apFeedback.Warnings, msg)
 }
 
-func (a *AccessSyncer) getUserGroupMap(ctx context.Context, configMap *config.ConfigMap) (map[string][]string, error) {
+func (a *AccessSyncer) getUserGroupMap(ctx context.Context) (map[string][]string, error) {
 	if a.userGroupMap != nil {
 		return a.userGroupMap, nil
 	}
 
-	iamRepo := iam.NewAwsIamRepository(configMap)
-
-	groups, err := iamRepo.GetGroups(ctx)
+	groups, err := a.iamRepo.GetGroups(ctx)
 	if err != nil {
 		return nil, fmt.Errorf("get groups: %w", err)
 	}
 
 	a.userGroupMap = make(map[string][]string)
 
-	users, err := iamRepo.GetUsers(ctx, false)
+	users, err := a.iamRepo.GetUsers(ctx, false)
 	if err != nil {
 		return nil, fmt.Errorf("get users: %w", err)
 	}
@@ -153,7 +150,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	// Start processing access providers
 	for _, handler := range handlers {
-		handler.PrepareAccessProviders()
+		handler.PrepareAccessProviders(ctx)
 	}
 
 	// Process Inheritance

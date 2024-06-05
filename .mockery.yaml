@@ -12,6 +12,7 @@ packages:
     interfaces:
       dataAccessRepository:
       dataAccessSsoRepository:
+      dataAccessIamRepository:
   github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint:
     config:
       dir: "mocks/{{.PackageName}}"
