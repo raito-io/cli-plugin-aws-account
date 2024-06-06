@@ -14,6 +14,7 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils/trie"
 
 	"github.com/gammazero/workerpool"
 
@@ -34,25 +35,21 @@ func NewDataSourceSyncer() *DataSourceSyncer {
 	return &DataSourceSyncer{}
 }
 
-// GetAvailableObjects is used by the data usage component to fetch all available data objects in a map structure for easy lookup of what is available
-func (s *DataSourceSyncer) GetAvailableObjects(ctx context.Context, cfg *config.ConfigMap) (map[string]interface{}, error) {
+// GetAvailableObjectTypes is used by the data usage component to fetch all available data objects and corresponding type
+func (s *DataSourceSyncer) GetAvailableObjectTypes(ctx context.Context, cfg *config.ConfigMap) (*trie.Trie[string], error) {
 	err := s.initialize(ctx, cfg)
 	if err != nil {
 		return nil, fmt.Errorf("initializing data source syncer: %w", err)
 	}
 
-	bucketMap := map[string]interface{}{}
-
-	dataSourceHandler := mapDataSourceHandler{
-		bucketMap: bucketMap,
-	}
+	dataSourceHandler := newMapDataSourceHandler()
 
 	err = s.fetchDataObjects(ctx, dataSourceHandler)
 	if err != nil {
 		return nil, err
 	}
 
-	return bucketMap, nil
+	return dataSourceHandler.GetTrie(), nil
 }
 
 func (s *DataSourceSyncer) initialize(ctx context.Context, cfg *config.ConfigMap) error {
@@ -257,7 +254,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 				utils.Logger.Info(fmt.Sprintf("Handling all files in bucket %s", bucketFullName))
 			}
 
-			files, err2 := s3Repo.ListFiles(ctx, bucketName, prefix)
+			files, _, err2 := s3Repo.ListFiles(ctx, bucketName, prefix)
 			if err2 != nil {
 				smu.Lock()
 				resultErr = multierror.Append(resultErr, err2)
@@ -285,7 +282,7 @@ func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHan
 func (s *DataSourceSyncer) GetDataSourceMetaData(ctx context.Context, configParams *config.ConfigMap) (*ds.MetaData, error) {
 	utils.Logger.Debug("Returning meta data for AWS S3 data source")
 
-	return GetS3MetaData(), nil
+	return GetS3MetaData(configParams), nil
 }
 
 func (s *DataSourceSyncer) addAwsAsDataSource(dataSourceHandler wrappers.DataSourceObjectHandler, lock *sync.Mutex) error {
@@ -349,7 +346,7 @@ func (s *DataSourceSyncer) addS3Entities(entities []model.AwsS3Entity, region st
 			}
 		} else if strings.EqualFold(entity.Type, ds.File) {
 			if emulateFolders {
-				maxFolderDepth := s.config.GetIntWithDefault(constants.AwsS3MaxFolderDepth, 20)
+				maxFolderDepth := s.config.GetIntWithDefault(constants.AwsS3MaxFolderDepth, constants.AwsS3MaxFolderDepthDefault)
 
 				parts := strings.Split(entity.Key, "/")
 				parentExternalId := fmt.Sprintf("%s:%s:%s", s.account, region, entity.ParentKey)
@@ -564,25 +561,19 @@ func filterBuckets(configMap *config.ConfigMap, buckets []model.AwsS3Entity) ([]
 	return filteredBuckets, nil
 }
 
+func newMapDataSourceHandler() *mapDataSourceHandler {
+	return &mapDataSourceHandler{
+		bucketMap: trie.New[string]("/"),
+	}
+}
+
 type mapDataSourceHandler struct {
-	bucketMap map[string]interface{}
+	bucketMap *trie.Trie[string]
 }
 
 func (m mapDataSourceHandler) AddDataObjects(dataObjects ...*ds.DataObject) error {
 	for _, dataObject := range dataObjects {
-		parts := strings.Split(dataObject.FullName, "/")
-
-		currentMap := m.bucketMap
-
-		for _, part := range parts {
-			partMap, found := currentMap[part]
-			if !found {
-				partMap = map[string]interface{}{}
-				currentMap[part] = partMap
-			}
-
-			currentMap = partMap.(map[string]interface{})
-		}
+		m.bucketMap.Insert(dataObject.FullName, dataObject.Type)
 	}
 
 	return nil
@@ -595,4 +586,8 @@ func (m mapDataSourceHandler) SetDataSourceFullname(name string) {
 }
 
 func (m mapDataSourceHandler) SetDataSourceDescription(desc string) {
+}
+
+func (m mapDataSourceHandler) GetTrie() *trie.Trie[string] {
+	return m.bucketMap
 }

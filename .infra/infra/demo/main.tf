@@ -172,7 +172,7 @@ resource "aws_cloudtrail" "cloudtrail" {
     read_write_type           = "All"
     data_resource {
       type   = "AWS::S3::Object"
-      values = ["${aws_s3_bucket.corporate.arn}/*"]
+      values = ["${aws_s3_bucket.corporate.arn}/", "${aws_s3_bucket.west-data.arn}/"]
     }
   }
 }

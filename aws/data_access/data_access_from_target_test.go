@@ -137,6 +137,7 @@ func TestTargetToAccessProvider_BasicImport(t *testing.T) {
 	}
 	_, syncer := setupMockImportEnvironment(t)
 	ctx := context.Background()
+	syncer.cfgMap = &configmap
 
 	apHandler := mocks.NewAccessProviderHandler(t)
 

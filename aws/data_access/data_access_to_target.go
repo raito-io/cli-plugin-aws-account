@@ -29,7 +29,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 		return err
 	}
 
-	return a.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler, configMap)
+	return a.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler)
 }
 
 func logFeedbackError(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
@@ -77,7 +77,7 @@ func (a *AccessSyncer) getUserGroupMap(ctx context.Context) (map[string][]string
 	return a.userGroupMap, nil
 }
 
-func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) (err error) {
+func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler) (err error) {
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
 		utils.Logger.Info("No access providers to sync from Raito to AWS")
 		return nil
@@ -103,7 +103,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		}
 		feedbackMap[accessProvider.Id] = apFeedback
 
-		apType := resolveApType(accessProvider, configMap)
+		apType := resolveApType(accessProvider, a.cfgMap)
 		apFeedback.Type = ptr.String(string(apType))
 
 		typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback, a.nameGenerator)
@@ -132,7 +132,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	// Initialize handlers
 	for _, handler := range handlers {
-		err = handler.Initialize(ctx, configMap)
+		err = handler.Initialize(ctx, a.cfgMap)
 		if err != nil {
 			return fmt.Errorf("initialize handler %T: %w", handler, err)
 		}
@@ -274,7 +274,7 @@ func mergeStatementsOnPermissions(statements []*awspolicy.Statement) []*awspolic
 	return mergedStatements
 }
 
-func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []*awspolicy.Statement {
+func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem, cfg *config.ConfigMap) []*awspolicy.Statement {
 	policyInfo := map[string][]string{}
 
 	for _, what := range whatItems {
@@ -283,7 +283,7 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []*awsp
 		}
 
 		if _, found := policyInfo[what.DataObject.FullName]; !found {
-			dot := data_source.GetDataObjectType(what.DataObject.Type)
+			dot := data_source.GetDataObjectType(what.DataObject.Type, cfg)
 			allPermissions := what.Permissions
 
 			if dot != nil {

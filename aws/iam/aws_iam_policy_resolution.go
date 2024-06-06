@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/aws/smithy-go/ptr"
+	"github.com/raito-io/cli/base/util/config"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
@@ -16,7 +17,7 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
-func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName string, name string, account string) (*sync_from_target.WhoItem, []sync_from_target.WhatItem, bool) {
+func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName string, name string, account string, cfg *config.ConfigMap) (*sync_from_target.WhoItem, []sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, nil, false
 	}
@@ -59,7 +60,7 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 
 					if path == "" || path == "/" {
 						fullName = bucketName
-						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket)
+						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket, cfg)
 					} else if strings.HasPrefix(path, "/object/") {
 						path = utils.RemoveEndingWildcards(strings.TrimPrefix(path, "/object/"))
 						if path == "" {
@@ -68,7 +69,7 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 							fullName = bucketName + "/" + path
 						}
 
-						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder)
+						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder, cfg)
 					} else {
 						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q. Unexpected access point path", name, resource))
 						localIncomplete = true
@@ -240,7 +241,7 @@ func handleStatements(policy *awspolicy.Policy, name string, handler func(statem
 	return incomplete
 }
 
-func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, account string) ([]sync_from_target.WhatItem, bool) {
+func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, account string, cfg *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
@@ -269,13 +270,13 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, a
 				isBucket := !strings.Contains(fullName, "/")
 
 				if isBucket {
-					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket)
+					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket, cfg)
 				} else {
-					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder)
+					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder, cfg)
 				}
 			} else if resource == "*" {
 				fullName = account
-				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource)
+				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource, cfg)
 			} else {
 				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
 				localIncomplete = true
@@ -328,10 +329,10 @@ func flattenWhatMap(whatMap map[string]set.Set[string], awsAccount string) []syn
 
 // mapResourceActions maps the permissions given to the ones we know for the given resource type.
 // It returns the mapped actions, together with a boolean indicating whether any actions were skipped (true) or not (false).
-func mapResourceActions(actions []string, resourceType string) ([]string, bool) {
+func mapResourceActions(actions []string, resourceType string, cfg *config.ConfigMap) ([]string, bool) {
 	mappedActions := make([]string, 0, len(actions))
 
-	dot := data_source2.GetDataObjectType(resourceType)
+	dot := data_source2.GetDataObjectType(resourceType, cfg)
 	dotPermissions := dot.GetPermissions()
 	incomplete := false
 

@@ -4,8 +4,9 @@ import (
 	"sync"
 
 	ds "github.com/raito-io/cli/base/data_source"
+	"github.com/raito-io/cli/base/util/config"
 
-	"github.com/raito-io/cli-plugin-aws-account/aws/data_source/permissions"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 )
 
@@ -13,109 +14,87 @@ var metaData *ds.MetaData
 var dataObjects map[string]*ds.DataObjectType
 var mu sync.Mutex
 
-func GetDataObjectType(name string) *ds.DataObjectType {
-	GetS3MetaData()
+type MetadataProvider interface {
+	DataObjectTypes() []*ds.DataObjectType
+	UsageMetaInfo() *ds.UsageMetaInput
+	AccessProviderTypes() []*ds.AccessProviderType
+}
+
+func GetDataObjectType(name string, cfg *config.ConfigMap) *ds.DataObjectType {
+	GetS3MetaData(cfg)
 
 	return dataObjects[name]
 }
 
-func GetS3MetaData() *ds.MetaData {
+func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 	mu.Lock()
 	defer mu.Unlock()
 
 	if metaData == nil {
+		metaDataProvider := getMetadataProvider(cfg)
+
+		dataObjectTypes := metaDataProvider.DataObjectTypes()
+		usageMetadataInfo := metaDataProvider.UsageMetaInfo()
+
+		accessProviderTypes := []*ds.AccessProviderType{
+			{
+				Type:                          string(model.Role),
+				Label:                         "AWS Role",
+				Icon:                          "",
+				IsNamedEntity:                 true,
+				CanBeCreated:                  true,
+				CanBeAssumed:                  true,
+				CanAssumeMultiple:             false,
+				AllowedWhoAccessProviderTypes: []string{string(model.Role)},
+			},
+			{
+				Type:                          string(model.Policy),
+				Label:                         "AWS Policy",
+				Icon:                          "",
+				IsNamedEntity:                 true,
+				CanBeCreated:                  true,
+				CanBeAssumed:                  false,
+				CanAssumeMultiple:             false,
+				AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role)},
+			},
+			{
+				Type:                          string(model.AccessPoint),
+				Label:                         "AWS S3 Access Point",
+				Icon:                          "",
+				IsNamedEntity:                 true,
+				CanBeCreated:                  true,
+				CanBeAssumed:                  false,
+				CanAssumeMultiple:             false,
+				AllowedWhoAccessProviderTypes: []string{string(model.AccessPoint), string(model.Role)},
+			},
+		}
+		accessProviderTypes = append(accessProviderTypes, metaDataProvider.AccessProviderTypes()...)
+
+		if cfg.GetStringWithDefault(constants.AwsOrganizationProfile, "") != "" {
+			for _, apt := range accessProviderTypes {
+				apt.AllowedWhoAccessProviderTypes = append(apt.AllowedWhoAccessProviderTypes, string(model.SSORole))
+			}
+
+			accessProviderTypes = append(accessProviderTypes, &ds.AccessProviderType{
+				Type:                          string(model.SSORole),
+				Label:                         "AWS SSO Role",
+				Icon:                          "",
+				IsNamedEntity:                 true,
+				CanBeCreated:                  false,
+				CanBeAssumed:                  true,
+				CanAssumeMultiple:             false,
+				AllowedWhoAccessProviderTypes: []string{string(model.SSORole)},
+				IdentityStoreTypeForWho:       "aws-organization",
+			})
+		}
+
 		metaData = &ds.MetaData{
 			Type:                  "aws-account",
 			SupportedFeatures:     []string{""},
 			SupportsApInheritance: true,
-			DataObjectTypes: []*ds.DataObjectType{
-				{
-					Name:        ds.Datasource,
-					Type:        ds.Datasource,
-					Permissions: permissions.AllS3Permissions,
-					Children:    []string{ds.Bucket},
-				},
-				{
-					Name:        ds.Bucket,
-					Type:        ds.Bucket,
-					Label:       "S3 Bucket",
-					Permissions: permissions.AllS3Permissions,
-					Children:    []string{ds.Folder, ds.File, model.GlueTable},
-				},
-				{
-					Name:        ds.Folder,
-					Type:        ds.Folder,
-					Label:       "S3 Folder",
-					Permissions: permissions.S3ObjectPermissions,
-					Children:    []string{ds.Folder, ds.File, model.GlueTable},
-				},
-				{
-					Name:        ds.File,
-					Type:        ds.File,
-					Label:       "S3 File",
-					Permissions: permissions.S3ObjectPermissions,
-					Children:    []string{},
-				},
-				{
-					Name:        model.GlueTable,
-					Type:        ds.Table,
-					Label:       "Glue Table",
-					Permissions: permissions.S3AccessPointPermissions,
-					Children:    []string{},
-				},
-			},
-			UsageMetaInfo: &ds.UsageMetaInput{
-				DefaultLevel: ds.File,
-				Levels: []*ds.UsageMetaInputDetail{
-					{
-						Name:            ds.File,
-						DataObjectTypes: []string{ds.File},
-					},
-				},
-			},
-			AccessProviderTypes: []*ds.AccessProviderType{
-				{
-					Type:                          string(model.Role),
-					Label:                         "AWS Role",
-					Icon:                          "",
-					IsNamedEntity:                 true,
-					CanBeCreated:                  true,
-					CanBeAssumed:                  true,
-					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(model.Role), string(model.SSORole)},
-				},
-				{
-					Type:                          string(model.SSORole),
-					Label:                         "AWS SSO Role",
-					Icon:                          "",
-					IsNamedEntity:                 true,
-					CanBeCreated:                  false,
-					CanBeAssumed:                  true,
-					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(model.SSORole)},
-					IdentityStoreTypeForWho:       "aws-organization",
-				},
-				{
-					Type:                          string(model.Policy),
-					Label:                         "AWS Policy",
-					Icon:                          "",
-					IsNamedEntity:                 true,
-					CanBeCreated:                  true,
-					CanBeAssumed:                  false,
-					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role), string(model.SSORole)},
-				},
-				{
-					Type:                          string(model.AccessPoint),
-					Label:                         "AWS S3 Access Point",
-					Icon:                          "",
-					IsNamedEntity:                 true,
-					CanBeCreated:                  true,
-					CanBeAssumed:                  false,
-					CanAssumeMultiple:             false,
-					AllowedWhoAccessProviderTypes: []string{string(model.AccessPoint), string(model.Role), string(model.SSORole)},
-				},
-			},
+			DataObjectTypes:       dataObjectTypes,
+			UsageMetaInfo:         usageMetadataInfo,
+			AccessProviderTypes:   accessProviderTypes,
 		}
 
 		dataObjects = make(map[string]*ds.DataObjectType)
@@ -126,4 +105,20 @@ func GetS3MetaData() *ds.MetaData {
 	}
 
 	return metaData
+}
+
+func getMetadataProvider(cfg *config.ConfigMap) MetadataProvider {
+	if cfg.GetBoolWithDefault(constants.AwsGlueEnabled, false) {
+		return S3GlueMetadataProvider{}
+	}
+
+	return S3FileMetadataProvider{}
+}
+
+func ClearMetadata() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	metaData = nil
+	dataObjects = nil
 }

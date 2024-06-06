@@ -12,6 +12,7 @@ import (
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_access"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	"github.com/raito-io/cli-plugin-aws-account/aws/usage"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws"
 )
@@ -30,7 +31,7 @@ func main() {
 		wrappers.IdentityStoreSync(aws.NewIdentityStoreSyncer()),
 		wrappers.DataSourceSync(data_source.NewDataSourceSyncer()),
 		wrappers.DataAccessSync(data_access.NewDataAccessSyncer()),
-		wrappers.DataUsageSync(aws.NewDataUsageSyncer()), &info.InfoImpl{
+		wrappers.DataUsageSync(usage.NewDataUsageSyncer()), &info.InfoImpl{
 			Info: &plugin.PluginInfo{
 				Name:    "AWS Account",
 				Version: plugin.ParseVersion(version),
@@ -44,7 +45,7 @@ func main() {
 					// AWS S3 parameters
 					{Name: constants.AwsS3Enabled, Description: fmt.Sprintf("If set to true (default), S3 buckets and objects will be retrieved directly from the S3 API. See all other 'aws-s3-' parameters for more control over what is imported and what not. This cannot be enabled together with the %q parameter.", constants.AwsGlueEnabled), Mandatory: false},
 					{Name: constants.AwsS3EmulateFolderStructure, Description: "Emulate a folder structure for S3 objects, just like in the AWS UI", Mandatory: false},
-					{Name: constants.AwsS3MaxFolderDepth, Description: fmt.Sprintf("If %s is set to true, fetch all objects up to a certain folder depth. If not set, 20 is used as default.", constants.AwsS3EmulateFolderStructure), Mandatory: false},
+					{Name: constants.AwsS3MaxFolderDepth, Description: fmt.Sprintf("If %s is set to true, fetch all objects up to a certain folder depth. If not set, %d is used as default.", constants.AwsS3EmulateFolderStructure, constants.AwsS3MaxFolderDepthDefault), Mandatory: false},
 					{Name: constants.AwsS3IncludeBuckets, Description: "Optional comma-separated list of buckets to include. If specified, only these buckets will be handled. Wildcards (*) can be used.", Mandatory: false},
 					{Name: constants.AwsS3ExcludeBuckets, Description: "Optional comma-separated list of buckets to exclude. If specified, these buckets will not be handled. Wildcard (*) can be used. Excludes have preference over includes.", Mandatory: false},
 					{Name: constants.AwsConcurrency, Description: "The number of threads to use for concurrent API calls to AWS. The default is 5.", Mandatory: false},

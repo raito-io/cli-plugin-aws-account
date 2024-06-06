@@ -431,12 +431,12 @@ func (r *roleAccessHandler) ExecuteUpdates(ctx context.Context) {
 
 		// Getting the what
 		ap := details.ap
-		statements := createPolicyStatementsFromWhat(ap.What)
+		statements := createPolicyStatementsFromWhat(ap.What, r.configMap)
 
 		// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
 		inheritedAPs := r.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.Role, name, model.Role)
 		for inheritedAP := range inheritedAPs {
-			statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+			statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What, r.configMap)...)
 		}
 
 		if details.action == ActionCreate {
@@ -718,7 +718,7 @@ func (p *policyAccessHandler) createAndUpdateRaitoPolicies(ctx context.Context, 
 
 		utils.Logger.Info(fmt.Sprintf("Process policy %s, action: %s", name, action))
 
-		statements := createPolicyStatementsFromWhat(details.ap.What)
+		statements := createPolicyStatementsFromWhat(details.ap.What, p.configMap)
 
 		if action == ActionCreate {
 			utils.Logger.Info(fmt.Sprintf("Creating policy %s", name))
@@ -810,7 +810,7 @@ func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Cont
 	for ind := range accessPoints {
 		accessPoint := accessPoints[ind]
 
-		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
+		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.configMap)
 		if who != nil {
 			existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
 
@@ -972,7 +972,7 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 		sort.Strings(principals)
 
 		// Getting the what
-		statements := createPolicyStatementsFromWhat(accessPointAp.What)
+		statements := createPolicyStatementsFromWhat(accessPointAp.What, a.configMap)
 		whatItems := make([]sync_to_target.WhatItem, 0, len(accessPointAp.What))
 		whatItems = append(whatItems, accessPointAp.What...)
 
@@ -980,7 +980,7 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 		inheritedAPs := a.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.AccessPoint, accessPointName, model.AccessPoint)
 		for inheritedAP := range inheritedAPs {
 			whatItems = append(whatItems, inheritedAP.ap.What...)
-			statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+			statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What, a.configMap)...)
 		}
 
 		bucketName, region, err2 := extractBucketForAccessPoint(whatItems)
@@ -1313,13 +1313,13 @@ func (s *ssoRoleAccessHandler) updateWhatPolicies(ctx context.Context, name stri
 }
 
 func (s *ssoRoleAccessHandler) updateWhatDataObjects(ctx context.Context, details *AccessProviderDetails, name string, permissionSetArn string) {
-	statements := createPolicyStatementsFromWhat(details.ap.What) // this should be empty as it is purpose
+	statements := createPolicyStatementsFromWhat(details.ap.What, s.config) // this should be empty as it is purpose
 
 	// Because we need to flatten the WHAT for roles as well, we gather all role APs from which this role AP inherits its what (following the reverse inheritance chain)
 	inheritedWhatToFlatten := s.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.SSORole, name, model.Role, model.SSORole)
 
 	for inheritedAP := range inheritedWhatToFlatten {
-		statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What)...)
+		statements = append(statements, createPolicyStatementsFromWhat(inheritedAP.ap.What, s.config)...)
 	}
 
 	err := s.ssoAdmin.UpdateInlinePolicyToPermissionSet(ctx, permissionSetArn, statements)
