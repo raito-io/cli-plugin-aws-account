@@ -30,6 +30,16 @@ func New[T any](keySeparator string) *Trie[T] {
 	return &Trie[T]{sep: keySeparator}
 }
 
+func FromMap[T any](keySeparator string, m map[string]T) *Trie[T] {
+	t := New[T](keySeparator)
+
+	for k, v := range m {
+		t.Insert(k, v)
+	}
+
+	return t
+}
+
 // Insert a new value with given key
 func (t *Trie[T]) Insert(key string, value T) {
 	if t.root == nil {
@@ -80,12 +90,60 @@ func (t *Trie[T]) SearchPrefix(key string) []T {
 	return n.GetAllLeafs()
 }
 
+// Get returns the value for a given key
+func (t *Trie[T]) Get(key string) (T, bool) {
+	var t0 T
+
+	keyParts := strings.Split(key, t.sep)
+
+	node, found := t.root.GetNode(keyParts)
+
+	if !found || node.leaf == nil {
+		return t0, false
+	}
+
+	return node.leaf.value, true
+}
+
+// GetClosest returns the value for the closest key
+func (t *Trie[T]) GetClosest(key string) (string, T) {
+	var t0 T
+
+	keyParts := strings.Split(key, t.sep)
+
+	node := t.root.GetClosestNode(keyParts)
+
+	if node.leaf == nil {
+		return "", t0
+	}
+
+	return node.leaf.key, node.leaf.value
+}
+
 func (t *Trie[T]) Size() int {
 	if t.root == nil {
 		return 0
 	}
 
 	return t.root.Count()
+}
+
+func (t *Trie[T]) Iterate(f func(key string, value T)) {
+	if t.root != nil {
+		t.root.Iterate(f)
+	}
+}
+
+func (t *Trie[T]) Equal(other *Trie[T], equalFn func(a T, b T) bool) bool {
+	if t.root == nil {
+		return other.root == nil
+	}
+
+	if other.root == nil {
+		return false
+	}
+
+	return t.root.Equal(other.root, equalFn)
 }
 
 func (n *Node[T]) GetAllLeafs() []T {
@@ -112,6 +170,40 @@ func (n *Node[T]) Count() int {
 	return count
 }
 
+func (n *Node[T]) GetNode(keyParts []string) (*Node[T], bool) {
+	if len(keyParts) == 0 {
+		return n, true
+	}
+
+	if n.edges == nil {
+		return nil, false
+	}
+
+	e, ok := n.edges[keyParts[0]]
+	if !ok {
+		return nil, false
+	}
+
+	return e.node.GetNode(keyParts[1:])
+}
+
+func (n *Node[T]) GetClosestNode(keyParts []string) *Node[T] {
+	if len(keyParts) == 0 {
+		return n
+	}
+
+	if n.edges == nil {
+		return n
+	}
+
+	e, ok := n.edges[keyParts[0]]
+	if !ok {
+		return n
+	}
+
+	return e.node.GetClosestNode(keyParts[1:])
+}
+
 func (n *Node[T]) Iterate(f func(key string, value T)) {
 	if n.leaf != nil {
 		f(n.leaf.key, n.leaf.value)
@@ -120,4 +212,29 @@ func (n *Node[T]) Iterate(f func(key string, value T)) {
 	for _, e := range n.edges {
 		e.node.Iterate(f)
 	}
+}
+
+func (n *Node[T]) Equal(other *Node[T], equalFn func(a T, b T) bool) bool {
+	if n.leaf != nil {
+		if other.leaf == nil {
+			return false
+		}
+
+		if !equalFn(n.leaf.value, other.leaf.value) {
+			return false
+		}
+	}
+
+	if len(n.edges) != len(other.edges) {
+		return false
+	}
+
+	for k, e := range n.edges {
+		otherE, ok := other.edges[k]
+		if !ok || !e.node.Equal(otherE.node, equalFn) {
+			return false
+		}
+	}
+
+	return true
 }

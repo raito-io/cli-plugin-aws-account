@@ -5,19 +5,20 @@ package it
 import (
 	"testing"
 
-	"github.com/raito-io/cli-plugin-aws-account/aws"
+	"github.com/raito-io/cli-plugin-aws-account/aws/usage"
+
 	"github.com/stretchr/testify/suite"
 )
 
 type DataUsageTestSuite struct {
 	AWSTestSuite
-	usageSyncer *aws.DataUsageSyncer
+	usageSyncer *usage.DataUsageSyncer
 }
 
 func TestDataUsageTestSuiteTestSuiteTestSuite(t *testing.T) {
 	ts := DataUsageTestSuite{}
 
-	ts.usageSyncer = aws.NewDataUsageSyncer()
+	ts.usageSyncer = usage.NewDataUsageSyncer()
 
 	suite.Run(t, &ts)
 }

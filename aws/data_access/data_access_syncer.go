@@ -81,6 +81,7 @@ type AccessSyncer struct {
 	iamRepo      dataAccessIamRepository
 	account      string
 	userGroupMap map[string][]string
+	cfgMap       *config.ConfigMap
 
 	nameGenerator *NameGenerator
 }
@@ -104,6 +105,7 @@ func NewDataAccessSyncerFromConfig(configMap *config.ConfigMap) *AccessSyncer {
 
 func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigMap) error {
 	a.repo = iam.NewAwsIamRepository(configMap)
+	a.cfgMap = configMap
 
 	var err error
 

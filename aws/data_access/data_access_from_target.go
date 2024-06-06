@@ -226,7 +226,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 			continue
 		}
 
-		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account)
+		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, a.cfgMap)
 
 		policyDocument := ""
 		if policy.PolicyDocument != nil {
@@ -278,7 +278,7 @@ func (a *AccessSyncer) convertPoliciesToWhat(policies []model.PolicyEntity) ([]s
 
 	for i := range policies {
 		policy := policies[i]
-		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account)
+		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, a.cfgMap)
 
 		if policy.PolicyDocument != nil {
 			policyDocuments += *policy.PolicyDocument + "\n"
@@ -477,7 +477,7 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 		}
 
 		incomplete := false
-		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account)
+		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.cfgMap)
 
 		if incomplete {
 			newAp.ApInput.Incomplete = ptr.Bool(true)

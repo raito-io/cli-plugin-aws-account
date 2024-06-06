@@ -14,9 +14,12 @@ const (
 
 	AwsS3Enabled                = "aws-s3-enabled"
 	AwsS3EmulateFolderStructure = "aws-s3-emulate-folder-structure"
-	AwsS3MaxFolderDepth         = "aws-s3-max-folder-depth"
-	AwsS3IncludeBuckets         = "aws-s3-include-buckets"
-	AwsS3ExcludeBuckets         = "aws-s3-exclude-buckets"
+
+	AwsS3MaxFolderDepth        = "aws-s3-max-folder-depth"
+	AwsS3MaxFolderDepthDefault = 20
+
+	AwsS3IncludeBuckets = "aws-s3-include-buckets"
+	AwsS3ExcludeBuckets = "aws-s3-exclude-buckets"
 
 	AwsGlueEnabled = "aws-glue-enabled"
 

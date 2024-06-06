@@ -8,7 +8,6 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/s3"
-	"github.com/aws/smithy-go/ptr"
 	"github.com/raito-io/cli/base/util/config"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -75,25 +74,10 @@ func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]model.AwsS3Enti
 	return result, nil
 }
 
-func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, error) {
-	utils.Logger.Info(fmt.Sprintf("Fetching files from bucket %s", bucket))
-
-	bucketClient, err := repo.GetS3Client(ctx, nil)
+func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string) ([]model.AwsS3Entity, string, error) {
+	client, region, err := repo.getS3ClientForBucket(ctx, bucket)
 	if err != nil {
-		return nil, fmt.Errorf("get s3 client: %w", err)
-	}
-
-	bucketInfo, err := bucketClient.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: &bucket})
-	if err != nil {
-		return nil, fmt.Errorf("get bucket location: %w", err)
-	}
-
-	bucketLocation := string(bucketInfo.LocationConstraint)
-	utils.Logger.Info(fmt.Sprintf("Location of bucket %q is %s", bucket, bucketLocation))
-
-	client, err := repo.GetS3Client(ctx, &bucketLocation)
-	if err != nil {
-		return nil, err
+		return nil, "", err
 	}
 
 	moreObjectsAvailable := true
@@ -108,9 +92,9 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 			Prefix:            prefix,
 		}
 
-		response, err := client.ListObjectsV2(ctx, input)
-		if err != nil {
-			return nil, fmt.Errorf("list objects: %w", err)
+		response, err2 := client.ListObjectsV2(ctx, input)
+		if err2 != nil {
+			return nil, "", fmt.Errorf("list objects: %w", err2)
 		}
 
 		moreObjectsAvailable = response.IsTruncated != nil && *response.IsTruncated
@@ -125,11 +109,35 @@ func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefi
 		}
 	}
 
-	return result, nil
+	return result, region, nil
 }
 
-func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string, region string) (io.ReadCloser, error) {
-	client, err := repo.GetS3Client(ctx, ptr.String(region))
+func (repo *AwsS3Repository) getS3ClientForBucket(ctx context.Context, bucket string) (*s3.Client, string, error) {
+	utils.Logger.Info(fmt.Sprintf("Fetching files from bucket %s", bucket))
+
+	bucketClient, err := repo.GetS3Client(ctx, nil)
+	if err != nil {
+		return nil, "", fmt.Errorf("get s3 client: %w", err)
+	}
+
+	bucketInfo, err := bucketClient.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: &bucket})
+	if err != nil {
+		return nil, "", fmt.Errorf("get bucket location: %w", err)
+	}
+
+	bucketLocation := string(bucketInfo.LocationConstraint)
+	utils.Logger.Info(fmt.Sprintf("Location of bucket %q is %s", bucket, bucketLocation))
+
+	client, err := repo.GetS3Client(ctx, &bucketLocation)
+	if err != nil {
+		return nil, "", err
+	}
+
+	return client, bucketLocation, nil
+}
+
+func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string, region *string) (io.ReadCloser, error) {
+	client, err := repo.GetS3Client(ctx, region)
 	if err != nil {
 		return nil, err
 	}

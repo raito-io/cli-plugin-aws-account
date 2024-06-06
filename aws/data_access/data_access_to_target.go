@@ -274,7 +274,7 @@ func mergeStatementsOnPermissions(statements []*awspolicy.Statement) []*awspolic
 	return mergedStatements
 }
 
-func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []*awspolicy.Statement {
+func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem, cfg *config.ConfigMap) []*awspolicy.Statement {
 	policyInfo := map[string][]string{}
 
 	for _, what := range whatItems {
@@ -283,7 +283,7 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem) []*awsp
 		}
 
 		if _, found := policyInfo[what.DataObject.FullName]; !found {
-			dot := data_source.GetDataObjectType(what.DataObject.Type)
+			dot := data_source.GetDataObjectType(what.DataObject.Type, cfg)
 			allPermissions := what.Permissions
 
 			if dot != nil {
