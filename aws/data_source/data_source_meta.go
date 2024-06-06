@@ -45,18 +45,7 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeCreated:                  true,
 				CanBeAssumed:                  true,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.Role), string(model.SSORole)},
-			},
-			{
-				Type:                          string(model.SSORole),
-				Label:                         "AWS SSO Role",
-				Icon:                          "",
-				IsNamedEntity:                 true,
-				CanBeCreated:                  false,
-				CanBeAssumed:                  true,
-				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.SSORole)},
-				IdentityStoreTypeForWho:       "aws-organization",
+				AllowedWhoAccessProviderTypes: []string{string(model.Role)},
 			},
 			{
 				Type:                          string(model.Policy),
@@ -66,7 +55,7 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeCreated:                  true,
 				CanBeAssumed:                  false,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role), string(model.SSORole)},
+				AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role)},
 			},
 			{
 				Type:                          string(model.AccessPoint),
@@ -76,10 +65,28 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeCreated:                  true,
 				CanBeAssumed:                  false,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.AccessPoint), string(model.Role), string(model.SSORole)},
+				AllowedWhoAccessProviderTypes: []string{string(model.AccessPoint), string(model.Role)},
 			},
 		}
 		accessProviderTypes = append(accessProviderTypes, metaDataProvider.AccessProviderTypes()...)
+
+		if cfg.GetStringWithDefault(constants.AwsOrganizationProfile, "") != "" {
+			for _, apt := range accessProviderTypes {
+				apt.AllowedWhoAccessProviderTypes = append(apt.AllowedWhoAccessProviderTypes, string(model.SSORole))
+			}
+
+			accessProviderTypes = append(accessProviderTypes, &ds.AccessProviderType{
+				Type:                          string(model.SSORole),
+				Label:                         "AWS SSO Role",
+				Icon:                          "",
+				IsNamedEntity:                 true,
+				CanBeCreated:                  false,
+				CanBeAssumed:                  true,
+				CanAssumeMultiple:             false,
+				AllowedWhoAccessProviderTypes: []string{string(model.SSORole)},
+				IdentityStoreTypeForWho:       "aws-organization",
+			})
+		}
 
 		metaData = &ds.MetaData{
 			Type:                  "aws-account",
