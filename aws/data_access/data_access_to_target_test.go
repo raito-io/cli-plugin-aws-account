@@ -9,6 +9,7 @@ import (
 	"github.com/raito-io/golang-set/set"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils/bimap"
@@ -62,6 +63,8 @@ func setupMockExportEnvironment(t *testing.T, ssoEnabled bool) (*MockdataAccessR
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
 	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
 	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return(accessPoints, nil).Once()
+
+	data_source2.ClearMetadata()
 
 	return repoMock, ssoRepoMock, iamRepo, syncer
 }
@@ -126,6 +129,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -152,7 +156,7 @@ func TestSyncAccessProviderToTarget_CreateRole(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(constants.RoleTypePrefix + "test_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -181,6 +185,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithGroups(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -269,7 +274,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithGroups(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", ExternalId: ptr.String(constants.RoleTypePrefix + "test_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -297,6 +302,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -340,7 +346,7 @@ func TestSyncAccessProviderToTarget_CreateRoleWithWhat(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_role", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "test_role")}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -368,6 +374,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -454,7 +461,7 @@ func TestSyncAccessProviderToTarget_CreateRolesWithInheritance(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_role", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "another_role")}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -482,6 +489,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -510,7 +518,7 @@ func TestSyncAccessProviderToTarget_UpdateRole(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "data_engineering_sync", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "data_engineering_sync")}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -536,6 +544,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -561,7 +570,7 @@ func TestSyncAccessProviderToTarget_DeleteRole(t *testing.T) {
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -588,6 +597,7 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -641,7 +651,7 @@ func TestSyncAccessProviderToTarget_CreatePolicy(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test_policy", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "test_policy")}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -666,6 +676,7 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -713,7 +724,7 @@ func TestSyncAccessProviderToTarget_CreatePoliciesWithInheritance(t *testing.T) 
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_policy", Type: ptr.String(string(model.Policy)), ExternalId: ptr.String(constants.PolicyTypePrefix + "another_policy")}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -741,6 +752,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -847,7 +859,7 @@ func TestSyncAccessProviderToTarget_CreatePolicyRoleInheritance(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "r2", ActualName: "r2", Type: ptr.String(string(model.Role)), ExternalId: ptr.String(constants.RoleTypePrefix + "r2")}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -875,6 +887,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -899,7 +912,7 @@ func TestSyncAccessProviderToTarget_DeletePolicy(t *testing.T) {
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -925,6 +938,7 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 	configmap := config.ConfigMap{
 		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -947,7 +961,7 @@ func TestSyncAccessProviderToTarget_NotExistingDeletePolicy(t *testing.T) {
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(t)
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -971,8 +985,9 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 	repoMock, _, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
-		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1", constants.AwsGlueEnabled: "true"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -1017,7 +1032,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -1043,8 +1058,9 @@ func TestSyncAccessProviderToTarget_CreateAccessPointWithGroups(t *testing.T) {
 	repoMock, _, iamRepo, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
-		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1", constants.AwsGlueEnabled: "true"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -1154,7 +1170,7 @@ func TestSyncAccessProviderToTarget_CreateAccessPointWithGroups(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -1180,8 +1196,9 @@ func TestSyncAccessProviderToTarget_UpdateAccessPoint(t *testing.T) {
 	repoMock, _, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
-		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1", constants.AwsGlueEnabled: "true"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -1227,7 +1244,7 @@ func TestSyncAccessProviderToTarget_UpdateAccessPoint(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", ExternalId: ptr.String(constants.AccessPointTypePrefix + "existingaccesspoint"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -1253,8 +1270,9 @@ func TestSyncAccessProviderToTarget_DeleteAccessPoint(t *testing.T) {
 	repoMock, _, _, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()
 	configmap := config.ConfigMap{
-		Parameters: map[string]string{constants.AwsRegions: "us-west-1"},
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1", constants.AwsGlueEnabled: "true"},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -1292,7 +1310,7 @@ func TestSyncAccessProviderToTarget_DeleteAccessPoint(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 
 	// Then
@@ -1324,6 +1342,7 @@ func TestSyncAccessProviderToTarget_CreateSsoRole(t *testing.T) {
 			constants.AwsOrganizationProfile: "master",
 		},
 	}
+	syncer.cfgMap = &configmap
 
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
@@ -1397,7 +1416,7 @@ func TestSyncAccessProviderToTarget_CreateSsoRole(t *testing.T) {
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "RAITO_sso_test_role_123456789012", ExternalId: ptr.String(constants.SsoRoleTypePrefix + "arn::::permissionset:id"), Type: ptr.String(string(model.SSORole))}).Return(nil).Once()
 
 	// When
-	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler, &configmap)
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
 	require.Nil(t, err)
 }
 

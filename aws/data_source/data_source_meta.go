@@ -107,3 +107,11 @@ func getMetadataProvider(cfg *config.ConfigMap) MetadataProvider {
 
 	return S3FileMetadataProvider{}
 }
+
+func ClearMetadata() {
+	mu.Lock()
+	defer mu.Unlock()
+
+	metaData = nil
+	dataObjects = nil
+}

@@ -8,21 +8,24 @@ import (
 	"testing"
 
 	awspolicy "github.com/n4ch04/aws-policy"
+	"github.com/raito-io/cli/base/util/config"
+	"github.com/stretchr/testify/suite"
+
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
 	baseit "github.com/raito-io/cli-plugin-aws-account/aws/it"
-	"github.com/stretchr/testify/suite"
 )
 
 type IAMPoliciesTestSuite struct {
 	baseit.AWSTestSuite
+	cfg  *config.ConfigMap
 	repo *iam.AwsIamRepository
 }
 
 func TestIAMPoliciesTestSuite(t *testing.T) {
 	ts := IAMPoliciesTestSuite{}
-	config := ts.GetConfig()
-	repo := iam.NewAwsIamRepository(config)
+	ts.cfg = ts.GetConfig()
+	repo := iam.NewAwsIamRepository(ts.cfg)
 
 	ts.repo = repo
 	suite.Run(t, &ts)
@@ -193,7 +196,7 @@ func (s *IAMPoliciesTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().True(strings.HasSuffix(accessPoints[0].PolicyParsed.Statements[0].Resource[0], "/object/operations/*"))
 	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
 
-	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, "077954824694")
+	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, "077954824694", s.cfg)
 	s.Assert().False(incomplete)
 
 	s.Assert().Len(who.Groups, 0)
