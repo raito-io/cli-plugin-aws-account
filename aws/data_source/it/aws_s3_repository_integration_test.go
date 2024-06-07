@@ -60,6 +60,9 @@ func (s *S3RepositoryTestSuite) TestS3Repository_SyncDataSource() {
 		"077954824694:eu-west-1:raito-data-west/cars":                                                     "folder",
 		"077954824694:eu-west-1:raito-data-west/cars/analysis":                                            "folder",
 		"077954824694:eu-west-1:raito-data-west/cars/analysis/cars.parquet":                               "file",
+		"077954824694:eu-west-1:raito-data-west/operations":                                               "folder",
+		"077954824694:eu-west-1:raito-data-west/operations/weather":                                       "folder",
+		"077954824694:eu-west-1:raito-data-west/operations/weather/weather.parquet":                       "file",
 	}
 
 	s.Require().Len(dsHandler.DataObjects, len(doMap))
