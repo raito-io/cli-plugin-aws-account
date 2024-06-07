@@ -111,7 +111,7 @@ resource "aws_s3_object" "cars" {
   source   = "data/cars.parquet"
 }
 
-resource "aws_s3_object" "weather" {
+resource "aws_s3_object" "weather_west" {
   provider = aws.eu-west-1
   bucket   = aws_s3_bucket.west-data.bucket
   key      = "operations/weather/weather.parquet"
