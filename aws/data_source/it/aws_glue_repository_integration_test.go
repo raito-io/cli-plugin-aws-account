@@ -51,6 +51,7 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 		"077954824694:eu-central-1:raito-data-corporate/sales":      "glue-table",
 		"077954824694:eu-west-1:raito-data-west":                    "bucket",
 		"077954824694:eu-west-1:raito-data-west/cars":               "glue-table",
+		"077954824694:eu-west-1:raito-data-west/operations":         "glue-table",
 	}
 
 	dataObjectmap := make(map[string]string)
