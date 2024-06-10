@@ -10,7 +10,7 @@ resource "aws_iam_group" "marketing_group" {
 
 module "m_carissa" {
   source   = "./persona"
-  username = "m_carissa_tf"
+  username = "m_carissa"
   providers = {
     aws.region = aws.eu-central-1
   }
@@ -18,7 +18,7 @@ module "m_carissa" {
 
 module "d_hayden" {
   source   = "./persona"
-  username = "d_hayden_tf"
+  username = "d_hayden"
   providers = {
     aws.region = aws.eu-central-1
   }
