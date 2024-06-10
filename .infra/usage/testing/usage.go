@@ -54,24 +54,24 @@ func generateS3Usage() error {
 	}
 
 	for user, paths := range users {
-		/*err = repo.CreateOrFetchUserSecret(ctx, user, secretMap)
+		err = repo.CreateOrFetchUserSecret(ctx, user, secretMap)
 		if err != nil {
 			logger.Error(fmt.Sprintf("failed to create or fetch user secret: %v", err))
 			return err
-		}*/
+		}
 
-		/*creds, ok := secretMap[user]
+		creds, ok := secretMap[user]
 		if !ok {
 			logger.Warn(fmt.Sprintf("Credentials not found for user %s", user))
 			continue
-		}*/
+		}
 
-		//userRepo := AwsS3Repository{AwsAccessKeyId: aws.String(creds.AwsAccessKeyId), AwsSecretAccessKey: aws.String(creds.AwsSecretAccessKey)}
+		userRepo := AwsS3Repository{AwsAccessKeyId: aws.String(creds.AwsAccessKeyId), AwsSecretAccessKey: aws.String(creds.AwsSecretAccessKey)}
 
 		logger.Info(fmt.Sprintf("Starting with queries for user %s", user))
 
 		for _, path := range paths {
-			_, fileError := repo.GetFile(ctx, "raito-data-corporate", path)
+			_, fileError := userRepo.GetFile(ctx, "raito-data-corporate", path)
 			if fileError != nil {
 				logger.Error(fmt.Sprintf("Error fetching file %s: %s", path, fileError.Error()))
 			} else {

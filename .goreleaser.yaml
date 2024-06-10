@@ -1,4 +1,6 @@
 # Make sure to check the documentation at https://goreleaser.com
+version: 2
+
 project_name: cli-plugin-aws-account
 before:
   hooks:

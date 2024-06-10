@@ -5,21 +5,22 @@ go 1.22
 toolchain go1.22.0
 
 require (
-	github.com/aws/aws-sdk-go-v2 v1.27.1
-	github.com/aws/aws-sdk-go-v2/config v1.27.17
-	github.com/aws/aws-sdk-go-v2/service/glue v1.82.1
-	github.com/aws/aws-sdk-go-v2/service/iam v1.32.5
-	github.com/aws/aws-sdk-go-v2/service/identitystore v1.23.10
-	github.com/aws/aws-sdk-go-v2/service/s3 v1.54.4
-	github.com/aws/aws-sdk-go-v2/service/s3control v1.44.12
-	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.25.10
-	github.com/aws/aws-sdk-go-v2/service/sts v1.28.11
+	github.com/aws/aws-sdk-go-v2 v1.27.2
+	github.com/aws/aws-sdk-go-v2/config v1.27.18
+	github.com/aws/aws-sdk-go-v2/service/glue v1.84.1
+	github.com/aws/aws-sdk-go-v2/service/iam v1.32.6
+	github.com/aws/aws-sdk-go-v2/service/identitystore v1.23.12
+	github.com/aws/aws-sdk-go-v2/service/s3 v1.55.1
+	github.com/aws/aws-sdk-go-v2/service/s3control v1.44.13
+	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.29.3
+	github.com/aws/aws-sdk-go-v2/service/ssoadmin v1.25.11
+	github.com/aws/aws-sdk-go-v2/service/sts v1.28.12
 	github.com/aws/smithy-go v1.20.2
 	github.com/gammazero/workerpool v1.1.3
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/n4ch04/aws-policy v1.0.1
-	github.com/raito-io/cli v0.65.2
+	github.com/raito-io/cli v0.65.3
 	github.com/raito-io/enumer v0.1.4
 	github.com/raito-io/golang-set v0.0.4
 	github.com/stretchr/testify v1.9.0
@@ -29,19 +30,19 @@ require (
 require (
 	github.com/Masterminds/semver/v3 v3.2.1 // indirect
 	github.com/aws/aws-sdk-go-v2/aws/protocol/eventstream v1.6.2 // indirect
-	github.com/aws/aws-sdk-go-v2/credentials v1.17.17 // indirect
-	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.4 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.8 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.8 // indirect
+	github.com/aws/aws-sdk-go-v2/credentials v1.17.18 // indirect
+	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.5 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.9 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/endpoints/v2 v2.6.9 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/ini v1.8.0 // indirect
-	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.37.0 // indirect
+	github.com/aws/aws-sdk-go-v2/internal/v4a v1.3.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/cognitoidentityprovider v1.38.3 // indirect
 	github.com/aws/aws-sdk-go-v2/service/internal/accept-encoding v1.11.2 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.8 // indirect
-	github.com/aws/aws-sdk-go-v2/service/sso v1.20.10 // indirect
-	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.4 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/checksum v1.3.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/presigned-url v1.11.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/internal/s3shared v1.17.9 // indirect
+	github.com/aws/aws-sdk-go-v2/service/sso v1.20.11 // indirect
+	github.com/aws/aws-sdk-go-v2/service/ssooidc v1.24.5 // indirect
 	github.com/bcicen/jstream v1.0.1 // indirect
 	github.com/chigopher/pathlib v0.19.1 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
@@ -51,7 +52,7 @@ require (
 	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/hashicorp/errwrap v1.1.0 // indirect
-	github.com/hashicorp/go-plugin v1.6.0 // indirect
+	github.com/hashicorp/go-plugin v1.6.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
 	github.com/hashicorp/yamux v0.1.1 // indirect
 	github.com/hasura/go-graphql-client v0.12.1 // indirect
@@ -78,7 +79,7 @@ require (
 	github.com/spf13/cast v1.6.0 // indirect
 	github.com/spf13/cobra v1.8.0 // indirect
 	github.com/spf13/pflag v1.0.5 // indirect
-	github.com/spf13/viper v1.18.2 // indirect
+	github.com/spf13/viper v1.19.0 // indirect
 	github.com/stretchr/objx v0.5.2 // indirect
 	github.com/subosito/gotenv v1.6.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
@@ -86,13 +87,13 @@ require (
 	golang.org/x/mod v0.17.0 // indirect
 	golang.org/x/net v0.24.0 // indirect
 	golang.org/x/sync v0.7.0 // indirect
-	golang.org/x/sys v0.19.0 // indirect
+	golang.org/x/sys v0.20.0 // indirect
 	golang.org/x/term v0.19.0 // indirect
 	golang.org/x/text v0.14.0 // indirect
 	golang.org/x/tools v0.20.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240429193739-8cf5692501f6 // indirect
-	google.golang.org/grpc v1.63.2 // indirect
-	google.golang.org/protobuf v1.34.0 // indirect
+	google.golang.org/grpc v1.64.0 // indirect
+	google.golang.org/protobuf v1.34.1 // indirect
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
