@@ -1,5 +1,5 @@
 resource "aws_iam_user" "user" {
-  name     = var.username
+  name = var.username
 }
 
 resource "aws_iam_access_key" "key" {
@@ -11,10 +11,10 @@ resource "aws_secretsmanager_secret" "secret" {
 }
 
 resource "aws_secretsmanager_secret_version" "secret_value" {
-  secret_id     = aws_secretsmanager_secret.secret.id
+  secret_id = aws_secretsmanager_secret.secret.id
   secret_string = jsonencode({
-    username = aws_iam_user.user.name
-    AwsAccessKeyId = aws_iam_access_key.key.id
+    username           = aws_iam_user.user.name
+    AwsAccessKeyId     = aws_iam_access_key.key.id
     AwsSecretAccessKey = aws_iam_access_key.key.secret
   })
 }
