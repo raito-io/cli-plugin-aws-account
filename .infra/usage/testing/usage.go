@@ -3,12 +3,10 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"log"
 	"os"
-	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -20,78 +18,131 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3/types"
 	"github.com/aws/aws-sdk-go-v2/service/secretsmanager"
 	"github.com/hashicorp/go-hclog"
-	"github.com/raito-io/golang-set/set"
 )
 
 var logger hclog.Logger
 
-var users = map[string][]string{
-	//"m_carissa": { },
-	"d_hayden": {"sales/housing/prices/housing-prices-2023.parquet", "marketing/passengers/passengers.parquet"},
+type ConfigItem struct {
+	Arn  string `json:"arn"`
+	Name string `json:"name"`
 }
 
-func generateS3Usage() error {
-	ctx := context.Background()
+type UsageConfig struct {
+	Groups struct {
+		Value []struct {
+			ConfigItem
+		} `json:"value"`
+	} `json:"groups"`
+	User struct {
+		Value []struct {
+			UserConfig
+		} `json:"value"`
+	} `json:"user"`
+}
+
+type UserConfig struct {
+	ConfigItem
+	Secret struct {
+		ConfigItem
+	} `json:"secret"`
+}
+
+type UserSecret struct {
+	UserName           string `json:"username"`
+	AwsAccessKeyId     string `json:"AwsAccessKeyId"`
+	AwsSecretAccessKey string `json:"AwsSecretAccessKey"`
+}
+
+var users = map[string]map[string][]string{
+	//"m_carissa": { },
+	"d_hayden": {"raito-data-corporate": {"sales/housing/prices/housing-prices-2023.parquet", "marketing/passengers/passengers.parquet"}},
+}
+
+func generateS3Usage(ctx context.Context, cfg *UsageConfig) error {
 	repo := AwsS3Repository{}
 
 	logger.Info("Generate usage data for S3")
 
-	secretMap := map[string]AwsAccessKey{}
-
-	includeList := []string{"raito-data-corporate"}
-	buckets, err := repo.ListBuckets(ctx, includeList)
-	if err != nil {
-		return err
-	}
-
-	fileMap := map[string][]AwsS3Entity{}
-	for _, bucket := range buckets {
-		files, err := repo.ListFiles(ctx, bucket.Key, nil)
-		if err != nil {
-			return err
-		}
-		fileMap[bucket.Key] = files
-	}
+	secretMap := map[string]*UserSecret{}
 
 	for user, paths := range users {
-		err = repo.CreateOrFetchUserSecret(ctx, user, secretMap)
-		if err != nil {
-			logger.Error(fmt.Sprintf("failed to create or fetch user secret: %v", err))
-			return err
+		userCfg, ok := findUsageInCfg(cfg, user)
+		if !ok {
+			logger.Warn(fmt.Sprintf("User %q not found in config", user))
+
+			continue
 		}
 
 		creds, ok := secretMap[user]
 		if !ok {
-			logger.Warn(fmt.Sprintf("Credentials not found for user %s", user))
-			continue
+			userSecret, err2 := repo.GetUserSecret(ctx, userCfg.Secret.Name)
+			if err2 != nil {
+				return fmt.Errorf("get user secret: %w", err2)
+			}
+
+			secretMap[user] = userSecret
+			creds = userSecret
 		}
 
 		userRepo := AwsS3Repository{AwsAccessKeyId: aws.String(creds.AwsAccessKeyId), AwsSecretAccessKey: aws.String(creds.AwsSecretAccessKey)}
 
 		logger.Info(fmt.Sprintf("Starting with queries for user %s", user))
 
-		for _, path := range paths {
-			_, fileError := userRepo.GetFile(ctx, "raito-data-corporate", path)
-			if fileError != nil {
-				logger.Error(fmt.Sprintf("Error fetching file %s: %s", path, fileError.Error()))
-			} else {
-				logger.Info(fmt.Sprintf("File %q fetched successfully", path))
+		for bucket, files := range paths {
+			for _, file := range files {
+				_, fileError := userRepo.GetFile(ctx, bucket, file)
+				if fileError != nil {
+					logger.Error(fmt.Sprintf("Error fetching file %s/%s: %s", bucket, file, fileError.Error()))
+				} else {
+					logger.Info(fmt.Sprintf("File \"%s/%s\" fetched successfully", bucket, file))
+				}
 			}
+
 		}
 	}
 
-	err = repo.DeactivateKeys(ctx, secretMap)
-	if err != nil {
-		return err
-	}
+	//err := repo.DeactivateKeys(ctx, secretMap)
+	//if err != nil {
+	//	return err
+	//}
 
 	return nil
 }
 
+func findUsageInCfg(cfg *UsageConfig, user string) (*UserConfig, bool) {
+	for i, u := range cfg.User.Value {
+		if u.Name == user {
+			return &cfg.User.Value[i].UserConfig, true
+		}
+	}
+
+	return nil, false
+}
+
 func main() {
 	logger = hclog.New(&hclog.LoggerOptions{Name: "usage-logger", Level: hclog.Info})
+	ctx := context.Background()
 
-	err := generateS3Usage()
+	info, err := os.Stdin.Stat()
+	if err != nil {
+		panic(err)
+	}
+
+	if info.Mode()&os.ModeCharDevice != 0 {
+		fmt.Println("The command is intended to work with pipes.")
+		return
+	}
+
+	dec := json.NewDecoder(os.Stdin)
+
+	usageConfig := UsageConfig{}
+
+	err = dec.Decode(&usageConfig)
+	if err != nil {
+		panic(err)
+	}
+
+	err = generateS3Usage(ctx, &usageConfig)
 	if err != nil {
 		logger.Error("Failed to generate usage data", "error", err.Error())
 		os.Exit(1)
@@ -179,99 +230,6 @@ func (repo *AwsS3Repository) GetSecretsClient(ctx context.Context, region *types
 	return client, nil
 }
 
-func (repo *AwsS3Repository) ListBuckets(ctx context.Context, includeList []string) ([]AwsS3Entity, error) {
-	client, err := repo.GetS3Client(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	output, err := client.ListBuckets(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// TODO; get tags from buckets
-
-	result := []AwsS3Entity{}
-
-	for _, bucket := range output.Buckets {
-
-		logger.Info(fmt.Sprintf("Found bucket: %s", *bucket.Name))
-
-		ignoreBucket := true
-		for _, bucketToIgnore := range includeList {
-			if strings.EqualFold(*bucket.Name, bucketToIgnore) {
-				logger.Info(fmt.Sprintf("Ignoring bucket: %s", *bucket.Name))
-				ignoreBucket = false
-				continue
-			}
-		}
-
-		if ignoreBucket {
-			continue
-		}
-
-		result = append(result, AwsS3Entity{
-			Key:  *bucket.Name,
-			Type: "bucket",
-		})
-	}
-
-	return result, nil
-}
-
-func (repo *AwsS3Repository) ListFiles(ctx context.Context, bucket string, prefix *string) ([]AwsS3Entity, error) {
-	logger.Info(fmt.Sprintf("Fetching files from bucket %s", bucket))
-
-	bucketClient, err := repo.GetS3Client(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	bucketInfo, err := bucketClient.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: &bucket})
-	if err != nil {
-		return nil, err
-	}
-
-	bucketLocation := bucketInfo.LocationConstraint
-	logger.Info(fmt.Sprintf("Location of bucket %q is %s", bucket, bucketLocation))
-
-	client, err := repo.GetS3Client(ctx, &bucketLocation)
-	if err != nil {
-		return nil, err
-	}
-
-	moreObjectsAvailable := true
-	var continuationToken *string
-	var result []AwsS3Entity
-
-	for moreObjectsAvailable {
-		input := &s3.ListObjectsV2Input{
-			Bucket:            aws.String(bucket),
-			ContinuationToken: continuationToken,
-			Prefix:            prefix,
-		}
-
-		response, err := client.ListObjectsV2(ctx, input)
-		if err != nil {
-			return nil, err
-		}
-
-		moreObjectsAvailable = *response.IsTruncated
-		continuationToken = response.NextContinuationToken
-
-		for _, object := range response.Contents {
-			result = append(result, AwsS3Entity{
-				Key:       *object.Key,
-				Type:      "file",
-				ParentKey: bucket,
-			})
-		}
-	}
-
-	return result, nil
-}
-
 func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string) (io.ReadCloser, error) {
 	client, err := repo.GetS3Client(ctx, nil)
 	if err != nil {
@@ -291,110 +249,27 @@ func (repo *AwsS3Repository) GetFile(ctx context.Context, bucket, key string) (i
 	return output.Body, nil
 }
 
-func (repo *AwsS3Repository) CreateOrFetchUserSecret(ctx context.Context, user string, secretMap map[string]AwsAccessKey) error {
-	secretsClient, err := repo.GetSecretsClient(ctx, nil)
+func (repo *AwsS3Repository) GetUserSecret(ctx context.Context, secretId string) (*UserSecret, error) {
+	client, err := repo.GetSecretsClient(ctx, nil)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("get secret manager client: %w", err)
 	}
 
-	res, err := secretsClient.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
-		SecretId: aws.String(fmt.Sprintf("demo/%s", user)),
+	res, err := client.GetSecretValue(ctx, &secretsmanager.GetSecretValueInput{
+		SecretId: aws.String(secretId),
 	})
 
-	if err != nil || res.SecretString == nil {
-		logger.Warn(fmt.Sprintf("Failed to get secret for user '%s', creating...: %s", user, err.Error()))
-		return repo.CreateAndStoreKey(ctx, user, secretMap)
-	}
-
-	secretParsed := AwsAccessKey{}
-	err = json.Unmarshal([]byte(*res.SecretString), &secretParsed)
 	if err != nil {
-		logger.Error(fmt.Sprintf("failed to parse secret: %s", err.Error()))
-		return err
+		return nil, fmt.Errorf("get secret value: %w", err)
 	}
 
-	if secretParsed.AwsAccessKeyId == "" || secretParsed.AwsSecretAccessKey == "" {
-		return errors.New("failed to parse secret")
-	}
-
-	secretMap[user] = secretParsed
-
-	existingKeys, err := repo.ListKeys(ctx, user)
+	secret := UserSecret{}
+	err = json.Unmarshal([]byte(*res.SecretString), &secret)
 	if err != nil {
-		return err
+		return nil, fmt.Errorf("unmarshal secret: %w", err)
 	}
 
-	if !existingKeys.Contains(secretParsed.AwsAccessKeyId) {
-		logger.Warn(fmt.Sprintf("Key stored in secrets for user %s not found among user keys", user))
-		return repo.CreateAndStoreKey(ctx, user, secretMap)
-	}
-
-	err = repo.ActivateKey(ctx, user, secretParsed.AwsAccessKeyId)
-	if err != nil {
-		return err
-	}
-
-	return nil
-}
-
-func (repo *AwsS3Repository) CreateAndStoreKey(ctx context.Context, user string, secretMap map[string]AwsAccessKey) error {
-	logger.Info(fmt.Sprintf("Creating secret for user %s", user))
-
-	iamClient, err := repo.GetIamClient(ctx, nil)
-	if err != nil {
-		return err
-	}
-
-	secretsClient, err := repo.GetSecretsClient(ctx, nil)
-	if err != nil {
-		logger.Warn(fmt.Sprintf("Secret does not exist, creating new access key and secret: %s", err.Error()))
-	}
-
-	res, err := iamClient.CreateAccessKey(ctx, &iam.CreateAccessKeyInput{
-		UserName: aws.String(user),
-	})
-	if err != nil {
-		return err
-	}
-
-	newKey := AwsAccessKey{AwsAccessKeyId: *res.AccessKey.AccessKeyId, AwsSecretAccessKey: *res.AccessKey.SecretAccessKey}
-
-	keyJson, err := json.Marshal(newKey)
-	if err != nil {
-		return err
-	}
-
-	_, err = secretsClient.CreateSecret(ctx, &secretsmanager.CreateSecretInput{
-		Name:         aws.String(fmt.Sprintf("demo/%s", user)),
-		SecretString: aws.String(string(keyJson)),
-	})
-	if err != nil {
-		return err
-	}
-
-	secretMap[user] = newKey
-
-	return nil
-}
-
-func (repo *AwsS3Repository) ListKeys(ctx context.Context, user string) (set.Set[string], error) {
-	iamClient, err := repo.GetIamClient(ctx, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	res, err := iamClient.ListAccessKeys(ctx, &iam.ListAccessKeysInput{UserName: aws.String(user)})
-	if err != nil {
-		return nil, err
-	}
-
-	awsKeyIds := set.Set[string]{}
-
-	for _, key := range res.AccessKeyMetadata {
-		awsKeyIds.Add(*key.AccessKeyId)
-	}
-
-	return awsKeyIds, nil
+	return &secret, nil
 }
 
 func (repo *AwsS3Repository) ActivateKey(ctx context.Context, userName, key string) error {
@@ -431,7 +306,7 @@ func (repo *AwsS3Repository) ActivateKey(ctx context.Context, userName, key stri
 	return nil
 }
 
-func (repo *AwsS3Repository) DeactivateKeys(ctx context.Context, secretMap map[string]AwsAccessKey) error {
+func (repo *AwsS3Repository) DeactivateKeys(ctx context.Context, secretMap map[string]*UserSecret) error {
 	iamClient, err := repo.GetIamClient(ctx, nil)
 	if err != nil {
 		return err
@@ -440,7 +315,7 @@ func (repo *AwsS3Repository) DeactivateKeys(ctx context.Context, secretMap map[s
 	for user, keys := range secretMap {
 		logger.Info(fmt.Sprintf("Deactivating key for user %s", user))
 
-		_, err := iamClient.UpdateAccessKey(ctx, &iam.UpdateAccessKeyInput{
+		_, err = iamClient.UpdateAccessKey(ctx, &iam.UpdateAccessKeyInput{
 			UserName:    &user,
 			AccessKeyId: &keys.AwsAccessKeyId,
 			Status:      iam_types.StatusTypeInactive,
@@ -458,9 +333,4 @@ type AwsS3Entity struct {
 	Type      string
 	Key       string
 	ParentKey string
-}
-
-type AwsAccessKey struct {
-	AwsAccessKeyId     string `json:"awsAccessKeyId"`
-	AwsSecretAccessKey string `json:"awsSecretAccessKey"`
 }
