@@ -5,6 +5,14 @@ variable "m_carissa_arn" {
   nullable    = false
 }
 
+variable "m_carissa_name" {
+  type        = string
+  sensitive   = false
+  description = "ARN of the user"
+  nullable    = false
+}
+
+
 variable "d_hayden_name" {
   type        = string
   sensitive   = false
