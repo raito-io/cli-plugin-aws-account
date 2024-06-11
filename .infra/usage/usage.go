@@ -28,6 +28,15 @@ type ConfigItem struct {
 }
 
 type UsageConfig struct {
+	Files struct {
+		Value []struct {
+			User  string `json:"user"`
+			Files []struct {
+				Bucket string   `json:"bucket"`
+				Files  []string `json:"files"`
+			} `json:"files"`
+		}
+	} `json:"files"`
 	Groups struct {
 		Value []struct {
 			ConfigItem
@@ -53,11 +62,6 @@ type UserSecret struct {
 	AwsSecretAccessKey string `json:"AwsSecretAccessKey"`
 }
 
-var users = map[string]map[string][]string{
-	//"m_carissa": { },
-	"d_hayden": {"raito-data-corporate": {"sales/housing/prices/housing-prices-2023.parquet", "marketing/passengers/passengers.parquet"}},
-}
-
 func generateS3Usage(ctx context.Context, cfg *UsageConfig) error {
 	repo := AwsS3Repository{}
 
@@ -65,7 +69,17 @@ func generateS3Usage(ctx context.Context, cfg *UsageConfig) error {
 
 	secretMap := map[string]*UserSecret{}
 
-	for user, paths := range users {
+	for _, usersWithFiles := range cfg.Files.Value {
+		user := usersWithFiles.User
+		paths := map[string][]string{}
+
+		for _, buckedAndFiles := range usersWithFiles.Files {
+			bucket := buckedAndFiles.Bucket
+			files := buckedAndFiles.Files
+
+			paths[bucket] = files
+		}
+
 		userCfg, ok := findUsageInCfg(cfg, user)
 		if !ok {
 			logger.Warn(fmt.Sprintf("User %q not found in config", user))
