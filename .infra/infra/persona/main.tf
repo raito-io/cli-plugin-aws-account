@@ -20,9 +20,9 @@ resource "aws_secretsmanager_secret_version" "secret_value" {
 }
 
 resource "random_string" "random_secret_postfix" {
-  length = 6
+  length  = 6
   special = false
-  lower = true
+  lower   = true
   numeric = false
-  upper = false
+  upper   = false
 }
