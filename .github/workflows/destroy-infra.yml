@@ -98,5 +98,5 @@ jobs:
           AWS_SHARED_TF_STATE_REGION: ${{ secrets.AWS_SHARED_TF_STATE_REGION }}
           AWS_SHARED_TF_STATE_PROFILE: ${{ env.AWS_SHARED_TF_STATE_PROFILE }}
 
-      - name: Generate usage
+      - name: Destroy infra
         run: make destroy-test-infra
