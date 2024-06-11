@@ -136,6 +136,8 @@ func (a *AccessSyncer) fetchRoleAccessProviders(roles []model.RoleEntity, aps []
 		for _, tag := range role.Tags {
 			if tag.Key == "creator" && tag.Value == "raito" {
 				isRaito = true
+
+				break
 			}
 		}
 

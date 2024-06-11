@@ -27,7 +27,7 @@
 At this point, no contributions are accepted to the project yet.**
 
 This Raito CLI plugin implements the integration with AWS. It is meant to synchronize an entire AWS account with a data source in Raito Cloud. 
-Over time, multiple AWS services will be supported, but at the moment only S3 is supported. The plugin can
+Over time, multiple AWS services will be supported, but at the moment only S3 is supported. The plugin can:
  - Synchronize the users and groups from IAM in the AWS account to an identity store in Raito Cloud.
  - Synchronize the AWS S3 meta data (S3 buckets, objects inside those buckets, ...) to a data source in Raito Cloud.
  - Synchronize the access controls from Raito Cloud into IAM/S3 permissions.
@@ -64,15 +64,6 @@ To use this plugin, you will need
 2. A Raito Cloud account to synchronize your AWS account with. If you don't have this yet, visit our webpage at (https://www.raito.io/trial) and request a trial account.
 3. Access to your AWS environment. Minimal required permissions still need to be defined. Right now we assume that you're set up with one of the default SDK
 authentication options: https://docs.aws.amazon.com/sdkref/latest/guide/standardized-credentials.html#credentialProviderChain. 
-
-## Warnings and Limitations
-
-The plugin only supports a limited set of features and permissions from AWS IAM. In most cases, warnings are logged when things the plugin comes across features it does not support.
-
- - Only policy statements with the `Allow` effect are taken into consideration. This means that, for example, 'Deny' policies are not supported.
- - Permission boundaries are not supported 
- - S3 Bucket Policies and Bucket ACLs are current not supported
- - IMPORTANT WARNING: The plugin only recognizes a limited set of permissions and services, (currently only S3). As a result, only policies and roles encompassing these permissions will be incorporated into Raito Cloud. This presents a partial representation of the entire AWS IAM environment. It's crucial to consider this limitation when internalizing external Access Controls into Raito Cloud, as it might override or even eliminate roles, policies, or permissions in AWS IAM that the plugin doesn't recognize. Hence, it's preferable to create new Access Controls rather than internalizing existing ones. Users will receive a warning if they attempt to internalize an Access Control that could be incomplete.
 
 ## Usage
 To use the plugin, add the following snippet to your Raito CLI configuration file (`raito.yml`, by default) under the `targets` section:
@@ -125,22 +116,87 @@ This will take the configuration from the `raito.yml` file (in the current worki
 
 Note: if you have multiple targets configured in your configuration file, you can run only this target by adding `--only-targets aws-account` at the end of the command.
 
-## To Do
+## Configuration
+The following configuration parameters are available
 
-* Access from Raito to AWS
-  * Access-as-code
-  * Limit the data we fetch and possibly don't need
-  * No support for aws_sso_role yet (organization)
-* Implement dynamic metadata fetching (needs configMap) for AP types, DO types, permissions ...
-* Support for other AWS partitions everywhere (e.g. china and gov-cloud) (typically not working in arn matching)
-* To improve: Error handling (for concurrent jobs). See 'error handling' TODOs
-* How do we handle the case where the name of a policy is the same as the name of a role? This would currently create problems
-* Documentation (readme and docs)
-  * How role and policy inheritance is handled 'to target'
-  * How inline policies are handled 'from target'
+| Configuration name                              | Description                                                                                                                                                                                                                                                                                                                                  | Mandatory | Default value    |
+|-------------------------------------------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|-----------|------------------|
+| `aws-profile`                                   | The AWS SDK profile to use for connecting to the AWS account to synchronize. When not specified, the default profile is used (or what is defined in the AWS_PROFILE environment variable).                                                                                                                                                   | False     | `${AWS_PROFILE}` |
+| `aws-regions`                                   | A comma separated list of AWS regions to deal with. When not specified, only the default region as found by the AWS SDK is used. The first region in the list must be the default region.                                                                                                                                                    | False     |                  |
+| `aws-organization-profile`                      | The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.                                                                                            | False     |                  |
+| `aws-organization-region`                       | The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and `aws-organization-profile` is defined, the default region for the profile will be used.                                                                                                                     | False     |                  |
+| `aws-organization-identity-center-instance-arn` | The ARN of the AWS IAM Identity Center instance. Required if aws `aws-organization-profile` is defined.                                                                                                                                                                                                                                      | False     |                  |
+| `aws-organization-identity-store`               | The ARN of the AWS Identity Store. Required if aws `aws-organization-profile` is defined.                                                                                                                                                                                                                                                    | False     |                  |
+| `aws-s3-enabled`                                | If set to true, S3 buckets and objects will be retrieved directly from the S3 API. See all other 'aws-s3-' parameters for more control over what is imported and what not. This cannot be enabled together with the `aws-glue-enabled` parameter.                                                                                            | False     | `true`           |
+| `aws-s3-emulate-folder-structure`               | Emulate a folder structure for S3 objects, just like in the AWS UI.                                                                                                                                                                                                                                                                          | False     |                  |
+| `aws-s3-max-folder-depth`                       | If `aws-s3-enabled` is set to true, fetch all objects up to a certain folder depth.                                                                                                                                                                                                                                                          | False     | 20               |
+| `aws-s3-include-buckets`                        | Comma-separated list of buckets to include. If specified, only these buckets will be handled. Wildcards (*) can be used.                                                                                                                                                                                                                     | False     | `*`              |
+| `aws-s3-exclude-buckets`                        | Comma-separated list of buckets to exclude. If specified, these buckets will not be handled. Wildcard (*) can be used. Excludes have preference over includes.                                                                                                                                                                               | False     |                  |
+| `aws-concurrency`                               | The number of threads to use for concurrent API calls to AWS.                                                                                                                                                                                                                                                                                | False     | 5                |
+| `aws-glue-enabled`                              | If set to true, AWS Glue Catalog will be used to fetch data objects. This approach is recommended instead of using S3 directly, because Glue allows you to define your data on a more logical level. The imported data objects will still be represented as S3 objects. This cannot be enabled together with the `aws-s3-enabled` parameter. | False     | `false`          |
+| `aws-s3-cloudtrail-bucket`                      | The name of the bucket where the usage data for S3 is stored by AWS Cloud Trail. This is necessary to fetch usage data. If not set, no usage data is gathered.                                                                                                                                                                               | False     |                  |
+| `aws-access-skip-iam`                           | If set to true, all IAM access entities (roles and policies) will not be read to import into Raito Cloud as access controls.                                                                                                                                                                                                                 | False     | `false`          |
+| `aws-access-skip-user-inline-policies`          | If set to true, inline policies on users will not be read to import into Raito Cloud as access controls.                                                                                                                                                                                                                                     | False     | `false`          |
+| `aws-access-skip-group-inline-policies`         | If set to true, inline policies on groups will not be read to import into Raito Cloud as access controls.                                                                                                                                                                                                                                    | False     | `false`          |
+| `aws-access-skip-managed-policies`              | If set to true, managed policies will not be read to import into Raito Cloud as access controls.                                                                                                                                                                                                                                             | False     | `false`          |
+| `aws-access-skip-aws-managed-policies`          | If set to true, AWS managed policies are excluded.                                                                                                                                                                                                                                                                                           | False     | `false`          |
+| `aws-access-managed-policy-excludes`            | Optional comma-separated list of managed policy names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all managed policies starting with Amazon or AWS).                                                                                                                                                     | False     |                  |
+| `aws-access-skip-s3-access-points`              | If set to true, S3 access points will not be read to import into Raito Cloud as access controls.                                                                                                                                                                                                                                             | False     | `false`          |
+| `aws-access-role-excludes`                      | Optional comma-separated list of role names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all roles starting with Amazon or AWS).                                                                                                                                                                          | False     |                  |
 
-Not planned for now
-* Denies as Action in policies
-* Permission boundaries
-* Bucket Policies
-* Bucket ACLs
+## Supported features
+
+| Feature             | Supported | Remarks                             |
+|---------------------|-----------|-------------------------------------|
+| Row level filtering | ❌         | Not applicable                      |
+| Column masking      | ❌         | Not applicable                      |
+| Locking             | ❌         | Not supported                       |
+| Replay              | ✅         | Explicit deletes cannot be replayed |
+| Usage               | ✅         | Based on CloudTrail logs            |
+
+## Supported data objects
+### S3
+- Bucket
+- Folder
+- S3 File (if S3 is enabled)
+- Glue Table (if glue is enabled)
+
+
+## Access controls
+### From Target
+#### AWS Role
+Roles are imported as `grant` with type `AWS Role`.
+All users and groups associated with the trust policy document of the Role, are added as who-items to the grant that will be imported in Raito.
+Inline policies will be parsed to extract the permissions and added as what-items to the grant that will be imported in Raito.
+If organisation is defined and role start with `AWSReservedSSO_`, the role will be imported as `AWS SSO Role`.
+
+#### AWS Policy
+Managed policies, inline user and group policies are imported as `grant` with type `AWS Policy`.
+All users and groups associated with the policy are added as who-items to the grant that will be imported in Raito.
+The permissions of the policy are added as what-items to the grant that will be imported in Raito.
+The what, name and deleted will be locked for AWS Managed policies.
+
+#### AWS S3 Access Point
+S3 Access points are imported as `grant` with type `AWS Access Point`.
+All users and groups associated with the access point are added as who-items to the grant that will be imported in Raito.
+The permissions of the access point are added as what-items to the grant that will be imported in Raito.
+
+## To Target
+#### Grants
+Grants can be implemented as `AWS Role`, `AWS Policy` or `AWS Access Point` depending on the given type.
+The who-items will be added as users and groups to the corresponding AWS entity.
+The what-items will be added as permissions to the corresponding AWS entity.
+
+#### Purposes
+Purposes are implemented as `AWS Roles` if no organization is defined.
+Otherwise, purposes are implemented as `AWS SSO Role`.
+
+## Warnings and Limitations
+
+The plugin only supports a limited set of features and permissions from AWS IAM. In most cases, warnings are logged when things the plugin comes across features it does not support.
+
+- Only policy statements with the `Allow` effect are taken into consideration. This means that, for example, 'Deny' policies are not supported.
+- Permission boundaries are not supported
+- S3 Bucket Policies and Bucket ACLs are current not supported
+- IMPORTANT WARNING: The plugin only recognizes a limited set of permissions and services, (currently only S3). As a result, only policies and roles encompassing these permissions will be incorporated into Raito Cloud. This presents a partial representation of the entire AWS IAM environment. It's crucial to consider this limitation when internalizing external Access Controls into Raito Cloud, as it might override or even eliminate roles, policies, or permissions in AWS IAM that the plugin doesn't recognize. Hence, it's preferable to create new Access Controls rather than internalizing existing ones. Users will receive a warning if they attempt to internalize an Access Control that could be incomplete.
+

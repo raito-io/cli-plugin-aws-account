@@ -23,5 +23,8 @@ lint:
 gen-test-infra:
 	cd .infra/infra; terraform apply -auto-approve
 
+destroy-test-infra:
+	cd .infra/infra; terraform apply -destroy -auto-approve
+
 gen-test-usage:
 	cd .infra/infra; terraform output -json | go run ../usage/usage.go
