@@ -272,47 +272,6 @@ resource "aws_glue_crawler" "raito_crawler_west" {
   schedule = "cron(0 2 * * ? *)"
 }
 
-// IAM identities
-resource "aws_iam_group" "sales_group" {
-  provider = aws.eu-central-1
-  name     = "Sales"
-}
-
-resource "aws_iam_group" "marketing_group" {
-  provider = aws.eu-central-1
-  name     = "Marketing"
-}
-
-resource "aws_iam_user" "m_carissa_user" {
-  provider = aws.eu-central-1
-  name     = "m_carissa"
-}
-
-resource "aws_iam_user" "d_hayden_user" {
-  provider = aws.eu-central-1
-  name     = "d_hayden"
-}
-
-// Marissa is part of the Marketing group
-resource "aws_iam_group_membership" "m_carissa_membership" {
-  provider = aws.eu-central-1
-  name     = "m_carissa_membership"
-  group    = aws_iam_group.marketing_group.name
-  users = [
-    aws_iam_user.m_carissa_user.name,
-  ]
-}
-
-// Dustin is part of the Sales group
-resource "aws_iam_group_membership" "d_hayden_membership" {
-  provider = aws.eu-central-1
-  name     = "d_hayden_membership"
-  group    = aws_iam_group.sales_group.name
-  users = [
-    aws_iam_user.d_hayden_user.name,
-  ]
-}
-
 // Marketing role can be assumed by Marissa and has a managed policy attached to it to provide access to marketing folder in S3
 resource "aws_iam_role" "marketing_role" {
   provider           = aws.eu-central-1
@@ -327,7 +286,7 @@ data "aws_iam_policy_document" "marketing_assume_rolepolicy_document" {
     actions = ["sts:AssumeRole"]
     principals {
       type        = "AWS"
-      identifiers = [aws_iam_user.m_carissa_user.arn]
+      identifiers = [var.m_carissa_arn]
     }
   }
 }
@@ -358,7 +317,7 @@ resource "aws_iam_role_policy_attachment" "raito_marketing_policy_attach" {
 resource "aws_iam_group_policy" "sales_policy" {
   provider = aws.eu-central-1
   name     = "SalesPolicy"
-  group    = aws_iam_group.sales_group.name
+  group    = var.sales_group_name
   policy   = data.aws_iam_policy_document.sales_policy_document.json
 }
 
@@ -376,7 +335,7 @@ data "aws_iam_policy_document" "sales_policy_document" {
 resource "aws_iam_user_policy" "d_hayden_policy" {
   provider = aws.eu-central-1
   name     = "DustinPolicy"
-  user     = aws_iam_user.d_hayden_user.name
+  user     = var.d_hayden_name
   policy   = data.aws_iam_policy_document.d_hayden_policy_document.json
 }
 
@@ -415,7 +374,7 @@ data "aws_iam_policy_document" "operations_access_point_policy_document" {
     actions = ["s3:GetObject"]
     principals {
       type        = "AWS"
-      identifiers = ["${aws_iam_user.m_carissa_user.arn}", "${aws_iam_role.marketing_role.arn}"]
+      identifiers = ["${var.m_carissa_arn}", "${aws_iam_role.marketing_role.arn}"]
     }
     resources = ["${aws_s3_access_point.operations_access_point.arn}/object/operations/*"]
   }

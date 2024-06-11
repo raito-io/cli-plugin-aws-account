@@ -39,7 +39,7 @@ func main() {
 					{Name: constants.AwsProfile, Description: "The AWS SDK profile to use for connecting to the AWS account to synchronize. When not specified, the default profile is used (or what is defined in the AWS_PROFILE environment variable).", Mandatory: false},
 					{Name: constants.AwsRegions, Description: "A comma separated list of AWS regions to deal with. When not specified, only the default region as found by the AWS SDK is used. The first region in the list must be the default region.", Mandatory: false},
 					{Name: constants.AwsOrganizationProfile, Description: "The AWS SDK profile where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). This is optional and can be used to get a full access trace in case access is granted through the AWS IAM Identity Center.", Mandatory: false},
-					{Name: constants.AwsOrganizationRegion, Description: fmt.Sprintf("The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and %s parameter is defined, the default region for the profile will be used", constants.AwsOrganizationProfile), Mandatory: false},
+					{Name: constants.AwsOrganizationRegion, Description: fmt.Sprintf("The AWS region where the organization is defined (e.g. where permission sets are defined in AWS Identity Center). If not set and %s parameter is defined, the default region for the profile will be used.", constants.AwsOrganizationProfile), Mandatory: false},
 					{Name: constants.AwsOrganizationIdentityCenterInstanceArn, Description: "The ARN of the AWS IAM Identity Center instance.", Mandatory: false},
 					{Name: constants.AwsOrganizationIdentityStore, Description: "The ARN of the AWS Identity Store.", Mandatory: false},
 					// AWS S3 parameters
@@ -60,7 +60,7 @@ func main() {
 					{Name: constants.AwsAccessSkipAWSManagedPolicies, Description: "If set to true, AWS managed policies are excluded.", Mandatory: false},
 					{Name: constants.AwsAccessManagedPolicyExcludes, Description: "Optional comma-separated list of managed policy names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all managed policies starting with Amazon or AWS).", Mandatory: false},
 					{Name: constants.AwsAccessSkipS3AccessPoints, Description: "If set to true, S3 access points will not be read to import into Raito Cloud as access controls.", Mandatory: false},
-					{Name: constants.AwsAccessRoleExcludes, Description: "Optional comma-separated list of role names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all roles starting with Amazon or AWS)..", Mandatory: false},
+					{Name: constants.AwsAccessRoleExcludes, Description: "Optional comma-separated list of role names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all roles starting with Amazon or AWS).", Mandatory: false},
 				},
 			},
 		})

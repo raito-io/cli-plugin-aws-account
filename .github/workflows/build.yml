@@ -22,12 +22,22 @@ jobs:
       testing-infra: true
     secrets: inherit
 
+  generate-usage:
+    uses: ./.github/workflows/generate-usage.yml
+    with:
+      targetEnvironment: integration_testing
+    secrets: inherit
+
+    needs:
+      - setup-infra
+
   build:
     environment: integration_testing
     runs-on: ubuntu-latest
 
     needs:
       - setup-infra
+      - generate-usage
 
     steps:
       - name: Check out repository code
