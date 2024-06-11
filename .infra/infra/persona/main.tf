@@ -7,7 +7,10 @@ resource "aws_iam_access_key" "key" {
 }
 
 resource "aws_secretsmanager_secret" "secret" {
-  name = "${var.secret_prefix}${aws_iam_user.user.name}_${random_string.random_secret_postfix.result}"
+  name                           = "${var.secret_prefix}${aws_iam_user.user.name}_${random_string.random_secret_postfix.result}"
+  description                    = "Secret for ${aws_iam_user.user.name}"
+  recovery_window_in_days        = 0
+  force_overwrite_replica_secret = true
 }
 
 resource "aws_secretsmanager_secret_version" "secret_value" {
