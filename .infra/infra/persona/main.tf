@@ -7,7 +7,7 @@ resource "aws_iam_access_key" "key" {
 }
 
 resource "aws_secretsmanager_secret" "secret" {
-  name = "${var.secret_prefix}${aws_iam_user.user.name}"
+  name = "${var.secret_prefix}${aws_iam_user.user.name}_${random_string.random_secret_postfix.result}"
 }
 
 resource "aws_secretsmanager_secret_version" "secret_value" {
@@ -17,4 +17,12 @@ resource "aws_secretsmanager_secret_version" "secret_value" {
     AwsAccessKeyId     = aws_iam_access_key.key.id
     AwsSecretAccessKey = aws_iam_access_key.key.secret
   })
+}
+
+resource "random_string" "random_secret_postfix" {
+  length = 6
+  special = false
+  lower = true
+  numeric = false
+  upper = false
 }
