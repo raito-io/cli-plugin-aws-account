@@ -35,5 +35,5 @@ output "groups" {
 }
 
 output "files" {
-  value = concat(var.testing_dataset ? module.testing[0].files: [], var.demo_dataset ? module.demo[0].files : [])
+  value = concat(var.testing_dataset ? module.testing[0].files : [], var.demo_dataset ? module.demo[0].files : [])
 }
