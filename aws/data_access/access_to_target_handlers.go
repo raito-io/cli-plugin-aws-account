@@ -810,10 +810,10 @@ func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Cont
 	for ind := range accessPoints {
 		accessPoint := accessPoints[ind]
 
+		existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
+
 		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.configMap)
 		if who != nil {
-			existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
-
 			// Note: Groups are not supported here in AWS.
 			for _, userName := range who.Users {
 				key := model.PolicyBinding{
@@ -995,9 +995,11 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 		accessPointArn := fmt.Sprintf("arn:aws:s3:%s:%s:accesspoint/%s", region, a.account, accessPointName)
 		convertResourceURLsForAccessPoint(statements, accessPointArn)
 
-		for _, statement := range statements {
-			statement.Principal = map[string][]string{
-				"AWS": principals,
+		if len(principals) > 0 {
+			for _, statement := range statements {
+				statement.Principal = map[string][]string{
+					"AWS": principals,
+				}
 			}
 		}
 
