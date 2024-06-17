@@ -1054,6 +1054,75 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
 }
 
+func TestSyncAccessProviderToTarget_CreateAccessPoint_NoWho(t *testing.T) {
+	repoMock, _, _, syncer := setupMockExportEnvironment(t, false)
+	ctx := context.Background()
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1", constants.AwsGlueEnabled: "true"},
+	}
+	syncer.cfgMap = &configmap
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something-nowho",
+				Name:        "Test Access Point No Who",
+				Description: "a test access point without a WHO",
+				NamingHint:  "Test Access Point No Who",
+				Type:        aws.String(string(model.AccessPoint)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "account:us-west-1:bucketname/folder1/folder2",
+							Type:     "glue-table",
+						},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
+					},
+				},
+			},
+		},
+	}
+
+	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point-no-who", "bucketname", "us-west-1", []*awspolicy.Statement{{
+		Effect:    "Allow",
+		Action:    []string{"s3:GetObject", "s3:GetObjectAcl"},
+		Principal: nil,
+		Resource: []string{
+			"arn:aws:s3:us-west-1::accesspoint/test-access-point-no-who/object/folder1/folder2/*",
+		},
+	}}).Return(nil).Once()
+
+	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something-nowho", ActualName: "test-access-point-no-who", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test-access-point-no-who"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
 func TestSyncAccessProviderToTarget_CreateAccessPointWithGroups(t *testing.T) {
 	repoMock, _, iamRepo, syncer := setupMockExportEnvironment(t, false)
 	ctx := context.Background()

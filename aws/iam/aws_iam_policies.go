@@ -1176,6 +1176,11 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 		return fmt.Errorf("creating access point %s: %w", name, err)
 	}
 
+	if len(statements) == 0 || len(statements[0].Principal) == 0 {
+		utils.Logger.Info("No statements or principals provided for access point, skipping policy creation")
+		return nil
+	}
+
 	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
 		return fmt.Errorf("creating policy document for access point %s: %w", name, err)

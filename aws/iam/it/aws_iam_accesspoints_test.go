@@ -99,6 +99,40 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	s.Assert().True(found)
 }
 
+func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint_NoWho() {
+	name := "int-test-no-who-ap1"
+	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
+		{
+			Effect:    "Allow",
+			Action:    []string{"s3:GetObject", "s3:PutObject"},
+			Resource:  []string{fmt.Sprintf("arn:aws:s3:eu-central-1:077954824694:accesspoint/%s/object/operations/*", name)},
+			Principal: map[string][]string{},
+		},
+	})
+
+	defer func() {
+		err = s.repo.DeleteAccessPoint(context.Background(), name, "eu-central-1")
+		s.Assert().NoError(err)
+	}()
+
+	s.Require().NoError(err)
+
+	accessPoints, err := s.repo.ListAccessPoints(context.Background(), "eu-central-1")
+	s.Assert().NoError(err)
+
+	found := false
+	for _, accessPoint := range accessPoints {
+		if accessPoint.Name == name {
+			found = true
+			s.Assert().Equal("raito-data-corporate", accessPoints[0].Bucket)
+			s.Assert().Nil(accessPoint.PolicyParsed)
+			break
+		}
+	}
+
+	s.Assert().True(found)
+}
+
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	name := "int-test-ap1"
 	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
