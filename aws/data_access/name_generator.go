@@ -16,6 +16,7 @@ type NameGenerator struct {
 
 	accessPointNameGenerator naming_hint.UniqueGenerator
 	regularNameGenerator     naming_hint.UniqueGenerator
+	roleNameGenerator        naming_hint.UniqueGenerator
 }
 
 func NewNameGenerator(accountId string) (*NameGenerator, error) {
@@ -41,10 +42,22 @@ func NewNameGenerator(accountId string) (*NameGenerator, error) {
 		return nil, fmt.Errorf("new unique name generator non access point: %w", err)
 	}
 
+	roleNameGenerator, err := naming_hint.NewUniqueNameGenerator(utils.Logger, "", &naming_hint.NamingConstraints{
+		UpperCaseLetters:  true,
+		LowerCaseLetters:  true,
+		Numbers:           true,
+		SpecialCharacters: "+_",
+		MaxLength:         19,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("new unique name generator non access point: %w", err)
+	}
+
 	return &NameGenerator{
 		accountId:                accountId,
 		accessPointNameGenerator: accessPointNameGenerator,
 		regularNameGenerator:     regularNameGenerator,
+		roleNameGenerator:        roleNameGenerator,
 	}, nil
 }
 
@@ -60,6 +73,7 @@ func (ng *NameGenerator) GenerateName(ap *sync_to_target.AccessProvider, apType 
 	case model.SSORole:
 		prefix = constants.SsoRolePrefix
 		postfix = "_" + ng.accountId
+		generator = ng.roleNameGenerator
 	}
 
 	name, err := generator.Generate(ap)

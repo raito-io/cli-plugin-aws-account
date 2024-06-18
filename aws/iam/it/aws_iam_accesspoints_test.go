@@ -5,6 +5,7 @@ package it
 import (
 	"context"
 	"fmt"
+	"math/rand/v2"
 	"strings"
 	"testing"
 
@@ -60,7 +61,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 }
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
-	name := "int-test-ap1"
+	name := fmt.Sprintf("int-test-ap1-%d", rand.Int())
 	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
@@ -74,10 +75,10 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 
 	s.Assert().NoError(err)
 
-	defer func() {
+	s.T().Cleanup(func() {
 		err = s.repo.DeleteAccessPoint(context.Background(), name, "eu-central-1")
 		s.Assert().NoError(err)
-	}()
+	})
 
 	accessPoints, err := s.repo.ListAccessPoints(context.Background(), "eu-central-1")
 	s.Assert().NoError(err)
@@ -100,7 +101,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 }
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint_NoWho() {
-	name := "int-test-no-who-ap1"
+	name := fmt.Sprintf("int-test-no-who-ap1-%d", rand.Int())
 	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:    "Allow",
@@ -134,7 +135,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint_NoWho() {
 }
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
-	name := "int-test-ap1"
+	name := fmt.Sprintf("int-test-ap1-%d", rand.Int())
 	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",

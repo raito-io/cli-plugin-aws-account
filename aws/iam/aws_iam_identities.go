@@ -400,6 +400,11 @@ func (repo *AwsIamRepository) GetSsoRoleWithPrefix(ctx context.Context, prefixNa
 	return possibleRoles[0], nil
 }
 
+func (repo *AwsIamRepository) ClearCache() {
+	repo.ClearRolesCache() // To be optimized. But need role reload after creating SSO roles
+	ssoRolesCache = nil
+}
+
 func (repo *AwsIamRepository) UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error {
 	client, err := repo.GetIamClient(ctx)
 	if err != nil {

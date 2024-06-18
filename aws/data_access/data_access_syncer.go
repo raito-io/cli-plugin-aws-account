@@ -46,6 +46,7 @@ type dataAccessRepository interface {
 	CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) error
 	UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error
 	DeleteAccessPoint(ctx context.Context, name string, region string) error
+	ClearCache() // Temporary solution to clear cache
 }
 
 type dataAccessSsoRepository interface {

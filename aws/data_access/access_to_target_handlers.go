@@ -145,7 +145,7 @@ type AccessHandlerExecutor interface {
 	Initialize(configmap *config.ConfigMap)
 	FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error)
 	HookInlinePolicies(ap *sync_to_target.AccessProvider)
-	ExternalId(details *AccessProviderDetails) *string
+	ExternalId(name string, details *AccessProviderDetails) (*string, error)
 	HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error)
 	HandleInheritance()
 	ExecuteUpdates(ctx context.Context)
@@ -225,7 +225,14 @@ func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name s
 		details.action = ActionUpdate
 	}
 
-	apFeedback.ExternalId = a.executor.ExternalId(details)
+	var err error
+
+	apFeedback.ExternalId, err = a.executor.ExternalId(name, details)
+	if err != nil {
+		logFeedbackError(apFeedback, fmt.Sprintf("failed to get external id for access provider %q: %s", name, err.Error()))
+
+		return
+	}
 
 	// Storing the inheritance information to handle every we covered all APs
 	apInheritFromNames := a.resolveInheritance(ap.Who.InheritFrom...)
@@ -375,8 +382,8 @@ func (r *roleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider
 	// No-op
 }
 
-func (r *roleAccessHandler) ExternalId(details *AccessProviderDetails) *string {
-	return ptr.String(fmt.Sprintf("%s%s", constants.RoleTypePrefix, details.name))
+func (r *roleAccessHandler) ExternalId(_ string, details *AccessProviderDetails) (*string, error) {
+	return ptr.String(fmt.Sprintf("%s%s", constants.RoleTypePrefix, details.name)), nil
 }
 func (r *roleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
 	return unpackGroups(ctx, groups, r.getUserGroupMap)
@@ -561,8 +568,8 @@ func (p *policyAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvid
 	}
 }
 
-func (p *policyAccessHandler) ExternalId(details *AccessProviderDetails) *string {
-	return ptr.String(fmt.Sprintf("%s%s", constants.PolicyTypePrefix, details.name))
+func (p *policyAccessHandler) ExternalId(_ string, details *AccessProviderDetails) (*string, error) {
+	return ptr.String(fmt.Sprintf("%s%s", constants.PolicyTypePrefix, details.name)), nil
 }
 
 func (p *policyAccessHandler) HandleGroupBindings(_ context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
@@ -778,12 +785,15 @@ type accessPointHandler struct {
 	account         string
 	repo            dataAccessRepository
 	getUserGroupMap UserGroupMapFunc
+	defaultRegion   string
 
 	configMap *config.ConfigMap
 }
 
 func (a *accessPointHandler) Initialize(configmap *config.ConfigMap) {
 	a.configMap = configmap
+
+	a.defaultRegion = strings.Split(configmap.GetStringWithDefault(constants.AwsRegions, "eu-central1"), ",")[0]
 }
 
 func (a *accessPointHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
@@ -842,8 +852,22 @@ func (a *accessPointHandler) HookInlinePolicies(ap *sync_to_target.AccessProvide
 	// no-op
 }
 
-func (a *accessPointHandler) ExternalId(details *AccessProviderDetails) *string {
-	return ptr.String(fmt.Sprintf("%s%s", constants.AccessPointTypePrefix, details.name))
+func (a *accessPointHandler) ExternalId(name string, details *AccessProviderDetails) (*string, error) {
+	whatItems := make([]sync_to_target.WhatItem, 0, len(details.ap.What))
+	whatItems = append(whatItems, details.ap.What...)
+
+	inheritedAPs := a.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.AccessPoint, name, model.AccessPoint)
+	for inheritedAP := range inheritedAPs {
+		whatItems = append(whatItems, inheritedAP.ap.What...)
+	}
+
+	_, region, err := extractBucketForAccessPoint(whatItems)
+	if err != nil {
+		return nil, fmt.Errorf("Extrack bucket for AP: %w", err)
+
+	}
+
+	return ptr.String(fmt.Sprintf("%s%s:%s", constants.AccessPointTypePrefix, region, details.name)), nil
 }
 
 func (a *accessPointHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
@@ -1150,8 +1174,8 @@ func (s *ssoRoleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvi
 	// no-op
 }
 
-func (s *ssoRoleAccessHandler) ExternalId(details *AccessProviderDetails) *string {
-	return details.ap.ExternalId // The external ID should contain the permission set ARN. If external id is nil an external ID would be created during creation
+func (s *ssoRoleAccessHandler) ExternalId(_ string, details *AccessProviderDetails) (*string, error) {
+	return details.ap.ExternalId, nil // The external ID should contain the permission set ARN. If external id is nil an external ID would be created during creation
 }
 
 func (s *ssoRoleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
@@ -1188,6 +1212,8 @@ func (s *ssoRoleAccessHandler) ExecuteDeletes(ctx context.Context) {
 }
 
 func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
+	created := 0
+
 	for name, details := range s.accessProviders.PermissionSets {
 		if details.action != ActionCreate && details.action != ActionUpdate {
 			continue
@@ -1198,11 +1224,15 @@ func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
 		utils.Logger.Info(fmt.Sprintf("Existing bindings for %s: %s", name, details.existingBindings))
 		utils.Logger.Info(fmt.Sprintf("Export bindings for %s: %s", name, details.newBindings))
 
-		permissionSetArn, err := s.updateOrCreatePermissionSet(ctx, details, permissionSetArnFromExternalId)
+		permissionSetArn, newPermissionSet, err := s.updateOrCreatePermissionSet(ctx, details, permissionSetArnFromExternalId)
 		if err != nil {
 			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to update or create permission set %q: %s", name, err.Error()))
 
 			continue
+		}
+
+		if newPermissionSet {
+			created += 1
 		}
 
 		// Update who
@@ -1215,6 +1245,11 @@ func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
 		if err != nil {
 			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to provision permission set %q: %s", name, err.Error()))
 		}
+	}
+
+	if created > 0 { //To be removed in next commit
+		utils.Logger.Info("Clear cache")
+		s.repo.ClearCache()
 	}
 }
 
@@ -1414,7 +1449,7 @@ func (s *ssoRoleAccessHandler) updateWho(ctx context.Context, details *AccessPro
 	}
 }
 
-func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, details *AccessProviderDetails, permissionSetArnFn func(externalId *string) (string, bool)) (string, error) {
+func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, details *AccessProviderDetails, permissionSetArnFn func(externalId *string) (string, bool)) (string, bool, error) {
 	permissionSetArn, _ := permissionSetArnFn(details.ap.ExternalId)
 
 	shouldBeCreated := details.action == ActionCreate
@@ -1422,7 +1457,7 @@ func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, 
 	if details.action == ActionUpdate {
 		originalPermissionSet, err := s.ssoAdmin.GetSsoRole(ctx, permissionSetArn)
 		if err != nil {
-			return permissionSetArn, fmt.Errorf("get sso role: %w", err)
+			return permissionSetArn, shouldBeCreated, fmt.Errorf("get sso role: %w", err)
 		}
 
 		if originalPermissionSet.Name == nil || *originalPermissionSet.Name != details.name {
@@ -1430,7 +1465,7 @@ func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, 
 
 			err = s.ssoAdmin.DeleteSsoRole(ctx, permissionSetArn)
 			if err != nil {
-				return permissionSetArn, fmt.Errorf("delete sso role: %w", err)
+				return permissionSetArn, shouldBeCreated, fmt.Errorf("delete sso role: %w", err)
 			}
 
 			permissionSetArn = ""
@@ -1438,7 +1473,7 @@ func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, 
 			// Update the permission set name
 			err = s.ssoAdmin.UpdateSsoRole(ctx, permissionSetArn, details.ap.Description)
 			if err != nil {
-				return permissionSetArn, fmt.Errorf("update sso role: %w", err)
+				return permissionSetArn, shouldBeCreated, fmt.Errorf("update sso role: %w", err)
 			}
 		}
 	}
@@ -1448,17 +1483,17 @@ func (s *ssoRoleAccessHandler) updateOrCreatePermissionSet(ctx context.Context, 
 
 		permissionSetArn, err = s.ssoAdmin.CreateSsoRole(ctx, details.name, details.ap.Description)
 		if err != nil {
-			return permissionSetArn, fmt.Errorf("create sso role: %w", err)
+			return permissionSetArn, shouldBeCreated, fmt.Errorf("create sso role: %w", err)
 		}
 
 		if permissionSetArn == "" {
-			return "", errors.New("create sso role: empty permission set arn")
+			return "", shouldBeCreated, errors.New("create sso role: empty permission set arn")
 		}
 
 		details.apFeedback.ExternalId = ptr.String(fmt.Sprintf("%s%s", constants.SsoRoleTypePrefix, permissionSetArn))
 	}
 
-	return permissionSetArn, nil
+	return permissionSetArn, shouldBeCreated, nil
 }
 
 func (s *ssoRoleAccessHandler) deletePermissionSet(ctx context.Context, name string, permissionSetArnFromExternalId func(externalId *string) (string, bool), details *AccessProviderDetails) {
