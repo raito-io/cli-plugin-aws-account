@@ -172,22 +172,64 @@ func (_c *MockdataAccessRepository_AttachUserToManagedPolicy_Call) RunAndReturn(
 	return _c
 }
 
+// ClearCache provides a mock function with given fields:
+func (_m *MockdataAccessRepository) ClearCache() {
+	_m.Called()
+}
+
+// MockdataAccessRepository_ClearCache_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ClearCache'
+type MockdataAccessRepository_ClearCache_Call struct {
+	*mock.Call
+}
+
+// ClearCache is a helper method to define mock.On call
+func (_e *MockdataAccessRepository_Expecter) ClearCache() *MockdataAccessRepository_ClearCache_Call {
+	return &MockdataAccessRepository_ClearCache_Call{Call: _e.mock.On("ClearCache")}
+}
+
+func (_c *MockdataAccessRepository_ClearCache_Call) Run(run func()) *MockdataAccessRepository_ClearCache_Call {
+	_c.Call.Run(func(args mock.Arguments) {
+		run()
+	})
+	return _c
+}
+
+func (_c *MockdataAccessRepository_ClearCache_Call) Return() *MockdataAccessRepository_ClearCache_Call {
+	_c.Call.Return()
+	return _c
+}
+
+func (_c *MockdataAccessRepository_ClearCache_Call) RunAndReturn(run func()) *MockdataAccessRepository_ClearCache_Call {
+	_c.Call.Return(run)
+	return _c
+}
+
 // CreateAccessPoint provides a mock function with given fields: ctx, name, bucket, region, statements
-func (_m *MockdataAccessRepository) CreateAccessPoint(ctx context.Context, name string, bucket string, region string, statements []*awspolicy.Statement) error {
+func (_m *MockdataAccessRepository) CreateAccessPoint(ctx context.Context, name string, bucket string, region string, statements []*awspolicy.Statement) (string, error) {
 	ret := _m.Called(ctx, name, bucket, region, statements)
 
 	if len(ret) == 0 {
 		panic("no return value specified for CreateAccessPoint")
 	}
 
-	var r0 error
-	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []*awspolicy.Statement) error); ok {
+	var r0 string
+	var r1 error
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []*awspolicy.Statement) (string, error)); ok {
+		return rf(ctx, name, bucket, region, statements)
+	}
+	if rf, ok := ret.Get(0).(func(context.Context, string, string, string, []*awspolicy.Statement) string); ok {
 		r0 = rf(ctx, name, bucket, region, statements)
 	} else {
-		r0 = ret.Error(0)
+		r0 = ret.Get(0).(string)
 	}
 
-	return r0
+	if rf, ok := ret.Get(1).(func(context.Context, string, string, string, []*awspolicy.Statement) error); ok {
+		r1 = rf(ctx, name, bucket, region, statements)
+	} else {
+		r1 = ret.Error(1)
+	}
+
+	return r0, r1
 }
 
 // MockdataAccessRepository_CreateAccessPoint_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'CreateAccessPoint'
@@ -212,12 +254,12 @@ func (_c *MockdataAccessRepository_CreateAccessPoint_Call) Run(run func(ctx cont
 	return _c
 }
 
-func (_c *MockdataAccessRepository_CreateAccessPoint_Call) Return(_a0 error) *MockdataAccessRepository_CreateAccessPoint_Call {
-	_c.Call.Return(_a0)
+func (_c *MockdataAccessRepository_CreateAccessPoint_Call) Return(_a0 string, _a1 error) *MockdataAccessRepository_CreateAccessPoint_Call {
+	_c.Call.Return(_a0, _a1)
 	return _c
 }
 
-func (_c *MockdataAccessRepository_CreateAccessPoint_Call) RunAndReturn(run func(context.Context, string, string, string, []*awspolicy.Statement) error) *MockdataAccessRepository_CreateAccessPoint_Call {
+func (_c *MockdataAccessRepository_CreateAccessPoint_Call) RunAndReturn(run func(context.Context, string, string, string, []*awspolicy.Statement) (string, error)) *MockdataAccessRepository_CreateAccessPoint_Call {
 	_c.Call.Return(run)
 	return _c
 }

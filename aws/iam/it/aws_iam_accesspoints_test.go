@@ -62,7 +62,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 	name := fmt.Sprintf("int-test-ap1-%d", rand.Int())
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
+	_, err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject", "s3:PutObject"},
@@ -102,7 +102,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint_NoWho() {
 	name := fmt.Sprintf("int-test-no-who-ap1-%d", rand.Int())
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
+	_, err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:    "Allow",
 			Action:    []string{"s3:GetObject", "s3:PutObject"},
@@ -136,7 +136,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_CreateAccessPoint_NoWho() {
 
 func (s *IAMAccessPointsTestSuite) TestIAMPolicies_UpdateAccessPoint() {
 	name := fmt.Sprintf("int-test-ap1-%d", rand.Int())
-	err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
+	_, err := s.repo.CreateAccessPoint(context.Background(), name, "raito-data-corporate", "eu-central-1", []*awspolicy.Statement{
 		{
 			Effect:   "Allow",
 			Action:   []string{"s3:GetObject", "s3:PutObject"},
