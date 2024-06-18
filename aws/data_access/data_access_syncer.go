@@ -43,7 +43,7 @@ type dataAccessRepository interface {
 	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
 	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []*awspolicy.Statement) error
 	GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string
-	CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) error
+	CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) (string, error)
 	UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error
 	DeleteAccessPoint(ctx context.Context, name string, region string) error
 	ClearCache() // Temporary solution to clear cache

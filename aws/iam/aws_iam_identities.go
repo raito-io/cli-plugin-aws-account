@@ -303,8 +303,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity,
 // the principals input parameters define which users will be able to assume the policy initially
 func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error) {
 	if len(userNames) == 0 {
-		utils.Logger.Warn("No users provided to assume the role")
-		return false, nil
+		return false, fmt.Errorf("no who defined")
 	}
 
 	client, err := repo.GetIamClient(ctx)

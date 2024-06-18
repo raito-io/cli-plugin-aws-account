@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/aws/smithy-go/ptr"
 	awspolicy "github.com/n4ch04/aws-policy"
@@ -43,7 +44,7 @@ func NewAccessProvidersByType() AccessProvidersByType {
 	}
 }
 
-func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider, apFeedback *sync_to_target.AccessProviderSyncFeedback, nameGenerator *NameGenerator) {
+func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider, apFeedback *sync_to_target.AccessProviderSyncFeedback, nameGenerator *NameGenerator) *model.AccessProviderType {
 	details := NewAccessProviderDetails(ap, t, apFeedback)
 
 	apFeedback.Type = ptr.String(string(t))
@@ -55,7 +56,7 @@ func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap
 	if err != nil {
 		logFeedbackError(apFeedback, fmt.Sprintf("failed to generate actual name for access provider %q: %s", ap.Name, err.Error()))
 
-		return
+		return nil
 	}
 
 	apFeedback.ActualName = name
@@ -71,6 +72,8 @@ func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap
 	case model.AccessPoint:
 		a.AccessPoints[name] = details
 	}
+
+	return &t
 }
 
 func (a *AccessProvidersByType) GetAccessProvider(t model.AccessProviderType, name string) *AccessProviderDetails {
@@ -145,7 +148,7 @@ type AccessHandlerExecutor interface {
 	Initialize(configmap *config.ConfigMap)
 	FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error)
 	HookInlinePolicies(ap *sync_to_target.AccessProvider)
-	ExternalId(name string, details *AccessProviderDetails) (*string, error)
+	ExternalId(name string, details *AccessProviderDetails) *string
 	HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error)
 	HandleInheritance()
 	ExecuteUpdates(ctx context.Context)
@@ -227,12 +230,7 @@ func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name s
 
 	var err error
 
-	apFeedback.ExternalId, err = a.executor.ExternalId(name, details)
-	if err != nil {
-		logFeedbackError(apFeedback, fmt.Sprintf("failed to get external id for access provider %q: %s", name, err.Error()))
-
-		return
-	}
+	apFeedback.ExternalId = a.executor.ExternalId(name, details)
 
 	// Storing the inheritance information to handle every we covered all APs
 	apInheritFromNames := a.resolveInheritance(ap.Who.InheritFrom...)
@@ -382,8 +380,8 @@ func (r *roleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider
 	// No-op
 }
 
-func (r *roleAccessHandler) ExternalId(_ string, details *AccessProviderDetails) (*string, error) {
-	return ptr.String(fmt.Sprintf("%s%s", constants.RoleTypePrefix, details.name)), nil
+func (r *roleAccessHandler) ExternalId(_ string, details *AccessProviderDetails) *string {
+	return ptr.String(fmt.Sprintf("%s%s", constants.RoleTypePrefix, details.name))
 }
 func (r *roleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
 	return unpackGroups(ctx, groups, r.getUserGroupMap)
@@ -568,8 +566,8 @@ func (p *policyAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvid
 	}
 }
 
-func (p *policyAccessHandler) ExternalId(_ string, details *AccessProviderDetails) (*string, error) {
-	return ptr.String(fmt.Sprintf("%s%s", constants.PolicyTypePrefix, details.name)), nil
+func (p *policyAccessHandler) ExternalId(_ string, details *AccessProviderDetails) *string {
+	return ptr.String(fmt.Sprintf("%s%s", constants.PolicyTypePrefix, details.name))
 }
 
 func (p *policyAccessHandler) HandleGroupBindings(_ context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
@@ -852,22 +850,8 @@ func (a *accessPointHandler) HookInlinePolicies(ap *sync_to_target.AccessProvide
 	// no-op
 }
 
-func (a *accessPointHandler) ExternalId(name string, details *AccessProviderDetails) (*string, error) {
-	whatItems := make([]sync_to_target.WhatItem, 0, len(details.ap.What))
-	whatItems = append(whatItems, details.ap.What...)
-
-	inheritedAPs := a.accessProviders.GetAllAccessProvidersInInheritanceChainForWhat(model.AccessPoint, name, model.AccessPoint)
-	for inheritedAP := range inheritedAPs {
-		whatItems = append(whatItems, inheritedAP.ap.What...)
-	}
-
-	_, region, err := extractBucketForAccessPoint(whatItems)
-	if err != nil {
-		return nil, fmt.Errorf("Extrack bucket for AP: %w", err)
-
-	}
-
-	return ptr.String(fmt.Sprintf("%s%s:%s", constants.AccessPointTypePrefix, region, details.name)), nil
+func (a *accessPointHandler) ExternalId(_ string, details *AccessProviderDetails) *string {
+	return details.ap.ExternalId // The external ID should contain the permission set ARN. If external id is nil an external ID would be created during creation
 }
 
 func (a *accessPointHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
@@ -944,15 +928,13 @@ func (a *accessPointHandler) ExecuteDeletes(ctx context.Context) {
 		extId := *accessPointAp.ExternalId
 		extId = extId[len(constants.AccessPointTypePrefix):]
 
-		region := ""
-		if strings.Contains(extId, ":") {
-			region = extId[:strings.Index(extId, ":")] //nolint:gocritic
-		} else {
-			logFeedbackError(details.apFeedback, fmt.Sprintf("invalid external id found %q", *accessPointAp.ExternalId))
+		s3apArn, err := arn.Parse(extId)
+		if err != nil {
+			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to parse external id %q: %s", extId, err.Error()))
 			continue
 		}
 
-		err := a.repo.DeleteAccessPoint(ctx, accessPointName, region)
+		err = a.repo.DeleteAccessPoint(ctx, s3apArn.Resource[12:], s3apArn.Region)
 		if err != nil {
 			logFeedbackError(details.apFeedback, fmt.Sprintf("failed to delete access point %q: %s", accessPointName, err.Error()))
 			continue
@@ -1031,11 +1013,16 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 			utils.Logger.Info(fmt.Sprintf("Creating access point %s", accessPointName))
 
 			// Create the new access point with the who
-			err := a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, region, statements)
+			s3ApArn, err := a.repo.CreateAccessPoint(ctx, accessPointName, bucketName, region, statements)
 			if err != nil {
 				logFeedbackError(details.apFeedback, fmt.Sprintf("failed to create access point %q: %s", accessPointName, err.Error()))
 				continue
 			}
+
+			externalId := fmt.Sprintf("%s%s", constants.AccessPointTypePrefix, s3ApArn)
+
+			details.ap.ExternalId = &externalId
+			details.apFeedback.ExternalId = &externalId
 		} else {
 			utils.Logger.Info(fmt.Sprintf("Updating access point %s", accessPointName))
 
@@ -1174,8 +1161,8 @@ func (s *ssoRoleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvi
 	// no-op
 }
 
-func (s *ssoRoleAccessHandler) ExternalId(_ string, details *AccessProviderDetails) (*string, error) {
-	return details.ap.ExternalId, nil // The external ID should contain the permission set ARN. If external id is nil an external ID would be created during creation
+func (s *ssoRoleAccessHandler) ExternalId(_ string, details *AccessProviderDetails) *string {
+	return details.ap.ExternalId // The external ID should contain the permission set ARN. If external id is nil an external ID would be created during creation
 }
 
 func (s *ssoRoleAccessHandler) HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error) {
@@ -1247,7 +1234,7 @@ func (s *ssoRoleAccessHandler) ExecuteUpdates(ctx context.Context) {
 		}
 	}
 
-	if created > 0 { //To be removed in next commit
+	if created > 0 {
 		utils.Logger.Info("Clear cache")
 		s.repo.ClearCache()
 	}
