@@ -1161,7 +1161,7 @@ func (repo *AwsIamRepository) DeleteAccessPoint(ctx context.Context, name string
 	return nil
 }
 
-func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) error {
+func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucket string, region string, statements []*awspolicy.Statement) (string, error) {
 	client := repo.getS3ControlClient(ctx, &region)
 
 	input := &s3control.CreateAccessPointInput{
@@ -1170,15 +1170,26 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 		Name:      aws.String(name),
 	}
 
-	_, err := client.CreateAccessPoint(ctx, input)
+	s3Ap, err := client.CreateAccessPoint(ctx, input)
 
 	if err != nil {
-		return fmt.Errorf("creating access point %s: %w", name, err)
+		return "", fmt.Errorf("creating access point %s: %w", name, err)
+	}
+
+	if s3Ap.AccessPointArn == nil {
+		return "", fmt.Errorf("access point ARN is nil for %s", name)
+	}
+
+	s3ApArn := *s3Ap.AccessPointArn
+
+	if len(statements) == 0 || len(statements[0].Principal) == 0 {
+		utils.Logger.Info("No statements or principals provided for access point, skipping policy creation")
+		return s3ApArn, nil
 	}
 
 	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
-		return fmt.Errorf("creating policy document for access point %s: %w", name, err)
+		return s3ApArn, fmt.Errorf("creating policy document for access point %s: %w", name, err)
 	}
 
 	utils.Logger.Debug(fmt.Sprintf("Policy document for access point creation: %s", policyDoc))
@@ -1189,10 +1200,10 @@ func (repo *AwsIamRepository) CreateAccessPoint(ctx context.Context, name, bucke
 		Policy:    aws.String(policyDoc),
 	})
 	if err != nil {
-		return fmt.Errorf("putting policy for access point %s: %w", name, err)
+		return s3ApArn, fmt.Errorf("putting policy for access point %s: %w", name, err)
 	}
 
-	return nil
+	return s3ApArn, nil
 }
 
 func (repo *AwsIamRepository) UpdateAccessPoint(ctx context.Context, name string, region string, statements []*awspolicy.Statement) error {

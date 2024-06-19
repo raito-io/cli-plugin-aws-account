@@ -5,6 +5,7 @@ import (
 
 	"github.com/hashicorp/go-hclog"
 	"github.com/raito-io/cli/base"
+	"github.com/raito-io/cli/base/access_provider"
 	"github.com/raito-io/cli/base/info"
 	"github.com/raito-io/cli/base/util/plugin"
 	"github.com/raito-io/cli/base/wrappers"
@@ -30,7 +31,7 @@ func main() {
 	err := base.RegisterPlugins(
 		wrappers.IdentityStoreSync(aws.NewIdentityStoreSyncer()),
 		wrappers.DataSourceSync(data_source.NewDataSourceSyncer()),
-		wrappers.DataAccessSync(data_access.NewDataAccessSyncer()),
+		wrappers.DataAccessSync(data_access.NewDataAccessSyncer(), access_provider.WithSupportPartialSync()),
 		wrappers.DataUsageSync(usage.NewDataUsageSyncer()), &info.InfoImpl{
 			Info: &plugin.PluginInfo{
 				Name:    "AWS Account",

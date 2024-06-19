@@ -465,8 +465,7 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 		newAp := model.AccessProviderInputExtended{
 			PolicyType: model.AccessPoint,
 			ApInput: &sync_from_target.AccessProvider{
-				// Adding the region to uniquely identify the access point
-				ExternalId: fmt.Sprintf("%s%s:%s", constants.AccessPointTypePrefix, region, accessPoint.Name),
+				ExternalId: fmt.Sprintf("%s%s", constants.AccessPointTypePrefix, accessPoint.Arn),
 				Name:       accessPoint.Name,
 				Type:       aws.String(string(model.AccessPoint)),
 				NamingHint: "",

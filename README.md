@@ -144,6 +144,15 @@ The following configuration parameters are available
 | `aws-access-skip-s3-access-points`              | If set to true, S3 access points will not be read to import into Raito Cloud as access controls.                                                                                                                                                                                                                                             | False     | `false`          |
 | `aws-access-role-excludes`                      | Optional comma-separated list of role names to exclude. Regular expressions can be used (e.g. 'Amazon.+,AWS.+' will exclude all roles starting with Amazon or AWS).                                                                                                                                                                          | False     |                  |
 
+### Authentication
+To authenticate the AWS plugin, the AWS default provider chain will be used:
+1. Environment variables: The environment variables `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` are used.
+2. Shared credentials file. Credentials defined on `~/.aws/credentials` will be used. A profile can be defined with `aws-organization-profile`, This method is required when using the organization feature. `aws-organization-profile` is mandatory in that case.
+3. If running on an Amazon EC2 instance, IAM role for Amazon EC2.
+
+More information can be found on the [AWS SDK documentation](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials).
+
+
 ## Supported features
 
 | Feature             | Supported | Remarks                             |
@@ -161,6 +170,16 @@ The following configuration parameters are available
 - S3 File (if S3 is enabled)
 - Glue Table (if glue is enabled)
 
+### AWS Glue Mode (Recommended)
+When `aws-glue-enabled` is enabled, all Glue tables are synced as data objects into your Raito Cloud.
+This mode offers a more efficient way to synchronize data between your AWS Glue Data Catalog and Raito Cloud.
+It leverages the metadata stored in Glue tables to identify relevant data, providing an additional layer of abstraction.
+Grants can be created to access to Glue tables and folders.
+
+### AWS S3 Files and Folders Mode
+When `aws-s3-enabled` is enabled, all files and folders within S3 are synced as data object into your Raito Cloud.
+All files and folders within the S3 buckets are used upto a fixed depth (default 20). The depth can be controlled using the `aws-s3-max-folder-depth` parameter.
+Grants can be created to access to all folders and files.
 
 ## Access controls
 ### From Target

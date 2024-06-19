@@ -15,7 +15,7 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 	testAp := sync_to_target.AccessProvider{Name: "someAp"}
 	type fields struct {
 		accountId string
-		setup     func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator)
+		setup     func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator, ssoNameGenerator *naming_hint.MockUniqueGenerator)
 	}
 	type args struct {
 		ap     *sync_to_target.AccessProvider
@@ -32,7 +32,7 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 			name: "AccessPoint",
 			fields: fields{
 				accountId: "123456789012",
-				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator) {
+				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator, ssoNameGenerator *naming_hint.MockUniqueGenerator) {
 					accessPointNameGenerator.EXPECT().Generate(&testAp).Return("access-point-name", nil)
 				},
 			},
@@ -47,8 +47,8 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 			name: "SSORole",
 			fields: fields{
 				accountId: "123456789012",
-				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator) {
-					regularNameGenerator.EXPECT().Generate(&testAp).Return("regular-name", nil)
+				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator, ssoNameGenerator *naming_hint.MockUniqueGenerator) {
+					ssoNameGenerator.EXPECT().Generate(&testAp).Return("regular-name", nil)
 				},
 			},
 			args: args{
@@ -62,7 +62,7 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 			name: "Role",
 			fields: fields{
 				accountId: "123456789012",
-				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator) {
+				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator, ssoNameGenerator *naming_hint.MockUniqueGenerator) {
 					regularNameGenerator.EXPECT().Generate(&testAp).Return("regular-name", nil)
 				},
 			},
@@ -77,7 +77,7 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 			name: "Policy",
 			fields: fields{
 				accountId: "123456789012",
-				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator) {
+				setup: func(accessPointNameGenerator *naming_hint.MockUniqueGenerator, regularNameGenerator *naming_hint.MockUniqueGenerator, ssoNameGenerator *naming_hint.MockUniqueGenerator) {
 					regularNameGenerator.EXPECT().Generate(&testAp).Return("regular-name", nil)
 				},
 			},
@@ -95,12 +95,14 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 			// Given
 			accessPointNameGenerator := naming_hint.NewMockUniqueGenerator(t)
 			regularNameGenerator := naming_hint.NewMockUniqueGenerator(t)
+			ssoRoleNameGenerator := naming_hint.NewMockUniqueGenerator(t)
 
-			tt.fields.setup(accessPointNameGenerator, regularNameGenerator)
+			tt.fields.setup(accessPointNameGenerator, regularNameGenerator, ssoRoleNameGenerator)
 			nameGenerator := NameGenerator{
 				accountId:                tt.fields.accountId,
 				accessPointNameGenerator: accessPointNameGenerator,
 				regularNameGenerator:     regularNameGenerator,
+				roleNameGenerator:        ssoRoleNameGenerator,
 			}
 
 			// When

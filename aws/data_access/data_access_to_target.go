@@ -90,6 +90,8 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	// Sort access providers on type
 	typeSortedAccessProviders := NewAccessProvidersByType()
 
+	typeCount := make(map[model.AccessProviderType]int)
+
 	for i := range accessProviders.AccessProviders {
 		accessProvider := accessProviders.AccessProviders[i]
 
@@ -106,7 +108,16 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 		apType := resolveApType(accessProvider, a.cfgMap)
 		apFeedback.Type = ptr.String(string(apType))
 
-		typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback, a.nameGenerator)
+		t := typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback, a.nameGenerator)
+		if t == nil {
+			continue
+		}
+
+		if _, found := typeCount[*t]; !found {
+			typeCount[*t] = 0
+		}
+
+		typeCount[*t]++
 	}
 
 	// Based on AWS dependencies we handle the access providers in the following order:
@@ -117,18 +128,25 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	handlers := make([]*AccessHandler, 0, 4)
 
-	roleHandler := NewRoleAccessHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
-	policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo, a.account)
+	if c, found := typeCount[model.Role]; found && c > 0 {
+		roleHandler := NewRoleAccessHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
+		handlers = append(handlers, &roleHandler)
+	}
 
-	handlers = append(handlers, &roleHandler, &policyHandler)
+	if c, found := typeCount[model.Policy]; found && c > 0 {
+		policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo, a.account)
+		handlers = append(handlers, &policyHandler)
+	}
 
-	if !utils.CheckNilInterface(a.ssoRepo) {
+	if c, found := typeCount[model.SSORole]; !utils.CheckNilInterface(a.ssoRepo) && found && c > 0 {
 		ssoRoleHandler := NewSSORoleAccessHandler(&typeSortedAccessProviders, a.repo, a.ssoRepo, a.getUserGroupMap, a.account)
 		handlers = append(handlers, &ssoRoleHandler)
 	}
 
-	accessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
-	handlers = append(handlers, &accessPointHandler)
+	if c, found := typeCount[model.AccessPoint]; found && c > 0 {
+		s3AccessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
+		handlers = append(handlers, &s3AccessPointHandler)
+	}
 
 	// Initialize handlers
 	for _, handler := range handlers {

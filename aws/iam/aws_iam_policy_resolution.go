@@ -174,15 +174,21 @@ func handlePrincipal(p map[string][]string, awsAccount, errorPrefix string, user
 				parts := strings.Split(resource, "/")
 
 				if len(parts) >= 2 {
+					lastPart := parts[len(parts)-1]
+
 					if parts[1] == "*" {
 						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains wildcard IAM resource %q.", errorPrefix, resource))
 						localIncomplete = true
 					} else if strings.EqualFold(parts[0], "user") {
-						users.Add(parts[len(parts)-1])
+						users.Add(lastPart)
 					} else if strings.EqualFold(parts[0], "group") {
-						groups.Add(parts[len(parts)-1])
+						groups.Add(lastPart)
 					} else if strings.EqualFold(parts[0], "role") && roles != nil {
-						roles.Add(constants.RoleTypePrefix + parts[len(parts)-1])
+						if strings.HasPrefix(lastPart, constants.SsoReservedPrefix+constants.SsoRolePrefix) {
+							continue
+						}
+
+						roles.Add(constants.RoleTypePrefix + lastPart)
 					} else {
 						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains unknown IAM resource %q.", errorPrefix, resource))
 						localIncomplete = true

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/raito-io/golang-set/set"
@@ -60,9 +61,9 @@ func setupMockExportEnvironment(t *testing.T, ssoEnabled bool) (*MockdataAccessR
 	accessPoints, err := getObjects[model.AwsS3AccessPoint]("../testdata/aws/test_access_points.json")
 	require.NoError(t, err)
 
-	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
-	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
-	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return(accessPoints, nil).Once()
+	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Maybe()
+	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Maybe()
+	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return(accessPoints, nil).Maybe()
 
 	data_source2.ClearMetadata()
 
@@ -1017,6 +1018,14 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 		},
 	}
 
+	ap1Arn := arn.ARN{
+		Partition: "AWS",
+		Service:   "accesspoint",
+		Region:    "us-west-1",
+		AccountID: "",
+		Resource:  "accesspoint/test-access-point",
+	}
+
 	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point", "bucketname", "us-west-1", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -1026,10 +1035,87 @@ func TestSyncAccessProviderToTarget_CreateAccessPoint(t *testing.T) {
 		Resource: []string{
 			"arn:aws:s3:us-west-1::accesspoint/test-access-point/object/folder1/folder2/*",
 		},
-	}}).Return(nil).Once()
+	}}).Return(ap1Arn.String(), nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "arn:AWS:accesspoint:us-west-1::accesspoint/test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+
+	// When
+	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
+	require.Nil(t, err)
+
+	// Then
+	repoMock.AssertNotCalled(t, "GetPrincipalsFromAssumeRolePolicyDocument")
+	repoMock.AssertNotCalled(t, "GetAttachedEntity")
+	repoMock.AssertNotCalled(t, "CreateRole")
+	repoMock.AssertNotCalled(t, "DeleteRole")
+	repoMock.AssertNotCalled(t, "UpdateAssumeEntities")
+	repoMock.AssertNotCalled(t, "CreateManagedPolicy")
+	repoMock.AssertNotCalled(t, "UpdateManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteManagedPolicy")
+	repoMock.AssertNotCalled(t, "GetPolicyArn")
+	repoMock.AssertNotCalled(t, "AttachUserToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachGroupToManagedPolicy")
+	repoMock.AssertNotCalled(t, "AttachRoleToManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachUserFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachGroupFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DetachRoleFromManagedPolicy")
+	repoMock.AssertNotCalled(t, "DeleteInlinePolicy")
+}
+
+func TestSyncAccessProviderToTarget_CreateAccessPoint_NoWho(t *testing.T) {
+	repoMock, _, _, syncer := setupMockExportEnvironment(t, false)
+	ctx := context.Background()
+	configmap := config.ConfigMap{
+		Parameters: map[string]string{constants.AwsRegions: "us-west-1", constants.AwsGlueEnabled: "true"},
+	}
+	syncer.cfgMap = &configmap
+
+	exportedAps := sync_to_target.AccessProviderImport{
+		LastCalculated: time.Now().Unix(),
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          "something-nowho",
+				Name:        "Test Access Point No Who",
+				Description: "a test access point without a WHO",
+				NamingHint:  "Test Access Point No Who",
+				Type:        aws.String(string(model.AccessPoint)),
+
+				Action: sync_to_target.Grant,
+
+				Who: sync_to_target.WhoItem{},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "account:us-west-1:bucketname/folder1/folder2",
+							Type:     "glue-table",
+						},
+						Permissions: []string{"s3:GetObject", "s3:GetObjectAcl"},
+					},
+				},
+			},
+		},
+	}
+
+	apNoWhoArn := arn.ARN{
+		Partition: "AWS",
+		Service:   "accesspoint",
+		Region:    "us-west-1",
+		AccountID: "",
+		Resource:  "accesspoint/test-access-point-no-who",
+	}
+
+	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point-no-who", "bucketname", "us-west-1", []*awspolicy.Statement{{
+		Effect:    "Allow",
+		Action:    []string{"s3:GetObject", "s3:GetObjectAcl"},
+		Principal: nil,
+		Resource: []string{
+			"arn:aws:s3:us-west-1::accesspoint/test-access-point-no-who/object/folder1/folder2/*",
+		},
+	}}).Return(apNoWhoArn.String(), nil).Once()
+
+	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something-nowho", ActualName: "test-access-point-no-who", ExternalId: ptr.String(constants.AccessPointTypePrefix + "arn:AWS:accesspoint:us-west-1::accesspoint/test-access-point-no-who"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
@@ -1150,6 +1236,14 @@ func TestSyncAccessProviderToTarget_CreateAccessPointWithGroups(t *testing.T) {
 		},
 	}, nil)
 
+	ap1Arn := arn.ARN{
+		Partition: "AWS",
+		Service:   "accesspoint",
+		Region:    "us-west-1",
+		AccountID: "",
+		Resource:  "test-access-point",
+	}
+
 	repoMock.EXPECT().CreateAccessPoint(ctx, "test-access-point", "bucketname", "us-west-1", []*awspolicy.Statement{{
 		Effect: "Allow",
 		Action: []string{"s3:GetObject", "s3:GetObjectAcl"},
@@ -1164,10 +1258,10 @@ func TestSyncAccessProviderToTarget_CreateAccessPointWithGroups(t *testing.T) {
 		Resource: []string{
 			"arn:aws:s3:us-west-1::accesspoint/test-access-point/object/folder1/folder2/*",
 		},
-	}}).Return(nil).Once()
+	}}).Return(ap1Arn.String(), nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "something", ActualName: "test-access-point", ExternalId: ptr.String(constants.AccessPointTypePrefix + "arn:AWS:accesspoint:us-west-1::test-access-point"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
@@ -1206,7 +1300,7 @@ func TestSyncAccessProviderToTarget_UpdateAccessPoint(t *testing.T) {
 			{
 				Id:          "existingaccesspoint",
 				Name:        "existingaccesspoint",
-				ExternalId:  ptr.String("accessPoint:TestAccessPoint"),
+				ExternalId:  ptr.String("accesspoint:TestAccessPoint"),
 				Description: "a test access point",
 				NamingHint:  "existingaccesspoint",
 				Type:        aws.String(string(model.AccessPoint)),
@@ -1241,7 +1335,7 @@ func TestSyncAccessProviderToTarget_UpdateAccessPoint(t *testing.T) {
 	}}).Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
-	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", ExternalId: ptr.String(constants.AccessPointTypePrefix + "existingaccesspoint"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
+	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", ExternalId: ptr.String(constants.AccessPointTypePrefix + "TestAccessPoint"), Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
 
 	// When
 	err := syncer.doSyncAccessProviderToTarget(ctx, &exportedAps, feedbackHandler)
@@ -1274,13 +1368,21 @@ func TestSyncAccessProviderToTarget_DeleteAccessPoint(t *testing.T) {
 	}
 	syncer.cfgMap = &configmap
 
+	ap1Arn := arn.ARN{
+		Partition: "AWS",
+		Service:   "accesspoint",
+		Region:    "us-west-1",
+		AccountID: "",
+		Resource:  "accesspoint/TestAccessPoint",
+	}
+
 	exportedAps := sync_to_target.AccessProviderImport{
 		LastCalculated: time.Now().Unix(),
 		AccessProviders: []*sync_to_target.AccessProvider{
 			{
 				Id:          "existingaccesspoint",
 				Name:        "existingaccesspoint",
-				ExternalId:  ptr.String("accessPoint:us-west-1:TestAccessPoint"),
+				ExternalId:  ptr.String(constants.AccessPointTypePrefix + ap1Arn.String()),
 				Description: "a test access point",
 				NamingHint:  "existingaccesspoint",
 				Type:        aws.String(string(model.AccessPoint)),
@@ -1304,7 +1406,7 @@ func TestSyncAccessProviderToTarget_DeleteAccessPoint(t *testing.T) {
 		},
 	}
 
-	repoMock.EXPECT().DeleteAccessPoint(ctx, "existingaccesspoint", "us-west-1").Return(nil).Once()
+	repoMock.EXPECT().DeleteAccessPoint(ctx, "TestAccessPoint", "us-west-1").Return(nil).Once()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "existingaccesspoint", ActualName: "existingaccesspoint", Type: ptr.String(string(model.AccessPoint))}).Return(nil).Once()
@@ -1404,12 +1506,12 @@ func TestSyncAccessProviderToTarget_CreateSsoRole(t *testing.T) {
 	ssoRepoMock.EXPECT().ListCustomerManagedPolicyFromPermissionSet(ctx, "arn::::permissionset:id").Return(set.NewSet[string](), nil).Once()
 	ssoRepoMock.EXPECT().ProvisionPermissionSet(ctx, "arn::::permissionset:id").Return(&ssoTypes.PermissionSetProvisioningStatus{Status: ssoTypes.StatusValuesSucceeded}, nil).Once()
 
-	repo.EXPECT().GetManagedPolicies(ctx).Return([]model.PolicyEntity{}, nil).Once()
 	repo.EXPECT().CreateRoleInlinePolicy(ctx, "another_role", "Raito_Inline_another_role", []*awspolicy.Statement{{
 		Effect:   "Allow",
 		Action:   []string{"s3:GetObjectAttributes"},
 		Resource: []string{"arn:aws:s3:::folder1"},
 	}}).Return(nil).Once()
+	repo.EXPECT().ClearCache().Return()
 
 	feedbackHandler := mocks.NewAccessProviderFeedbackHandler(t)
 	feedbackHandler.EXPECT().AddAccessProviderFeedback(sync_to_target.AccessProviderSyncFeedback{AccessProvider: "another", ActualName: "another_role", ExternalId: ptr.String(constants.RoleTypePrefix + "another_role"), Type: ptr.String(string(model.Role))}).Return(nil).Once()
