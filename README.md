@@ -170,16 +170,16 @@ More information can be found on the [AWS SDK documentation](https://docs.aws.am
 - S3 File (if S3 is enabled)
 - Glue Table (if glue is enabled)
 
+### AWS Glue Mode (Recommended)
+When `aws-glue-enabled` is enabled, all Glue tables are synced as data objects into your Raito Cloud.
+This mode offers a more efficient way to synchronize data between your AWS Glue Data Catalog and Raito Cloud.
+It leverages the metadata stored in Glue tables to identify relevant data, providing an additional layer of abstraction.
+Grants can be created to access to Glue tables and folders.
+
 ### AWS S3 Files and Folders Mode
 When `aws-s3-enabled` is enabled, all files and folders within S3 are synced as data object into your Raito Cloud.
 All files and folders within the S3 buckets are used upto a fixed depth (default 20). The depth can be controlled using the `aws-s3-max-folder-depth` parameter.
-Grants cam be created to access to all folders and files.
-
-### AWS Glue Mode (Recommended)
-When `aws-glue-enabled` is enabled, all Glue tables are synced as data objects into your Raito Cloud.
-This mode offers a more efficientway to synchronize data between your AWS Glue Data Catalog and Raito Cloud. 
-It leverages the metadata stored in Glue tables to identify relevant data, providing an additional layer of abstraction.
-Grants can be created to access to Glue tables and folders.
+Grants can be created to access to all folders and files.
 
 ## Access controls
 ### From Target
