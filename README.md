@@ -147,7 +147,7 @@ The following configuration parameters are available
 ### Authentication
 To authenticate the AWS plugin, the AWS default provider chain will be used:
 1. Environment variables: The environment variables `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, and `AWS_SESSION_TOKEN` are used.
-2. Shared credentials file. Credentials defined on `~/.aws/credentials` will be used. A profile can be defined with `aws-organization-profile`, This method is required when using the organization feature. `aws-organization-profile` is mandatory in that case.
+2. Shared credentials file. Credentials defined on `~/.aws/credentials` will be used. A profile can be defined with `aws-profile`, This method is required when using the organization feature. `aws-organization-profile` is mandatory in that case.
 3. If running on an Amazon EC2 instance, IAM role for Amazon EC2.
 
 More information can be found on the [AWS SDK documentation](https://docs.aws.amazon.com/sdk-for-go/v1/developer-guide/configuring-sdk.html#specifying-credentials).
