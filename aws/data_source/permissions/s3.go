@@ -1131,3 +1131,20 @@ func ApplicableS3AccessPointActions() set.Set[string] {
 
 	return applicableS3AccessPointActions
 }
+
+var permissionLookupTable map[string]*ds.DataObjectTypePermission
+
+func GetS3Permission(permission string) (*ds.DataObjectTypePermission, bool) {
+	if permissionLookupTable == nil {
+		permissionLookupTable = make(map[string]*ds.DataObjectTypePermission)
+
+		for i := range AllS3Permissions {
+			p := AllS3Permissions[i]
+			permissionLookupTable[p.Permission] = p
+		}
+	}
+
+	p, found := permissionLookupTable[permission]
+
+	return p, found
+}

@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
-	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/data_usage"
 	"github.com/raito-io/cli/base/util/config"
@@ -142,13 +141,14 @@ func TestDataUsageSyncer_SyncDataUsage(t *testing.T) {
 	assert.ElementsMatch(t, dataUsageWrapper.Statements, []data_usage.Statement{
 		{
 			ExternalId: "eventId1",
-			AccessedDataObjects: []sync_from_target.WhatItem{
+			AccessedDataObjects: []data_usage.UsageDataObjectItem{
 				{
-					DataObject: &data_source.DataObjectReference{
+					DataObject: data_usage.UsageDataObjectReference{
 						FullName: "accountId:eu-central-1:bucket1/folder1/folder2/file1",
 						Type:     "file",
 					},
-					Permissions: []string{"s3:GetObject"},
+					Permissions:      []string{"s3:GetObject"},
+					GlobalPermission: data_usage.Read,
 				},
 			},
 			User:      "user@raito.io",
@@ -164,13 +164,14 @@ func TestDataUsageSyncer_SyncDataUsage(t *testing.T) {
 		},
 		{
 			ExternalId: "eventId2",
-			AccessedDataObjects: []sync_from_target.WhatItem{
+			AccessedDataObjects: []data_usage.UsageDataObjectItem{
 				{
-					DataObject: &data_source.DataObjectReference{
+					DataObject: data_usage.UsageDataObjectReference{
 						FullName: "accountId:eu-central-1:bucket1/folder1/folder2/file2",
 						Type:     "file",
 					},
-					Permissions: []string{"s3:PutObject"},
+					Permissions:      []string{"s3:PutObject"},
+					GlobalPermission: data_usage.Write,
 				},
 			},
 			User:      "user@raito.io",
