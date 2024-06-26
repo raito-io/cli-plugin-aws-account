@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/raito-io/cli/base/data_source"
+	"github.com/raito-io/cli/base/data_usage"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils/trie"
@@ -22,7 +23,7 @@ func TestFileUsageObjectMapper_MapObject(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   *data_source.DataObjectReference
+		want   *data_usage.UsageDataObjectReference
 	}{
 		{
 			name: "Fullname can be used",
@@ -33,7 +34,7 @@ func TestFileUsageObjectMapper_MapObject(t *testing.T) {
 			args: args{
 				object: "bucket1/folder1/folder2/file1",
 			},
-			want: &data_source.DataObjectReference{
+			want: &data_usage.UsageDataObjectReference{
 				FullName: "bucket1/folder1/folder2/file1",
 				Type:     data_source.File,
 			},
@@ -47,7 +48,7 @@ func TestFileUsageObjectMapper_MapObject(t *testing.T) {
 			args: args{
 				object: "bucket1/folder1/folder2/file1",
 			},
-			want: &data_source.DataObjectReference{
+			want: &data_usage.UsageDataObjectReference{
 				FullName: "bucket1/folder1",
 				Type:     data_source.Folder,
 			},
@@ -88,7 +89,7 @@ func TestGlueUsageObjectMapper_MapObject(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   *data_source.DataObjectReference
+		want   *data_usage.UsageDataObjectReference
 	}{
 		{
 			name: "Fullname can be used",
@@ -98,7 +99,7 @@ func TestGlueUsageObjectMapper_MapObject(t *testing.T) {
 			args: args{
 				object: "bucket1/folder1/folder2",
 			},
-			want: &data_source.DataObjectReference{
+			want: &data_usage.UsageDataObjectReference{
 				FullName: "bucket1/folder1/folder2",
 				Type:     model.GlueTable,
 			},
@@ -111,7 +112,7 @@ func TestGlueUsageObjectMapper_MapObject(t *testing.T) {
 			args: args{
 				object: "bucket1/folder1/folder2/folder3/file.parquet",
 			},
-			want: &data_source.DataObjectReference{
+			want: &data_usage.UsageDataObjectReference{
 				FullName: "bucket1/folder1/folder2",
 				Type:     model.GlueTable,
 			},

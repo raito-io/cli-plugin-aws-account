@@ -17,6 +17,7 @@ import (
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_source/permissions"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
@@ -25,8 +26,6 @@ import (
 	"github.com/raito-io/cli/base/data_usage"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers"
-
-	ap "github.com/raito-io/cli/base/access_provider/sync_from_target"
 )
 
 type dataUsageRepository interface {
@@ -257,7 +256,7 @@ func (s *DataUsageSyncer) readAndParseUsageLog(ctx context.Context, bucketName s
 	for ind := range result.Records {
 		record := result.Records[ind]
 		isCloudTrailBucket := false
-		accessedObjects := make([]ap.WhatItem, 0, len(record.Resources))
+		accessedObjects := make([]data_usage.UsageDataObjectItem, 0, len(record.Resources))
 
 		for _, resource := range record.Resources {
 			if resource.Type != nil && resource.Arn != nil && strings.Contains(*resource.Arn, bucketName) {
@@ -276,10 +275,26 @@ func (s *DataUsageSyncer) readAndParseUsageLog(ctx context.Context, bucketName s
 					continue
 				}
 
-				accessedObjects = append(accessedObjects, ap.WhatItem{
-					DataObject:  mappedWhatDataObject,
+				objectItem := data_usage.UsageDataObjectItem{
+					DataObject:  *mappedWhatDataObject,
 					Permissions: []string{permission},
-				})
+				}
+
+				globalPermission, _ := permissions.GetS3Permission(permission)
+
+				for _, a := range globalPermission.UsageGlobalPermissions {
+					action, actionErr := data_usage.ActionTypeString(a)
+					if actionErr != nil {
+						utils.Logger.Warn(fmt.Sprintf("Could not parse action %q: %v", a, actionErr))
+						continue
+					}
+
+					if objectItem.GlobalPermission < action {
+						objectItem.GlobalPermission = action
+					}
+				}
+
+				accessedObjects = append(accessedObjects, objectItem)
 			}
 		}
 

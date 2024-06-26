@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/raito-io/cli/base/data_source"
+	"github.com/raito-io/cli/base/data_usage"
 	"github.com/raito-io/cli/base/util/config"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
@@ -14,7 +14,7 @@ import (
 )
 
 type ObjectMapper interface {
-	MapObject(object string) *data_source.DataObjectReference
+	MapObject(object string) *data_usage.UsageDataObjectReference
 }
 
 type FileUsageObjectMapper struct {
@@ -26,7 +26,7 @@ func NewFileUsageObjectMapper(pathDepth int, dataObjectsWithType *trie.Trie[stri
 	return FileUsageObjectMapper{pathDepth: pathDepth, dataObjectsWithType: dataObjectsWithType}
 }
 
-func (m FileUsageObjectMapper) MapObject(object string) *data_source.DataObjectReference {
+func (m FileUsageObjectMapper) MapObject(object string) *data_usage.UsageDataObjectReference {
 	path := object
 
 	parts := strings.Split(object, "/")
@@ -35,7 +35,7 @@ func (m FileUsageObjectMapper) MapObject(object string) *data_source.DataObjectR
 	}
 
 	if doType, found := m.dataObjectsWithType.Get(path); found {
-		return &data_source.DataObjectReference{
+		return &data_usage.UsageDataObjectReference{
 			FullName: path,
 			Type:     doType,
 		}
@@ -52,14 +52,14 @@ func NewGlueUsageObjectMapper(dataObjectsWithType *trie.Trie[string]) GlueUsageO
 	return GlueUsageObjectMapper{dataObjectsWithType: dataObjectsWithType}
 }
 
-func (m GlueUsageObjectMapper) MapObject(object string) *data_source.DataObjectReference {
+func (m GlueUsageObjectMapper) MapObject(object string) *data_usage.UsageDataObjectReference {
 	commonPrefix, dataObjectType := m.dataObjectsWithType.GetClosest(object)
 
 	if commonPrefix == "" {
 		return nil
 	}
 
-	return &data_source.DataObjectReference{
+	return &data_usage.UsageDataObjectReference{
 		FullName: commonPrefix,
 		Type:     dataObjectType,
 	}
