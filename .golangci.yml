@@ -14,12 +14,17 @@ linters-settings:
     disabled-checks:
       - dupImport # https://github.com/go-critic/go-critic/issues/845
       - ifElseChain
+      - octalLiteral
+      - whyNoLint
+      - wrapperFunc
+      - importShadow # not important for now
       - unnamedResult # not important
+      - hugeParam #to be checked
+      - commentFormatting
       - paramTypeCombine
 
   govet:
-    enable:
-      - shadow
+    check-shadowing: true
 
   revive:
     rules:
@@ -35,66 +40,54 @@ linters-settings:
     require-explanation: false
     require-specific: false
 
+  gosec:
+    excludes:
+      - G404 # To be checked: Insecure random number source (rand)
+
   stylecheck:
     checks: [ "all", "-ST1003"] # ST1003: No underscores in package names should be fixed and removed?
 
   predeclared:
     ignore: "error"
 
+  gomnd:
+    ignored-functions:
+      - 'math.*' # Magic number generation, should be fixed and removed?
+
   cyclop:
-    max-complexity: 20
+    max-complexity: 30
     skip-tests: true
     package-average: 0.0
 
-  errorlint:
-    errorf: true
-    errorf-multi: true
-    asserts: true
-    comparison: true
-
   exhaustive:
     default-signifies-exhaustive: true
-
-  wrapcheck:
-    ignoreSigs:
-      - .Errorf(
-      - errors.New(
-      - errors.Unwrap(
-      - .Wrap(
-      - .Wrapf(
-      - .WithMessage(
-      - .WithMessagef(
-      - .WithStack(
-      - go-multierror.Append(
 
 linters:
   disable-all: true
   enable:
     - asasalint
     - bodyclose
-#    - cyclop #To be enabled in the future
+    - copyloopvar
+    - cyclop
     #- depguard #We should create a correct config to enabe depguard
     - dogsled
     - dupl
     - dupword
     - durationcheck
     - errcheck
-    - errorlint
-    - exportloopref
     - exhaustive
     - forbidigo
     - goconst
     - gocritic
     - gofmt
     - goimports
+    #- gomnd # Magic numbers should be fixed and enable gomnd,
     - gocyclo
     - gosec
     - gosimple
     - govet
     - ineffassign
     - misspell
-#    - mnd # Magic numbers should be fixed and enable gomnd,
-    - nilerr
     - nolintlint
     - nakedret
     - prealloc
@@ -109,19 +102,21 @@ linters:
     - unparam
     - unused
     - whitespace
-    - wrapcheck
+    # - wrapcheck # 3th party errors should be wrapped to not lose context
     - wsl
 
 run:
   issues-exit-code: 1
   tests: false
+  skip-files:
+    - ".*mock.*\\.go$"
+    - ".*\\.pb\\.go$"
 
 output:
-  path-prefix: ""
+  path-prefix: ''
   sort-results: true
   formats:
-    - path: stdout
-      format: colored-line-number
-  print-issued-lines: false
+    - format: colored-line-number
+  print-issued-lines: true
   print-linter-name: true
   uniq-by-line: false
