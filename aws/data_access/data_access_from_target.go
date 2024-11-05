@@ -85,7 +85,7 @@ func filterApImportList(importList []model.AccessProviderInputExtended, configMa
 		} else if apInput.PolicyType == model.Policy {
 			hasS3Actions := false
 
-			if apInput.ApInput.What != nil && len(apInput.ApInput.What) > 0 {
+			if len(apInput.ApInput.What) > 0 {
 				for _, whatItem := range apInput.ApInput.What {
 					for _, permission := range whatItem.Permissions {
 						if permission == "*" || strings.HasPrefix(permission, "s3:") {
