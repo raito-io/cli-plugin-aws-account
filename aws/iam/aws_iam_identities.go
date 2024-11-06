@@ -230,6 +230,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []strin
 
 		if skip {
 			utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it was requested to be skipped", *roleFromList.RoleName))
+			continue
 		}
 
 		workerPool.Submit(func() {
