@@ -62,7 +62,7 @@ func setupMockExportEnvironment(t *testing.T, ssoEnabled bool) (*MockdataAccessR
 	require.NoError(t, err)
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Maybe()
-	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Maybe()
+	repoMock.EXPECT().GetRoles(mock.Anything, mock.Anything).Return(roles, nil).Maybe()
 	repoMock.EXPECT().ListAccessPoints(mock.Anything, "us-west-1").Return(accessPoints, nil).Maybe()
 
 	data_source2.ClearMetadata()
