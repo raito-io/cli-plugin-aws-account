@@ -33,10 +33,10 @@ type dataAccessRepository interface {
 	DetachRoleFromManagedPolicy(ctx context.Context, policyArn string, roleNames []string) error
 	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
 	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
-	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
+	GetRoles(ctx context.Context, excludedRoles []string) ([]model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error)
 	DeleteRole(ctx context.Context, name string) error
-	GetSsoRoleWithPrefix(ctx context.Context, prefixName string) (*model.RoleEntity, error)
+	GetSsoRoleWithPrefix(ctx context.Context, prefixName string, excludedRoles []string) (*model.RoleEntity, error)
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
 	ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error)

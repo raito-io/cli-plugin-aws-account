@@ -84,7 +84,7 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchGroups() {
 }
 
 func (s *IAMIdentitiesTestSuite) TestIAMIdentities_FetchRoles() {
-	roles, err := s.repo.GetRoles(context.Background())
+	roles, err := s.repo.GetRoles(context.Background(), []string{})
 
 	s.Require().NoError(err)
 	s.Require().NotNil(roles)
@@ -116,7 +116,7 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_CreatePolicy() {
 		s.Assert().NoError(err)
 	}()
 
-	roles, err := s.repo.GetRoles(context.Background())
+	roles, err := s.repo.GetRoles(context.Background(), []string{})
 	s.Assert().NoError(err)
 	s.Assert().NotNil(roles)
 	found := false
@@ -148,7 +148,7 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_UpdateRole() {
 	err = s.repo.UpdateAssumeEntities(context.Background(), name, []string{"d_hayden"})
 	s.Assert().NoError(err)
 
-	roles, err := s.repo.GetRoles(context.Background())
+	roles, err := s.repo.GetRoles(context.Background(), []string{})
 	s.Assert().NoError(err)
 	s.Assert().NotNil(roles)
 	found := false
@@ -168,7 +168,7 @@ func (s *IAMIdentitiesTestSuite) TestIAMIdentities_UpdateRole() {
 func (s *IAMIdentitiesTestSuite) TestIAMIdentities_GetSsoRoleWithPrefix() {
 	s.repo.ClearRolesCache()
 
-	role, err := s.repo.GetSsoRoleWithPrefix(context.Background(), "AWSAdministratorAccess")
+	role, err := s.repo.GetSsoRoleWithPrefix(context.Background(), "AWSAdministratorAccess", []string{})
 	s.Assert().NoError(err)
 	s.Assert().NotNil(role)
 

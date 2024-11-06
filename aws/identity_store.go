@@ -17,7 +17,6 @@ import (
 type identityStoreRepository interface {
 	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
 	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
-	GetRoles(ctx context.Context) ([]model.RoleEntity, error)
 }
 
 type IdentityStoreSyncer struct {
