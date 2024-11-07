@@ -13,6 +13,7 @@ import (
 	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/util/config"
+	"github.com/raito-io/cli/base/util/slice"
 	"github.com/raito-io/golang-set/set"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
@@ -349,7 +350,9 @@ func (r *roleAccessHandler) Initialize(configmap *config.ConfigMap) {
 func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing roles")
 
-	roles, err := r.repo.GetRoles(ctx)
+	roleExcludes := slice.ParseCommaSeparatedList(r.configMap.GetString(constants.AwsAccessRoleExcludes))
+
+	roles, err := r.repo.GetRoles(ctx, roleExcludes)
 	if err != nil {
 		return nil, fmt.Errorf("error fetching existing roles: %w", err)
 	}
@@ -943,6 +946,8 @@ func (a *accessPointHandler) ExecuteDeletes(ctx context.Context) {
 }
 
 func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
+	roleExcludes := slice.ParseCommaSeparatedList(a.configMap.GetString(constants.AwsAccessRoleExcludes))
+
 	for accessPointName, details := range a.accessProviders.AccessPoints {
 		if details.action != ActionCreate && details.action != ActionUpdate {
 			continue
@@ -964,7 +969,7 @@ func (a *accessPointHandler) ExecuteUpdates(ctx context.Context) {
 			if binding.Type == iam.UserResourceType || binding.Type == iam.RoleResourceType {
 				principals = append(principals, utils.GetTrustUserPolicyArn(binding.Type, binding.ResourceName, a.account).String())
 			} else if binding.Type == iam.SsoRoleResourceType {
-				role, err := a.repo.GetSsoRoleWithPrefix(ctx, binding.ResourceName)
+				role, err := a.repo.GetSsoRoleWithPrefix(ctx, binding.ResourceName, roleExcludes)
 				if err != nil {
 					logFeedbackError(details.apFeedback, fmt.Sprintf("failed to get sso role %q: %s", binding.ResourceName, err.Error()))
 

@@ -494,7 +494,9 @@ func (a *AccessSyncer) fetchAllAccessProviders(ctx context.Context, configMap *c
 	var apImportList []model.AccessProviderInputExtended
 
 	if !configMap.GetBool(constants.AwsAccessSkipIAM) {
-		roles, err := a.repo.GetRoles(ctx)
+		roleExcludes := slice.ParseCommaSeparatedList(configMap.GetString(constants.AwsAccessRoleExcludes))
+
+		roles, err := a.repo.GetRoles(ctx, roleExcludes)
 		if err != nil {
 			return nil, fmt.Errorf("get roles: %w", err)
 		}

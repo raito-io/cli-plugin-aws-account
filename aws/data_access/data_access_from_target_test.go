@@ -77,7 +77,7 @@ func setupMockImportEnvironment(t *testing.T) (*MockdataAccessRepository, *Acces
 	}
 
 	repoMock.EXPECT().GetManagedPolicies(mock.Anything).Return(managedPolicies, nil).Once()
-	repoMock.EXPECT().GetRoles(mock.Anything).Return(roles, nil).Once()
+	repoMock.EXPECT().GetRoles(mock.Anything, mock.Anything).Return(roles, nil).Once()
 	repoMock.EXPECT().GetGroups(mock.Anything).Return(groups, nil).Once()
 	repoMock.EXPECT().GetUsers(mock.Anything, false).Return(users, nil).Once()
 	repoMock.EXPECT().GetInlinePoliciesForEntities(mock.Anything, roleNames, iam.RoleResourceType).Return(roleInlineMap, nil).Once()

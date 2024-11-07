@@ -11,6 +11,7 @@ import (
 	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli/base/tag"
+	"github.com/raito-io/cli/base/util/match"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -182,7 +183,7 @@ func (repo *AwsIamRepository) ClearRolesCache() {
 	ssoRolesCache = nil
 }
 
-func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity, error) {
+func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []string) ([]model.RoleEntity, error) {
 	if rolesCache != nil {
 		return rolesCache, nil
 	}
@@ -222,16 +223,26 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context) ([]model.RoleEntity,
 	for i := range allRoles {
 		roleFromList := allRoles[i]
 
+		skip, err2 := match.MatchesAny(*roleFromList.RoleName, roleExcludes)
+		if err2 != nil {
+			utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err2.Error()))
+		}
+
+		if skip {
+			utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it was requested to be skipped", *roleFromList.RoleName))
+			continue
+		}
+
 		workerPool.Submit(func() {
-			roleDetailsRaw, err2 := client.GetRole(ctx, &iam.GetRoleInput{
+			roleDetailsRaw, err3 := client.GetRole(ctx, &iam.GetRoleInput{
 				RoleName: roleFromList.RoleName,
 			})
 
-			if err2 != nil {
-				utils.Logger.Error(fmt.Sprintf("Error getting role %s: %s", *roleFromList.RoleName, err2.Error()))
+			if err3 != nil {
+				utils.Logger.Error(fmt.Sprintf("Error getting role details for %q: %s", *roleFromList.RoleName, err3.Error()))
 
 				smu.Lock()
-				resultErr = multierror.Append(resultErr, err2)
+				resultErr = multierror.Append(resultErr, err3)
 				smu.Unlock()
 
 				return
@@ -351,8 +362,8 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error
 	return nil
 }
 
-func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context) error {
-	roles, err := repo.GetRoles(ctx)
+func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context, excludedRoles []string) error {
+	roles, err := repo.GetRoles(ctx, excludedRoles)
 	if err != nil {
 		return fmt.Errorf("get roles: %w", err)
 	}
@@ -378,9 +389,9 @@ func (repo *AwsIamRepository) loadSsoRolesWithPrefix(ctx context.Context) error 
 	return nil
 }
 
-func (repo *AwsIamRepository) GetSsoRoleWithPrefix(ctx context.Context, prefixName string) (*model.RoleEntity, error) {
+func (repo *AwsIamRepository) GetSsoRoleWithPrefix(ctx context.Context, prefixName string, excludedRoles []string) (*model.RoleEntity, error) {
 	if ssoRolesCache == nil {
-		err := repo.loadSsoRolesWithPrefix(ctx)
+		err := repo.loadSsoRolesWithPrefix(ctx, excludedRoles)
 		if err != nil {
 			return nil, fmt.Errorf("load sso roles: %w", err)
 		}

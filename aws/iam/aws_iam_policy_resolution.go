@@ -273,12 +273,22 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, a
 			if err == nil {
 				fullName = utils.RemoveEndingWildcards(utils.ConvertArnToFullname(resource))
 
-				isBucket := !strings.Contains(fullName, "/")
+				if fullName == "*" {
+					fullName = account
+					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource, cfg)
+				} else if fullName == "accesspoint" || strings.HasPrefix(fullName, "accesspoint/") {
+					utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains accesspoint resource reference %q which we'll ignore.", policyName, resource))
+					localIncomplete = true
 
-				if isBucket {
-					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket, cfg)
+					continue
 				} else {
-					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder, cfg)
+					isBucket := !strings.Contains(fullName, "/")
+
+					if isBucket {
+						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Bucket, cfg)
+					} else {
+						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder, cfg)
+					}
 				}
 			} else if resource == "*" {
 				fullName = account
