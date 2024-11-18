@@ -55,6 +55,16 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 	return nil
 }
 
+func shouldSkipRole(role string, roleExcludes []string) bool {
+	matched, err := match.MatchesAny(role, roleExcludes)
+	if err != nil {
+		utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err.Error()))
+		return false
+	}
+
+	return matched
+}
+
 func filterApImportList(importList []model.AccessProviderInputExtended, configMap *config.ConfigMap) []model.AccessProviderInputExtended {
 	toKeep := set.NewSet[string]()
 
@@ -65,12 +75,7 @@ func filterApImportList(importList []model.AccessProviderInputExtended, configMa
 
 	for _, apInput := range importList {
 		if apInput.PolicyType == model.Role || apInput.PolicyType == model.SSORole {
-			matched, err := match.MatchesAny(apInput.ApInput.Name, roleExcludes)
-			if err != nil {
-				utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err.Error()))
-			}
-
-			if matched {
+			if shouldSkipRole(apInput.ApInput.Name, roleExcludes) {
 				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it was requested to be skipped", apInput.ApInput.ExternalId))
 			} else if len(apInput.ApInput.What) > 0 {
 				// Elements in the WHAT here already means that there are relevant permissions
@@ -83,6 +88,30 @@ func filterApImportList(importList []model.AccessProviderInputExtended, configMa
 
 			continue
 		} else if apInput.PolicyType == model.Policy {
+			if len(apInput.ApInput.Who.AccessProviders) > 0 {
+				toSkip := set.NewSet[string]()
+
+				// Look for roles that are excluded
+				for _, who := range apInput.ApInput.Who.AccessProviders {
+					if strings.HasPrefix(who, constants.RoleTypePrefix) {
+						roleName, _ := strings.CutPrefix(who, constants.RoleTypePrefix)
+
+						if shouldSkipRole(roleName, roleExcludes) {
+							toSkip.Add(who)
+						}
+					}
+				}
+
+				// We have some roles to skip, so remove them and mark the policy as incomplete
+				if len(toSkip) > 0 {
+					utils.Logger.Debug(fmt.Sprintf("Removing skipped roles %q from policy %q and marking as incomplete", toSkip.Slice(), apInput.ApInput.ExternalId))
+					newAps := set.NewSet[string](apInput.ApInput.Who.AccessProviders...)
+					newAps.RemoveAll(toSkip.Slice()...)
+					apInput.ApInput.Who.AccessProviders = newAps.Slice()
+					apInput.ApInput.Incomplete = ptr.Bool(true)
+				}
+			}
+
 			hasS3Actions := false
 
 			if len(apInput.ApInput.What) > 0 {
