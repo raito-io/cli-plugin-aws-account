@@ -1,4 +1,4 @@
-package data_source //nolint:dupl // Improved readability
+package data_source
 
 import (
 	ds "github.com/raito-io/cli/base/data_source"
