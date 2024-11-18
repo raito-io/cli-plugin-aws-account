@@ -56,13 +56,18 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest() {
 
 	dataObjectmap := make(map[string]string)
 
+	fetchedDOs := []*ds2.DataObject{}
+
 	for _, do := range dsHandler.DataObjects {
-		dataObjectmap[do.FullName] = do.Type
+		if do.Type != ds2.Column { // We ignore columns for this test
+			dataObjectmap[do.FullName] = do.Type
+			fetchedDOs = append(fetchedDOs, do)
+		}
 	}
 
-	s.Require().Lenf(dsHandler.DataObjects, len(doMap), "Expected %d data objects, got %d: %+v != %+v", len(doMap), len(dsHandler.DataObjects), doMap, dataObjectmap)
+	s.Require().Lenf(fetchedDOs, len(doMap), "Expected %d data objects, got %d: %+v != %+v", len(doMap), len(fetchedDOs), doMap, dataObjectmap)
 
-	for _, do := range dsHandler.DataObjects {
+	for _, do := range fetchedDOs {
 		s.Require().Contains(doMap, do.FullName)
 		s.Require().Equal(doMap[do.FullName], do.Type)
 	}

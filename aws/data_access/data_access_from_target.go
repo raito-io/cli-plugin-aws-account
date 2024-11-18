@@ -491,6 +491,11 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 	}
 
 	for _, accessPoint := range accessPoints {
+		if accessPoint.PolicyDocument == nil {
+			utils.Logger.Warn(fmt.Sprintf("Skipping access point %q as it has no policy document", accessPoint.Name))
+			continue
+		}
+
 		newAp := model.AccessProviderInputExtended{
 			PolicyType: model.AccessPoint,
 			ApInput: &sync_from_target.AccessProvider{
@@ -500,11 +505,8 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 				NamingHint: "",
 				ActualName: accessPoint.Name,
 				Action:     sync_from_target.Grant,
+				Policy:     *accessPoint.PolicyDocument,
 			}}
-
-		if accessPoint.PolicyDocument != nil {
-			newAp.ApInput.Policy = *accessPoint.PolicyDocument
-		}
 
 		incomplete := false
 		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.cfgMap)
