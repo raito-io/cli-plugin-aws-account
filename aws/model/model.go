@@ -10,7 +10,7 @@ import (
 	"github.com/raito-io/cli/base/tag"
 )
 
-var GlueTable = "glue-" + ds.Table
+var GlueTableType = "glue-" + ds.Table
 
 type AccessProviderType string
 
@@ -149,4 +149,19 @@ type AwsS3AccessPoint struct {
 	Bucket         string
 	PolicyDocument *string
 	PolicyParsed   *awspolicy.Policy
+}
+
+type GlueTable struct {
+	Name        string
+	Location    string
+	Columns     []GlueColumn
+	Description *string
+	Tags        map[string]string
+}
+
+type GlueColumn struct {
+	Name        string
+	Type        *string
+	Description *string
+	Tags        map[string]string
 }

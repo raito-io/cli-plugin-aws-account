@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	"github.com/hashicorp/go-multierror"
+	"github.com/raito-io/cli/base/tag"
 	"github.com/raito-io/golang-set/set"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
@@ -138,14 +139,16 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 			return fmt.Errorf("listing glue tables: %w", err2)
 		}
 
-		for tableName, location := range tables {
-			if !strings.HasPrefix(location, "s3://") {
+		for i := range tables {
+			table := tables[i]
+
+			if !strings.HasPrefix(table.Location, "s3://") {
 				continue
 			}
 
-			utils.Logger.Debug(fmt.Sprintf("Handling table %q with location %q", tableName, location))
+			utils.Logger.Debug(fmt.Sprintf("Handling table %q with location %q", table.Name, table.Location))
 
-			location = strings.TrimPrefix(location, "s3://")
+			location := strings.TrimPrefix(table.Location, "s3://")
 			location = strings.TrimSuffix(location, "/")
 
 			pathParts := strings.Split(location, "/")
@@ -180,19 +183,57 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 
 					// The last one we specify as type glue table
 					if i == len(pathParts)-1 {
-						doType = model.GlueTable
+						doType = model.GlueTableType
 					}
 
-					err = dataSourceHandler.AddDataObjects(&ds.DataObject{
+					tableDO := &ds.DataObject{
 						ExternalId:       currentPath,
 						Name:             pathParts[i],
 						FullName:         currentPath,
 						Type:             doType,
 						ParentExternalId: parentPath,
-					})
+					}
+
+					if doType == model.GlueTableType {
+						if table.Description != nil {
+							tableDO.Description = *table.Description
+						}
+
+						tableDO.Tags = s.mapToTags(table.Tags)
+					}
+
+					err = dataSourceHandler.AddDataObjects(tableDO)
 
 					if err != nil {
 						return fmt.Errorf("adding %s %q to file: %w", doType, currentPath, err)
+					}
+
+					if doType == model.GlueTableType {
+						// Now add the columns as well
+						for _, column := range table.Columns {
+							columnFullName := fmt.Sprintf("%s/%s", currentPath, column.Name)
+
+							columnDescr := ""
+							if column.Description != nil {
+								columnDescr = *column.Description
+							}
+
+							columnDO := &ds.DataObject{
+								ExternalId:       columnFullName,
+								Name:             column.Name,
+								FullName:         columnFullName,
+								Type:             ds.Column,
+								ParentExternalId: currentPath,
+								DataType:         column.Type,
+								Description:      columnDescr,
+								Tags:             s.mapToTags(column.Tags),
+							}
+
+							err = dataSourceHandler.AddDataObjects(columnDO)
+							if err != nil {
+								return fmt.Errorf("adding %s %q to file: %w", ds.Column, columnFullName, err)
+							}
+						}
 					}
 
 					pathsHandled.Add(currentPath)
@@ -202,6 +243,20 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 	}
 
 	return nil
+}
+
+func (s *DataSourceSyncer) mapToTags(input map[string]string) []*tag.Tag {
+	tags := make([]*tag.Tag, 0, len(input))
+
+	for key, value := range input {
+		tags = append(tags, &tag.Tag{
+			Key:    key,
+			Value:  value,
+			Source: constants.TagSource,
+		})
+	}
+
+	return tags
 }
 
 func (s *DataSourceSyncer) FetchS3DataObjects(ctx context.Context, dataSourceHandler wrappers.DataSourceObjectHandler) error {

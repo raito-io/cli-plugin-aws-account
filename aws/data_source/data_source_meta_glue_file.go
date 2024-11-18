@@ -23,32 +23,38 @@ func (p S3GlueMetadataProvider) DataObjectTypes() []*ds.DataObjectType {
 			Type:        ds.Bucket,
 			Label:       "S3 Bucket",
 			Permissions: permissions.AllS3Permissions,
-			Children:    []string{ds.Folder, model.GlueTable},
+			Children:    []string{ds.Folder, model.GlueTableType},
 		},
 		{
 			Name:        ds.Folder,
 			Type:        ds.Folder,
 			Label:       "S3 Folder",
 			Permissions: permissions.S3ObjectPermissions,
-			Children:    []string{ds.Folder, model.GlueTable},
+			Children:    []string{ds.Folder, model.GlueTableType},
 		},
 		{
-			Name:        model.GlueTable,
+			Name:        model.GlueTableType,
 			Type:        ds.Table,
 			Label:       "Glue Table",
 			Permissions: permissions.S3AccessPointPermissions,
-			Children:    []string{},
+			Children:    []string{ds.Column},
+		},
+		{
+			Name:     ds.Column,
+			Type:     ds.Column,
+			Label:    "Column",
+			Children: []string{},
 		},
 	}
 }
 
 func (p S3GlueMetadataProvider) UsageMetaInfo() *ds.UsageMetaInput {
 	return &ds.UsageMetaInput{
-		DefaultLevel: model.GlueTable,
+		DefaultLevel: model.GlueTableType,
 		Levels: []*ds.UsageMetaInputDetail{
 			{
-				Name:            model.GlueTable,
-				DataObjectTypes: []string{model.GlueTable, ds.Folder},
+				Name:            model.GlueTableType,
+				DataObjectTypes: []string{model.GlueTableType, ds.Folder},
 			},
 		},
 	}

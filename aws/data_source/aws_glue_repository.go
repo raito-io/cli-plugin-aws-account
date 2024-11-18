@@ -7,6 +7,7 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/glue"
 	"github.com/aws/smithy-go/ptr"
+	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/util/config"
 
 	baserepo "github.com/raito-io/cli-plugin-aws-account/aws/repo"
@@ -35,7 +36,7 @@ func (repo *AwsGlueRepository) GetGlueClient(ctx context.Context, region *string
 	return client, nil
 }
 
-func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accountId string, database string, region string) (map[string]string, error) {
+func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accountId string, database string, region string) ([]model.GlueTable, error) {
 	client, err := repo.GetGlueClient(ctx, ptr.String(region))
 	if err != nil {
 		return nil, err
@@ -45,7 +46,7 @@ func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accoun
 
 	var nextToken *string
 
-	tableMap := make(map[string]string)
+	tables := make([]model.GlueTable, 0, 10)
 
 	for moreObjectsAvailable {
 		utils.Logger.Debug(fmt.Sprintf("Load more glue tables for database %q", database))
@@ -64,7 +65,24 @@ func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accoun
 		for i := range tbls.TableList {
 			tbl := tbls.TableList[i]
 			if tbl.StorageDescriptor != nil && tbl.StorageDescriptor.Location != nil {
-				tableMap[*tbl.Name] = *tbl.StorageDescriptor.Location
+				table := model.GlueTable{
+					Name:        *tbl.Name,
+					Location:    *tbl.StorageDescriptor.Location,
+					Columns:     make([]model.GlueColumn, 0, len(tbl.StorageDescriptor.Columns)),
+					Description: tbl.Description,
+					Tags:        tbl.Parameters,
+				}
+
+				for _, col := range tbl.StorageDescriptor.Columns {
+					table.Columns = append(table.Columns, model.GlueColumn{
+						Name:        *col.Name,
+						Type:        col.Type,
+						Description: col.Comment,
+						Tags:        col.Parameters,
+					})
+				}
+
+				tables = append(tables, table)
 			}
 		}
 
@@ -72,7 +90,7 @@ func (repo *AwsGlueRepository) ListTablesForDatabase(ctx context.Context, accoun
 		moreObjectsAvailable = nextToken != nil
 	}
 
-	return tableMap, nil
+	return tables, nil
 }
 
 func (repo *AwsGlueRepository) ListDatabases(ctx context.Context, accountId string, region string) ([]string, error) {

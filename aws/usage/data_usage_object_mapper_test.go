@@ -94,33 +94,33 @@ func TestGlueUsageObjectMapper_MapObject(t *testing.T) {
 		{
 			name: "Fullname can be used",
 			fields: fields{
-				dataObjectsWithType: trie.FromMap("/", map[string]string{"bucket1/folder1/folder2": model.GlueTable, "bucket1/folder1/folder3": model.GlueTable, "bucket1/folder1": data_source.Folder}),
+				dataObjectsWithType: trie.FromMap("/", map[string]string{"bucket1/folder1/folder2": model.GlueTableType, "bucket1/folder1/folder3": model.GlueTableType, "bucket1/folder1": data_source.Folder}),
 			},
 			args: args{
 				object: "bucket1/folder1/folder2",
 			},
 			want: &data_usage.UsageDataObjectReference{
 				FullName: "bucket1/folder1/folder2",
-				Type:     model.GlueTable,
+				Type:     model.GlueTableType,
 			},
 		},
 		{
 			name: "Map to table",
 			fields: fields{
-				dataObjectsWithType: trie.FromMap("/", map[string]string{"bucket1/folder1/folder2": model.GlueTable, "bucket1/folder1/folder3": model.GlueTable, "bucket1/folder1": data_source.Folder}),
+				dataObjectsWithType: trie.FromMap("/", map[string]string{"bucket1/folder1/folder2": model.GlueTableType, "bucket1/folder1/folder3": model.GlueTableType, "bucket1/folder1": data_source.Folder}),
 			},
 			args: args{
 				object: "bucket1/folder1/folder2/folder3/file.parquet",
 			},
 			want: &data_usage.UsageDataObjectReference{
 				FullName: "bucket1/folder1/folder2",
-				Type:     model.GlueTable,
+				Type:     model.GlueTableType,
 			},
 		},
 		{
 			name: "Not found",
 			fields: fields{
-				dataObjectsWithType: trie.FromMap("/", map[string]string{"bucket1/folder1/folder2": model.GlueTable, "bucket1/folder1/folder3": model.GlueTable, "bucket1/folder1": data_source.Folder}),
+				dataObjectsWithType: trie.FromMap("/", map[string]string{"bucket1/folder1/folder2": model.GlueTableType, "bucket1/folder1/folder3": model.GlueTableType, "bucket1/folder1": data_source.Folder}),
 			},
 			args: args{
 				object: "bucket3/folder1/folder2/folder3/file.parquet",
