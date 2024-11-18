@@ -32,6 +32,8 @@ const (
 	AwsAccessSkipS3AccessPoints      = "aws-access-skip-s3-access-points"
 	AwsAccessRoleExcludes            = "aws-access-role-excludes"
 
+	AwsUserExcludes = "aws-user-excludes"
+
 	AwsS3CloudTrailBucket = "aws-s3-cloudtrail-bucket"
 
 	// To make a distinct difference between policies and roles when reading ACs from the target, we'll prefix policy names with this value.

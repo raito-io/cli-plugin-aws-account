@@ -12,6 +12,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli/base/tag"
 	"github.com/raito-io/cli/base/util/match"
+	"github.com/raito-io/cli/base/util/slice"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
@@ -60,6 +61,8 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 
 	var resultErr error
 
+	excludes := slice.ParseCommaSeparatedList(repo.configMap.GetString(constants.AwsUserExcludes))
+
 	for i := range allUsers {
 		user := allUsers[i]
 
@@ -68,24 +71,37 @@ func (repo *AwsIamRepository) GetUsers(ctx context.Context, withDetails bool) ([
 			var tags []*tag.Tag
 
 			if withDetails {
-				userInput := iam.GetUserInput{
-					UserName: user.UserName,
-				}
-
-				userRaw, err2 := client.GetUser(ctx, &userInput)
-				if err2 != nil {
-					utils.Logger.Error(fmt.Sprintf("failed to get user %s: %s", *user.UserName, err2.Error()))
-
+				matched, err3 := match.MatchesAny(*user.UserName, excludes)
+				if err3 != nil {
 					smu.Lock()
-					resultErr = multierror.Append(resultErr, err2)
+					resultErr = multierror.Append(resultErr, err3)
 					smu.Unlock()
 
 					return
 				}
 
-				user = *userRaw.User
-				tags = utils.GetTags(user.Tags)
-				emailAddress = utils.GetEmailAddressFromTags(tags, *user.UserName)
+				if matched {
+					utils.Logger.Debug(fmt.Sprintf("Skipping details fetching for user %s as it is excluded", *user.UserName))
+				} else {
+					userInput := iam.GetUserInput{
+						UserName: user.UserName,
+					}
+
+					userRaw, err2 := client.GetUser(ctx, &userInput)
+					if err2 != nil {
+						utils.Logger.Error(fmt.Sprintf("failed to get user %s: %s", *user.UserName, err2.Error()))
+
+						smu.Lock()
+						resultErr = multierror.Append(resultErr, err2)
+						smu.Unlock()
+
+						return
+					}
+
+					user = *userRaw.User
+					tags = utils.GetTags(user.Tags)
+					emailAddress = utils.GetEmailAddressFromTags(tags, *user.UserName)
+				}
 			}
 
 			smu.Lock()
