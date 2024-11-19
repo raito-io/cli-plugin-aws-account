@@ -316,7 +316,7 @@ func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem, cfg *co
 			fullName := what.DataObject.FullName
 
 			// TODO: later this should only be done for S3 resources?
-			if strings.Contains(fullName, ":") {
+			if strings.Contains(fullName, ":") { // Cutting off the 'accountID:region:' prefix
 				fullName = fullName[strings.Index(fullName, ":")+1:]
 				if strings.Contains(fullName, ":") {
 					fullName = fullName[strings.Index(fullName, ":")+1:]
