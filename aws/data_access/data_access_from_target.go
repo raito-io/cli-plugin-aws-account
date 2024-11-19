@@ -55,6 +55,16 @@ func (a *AccessSyncer) doSyncAccessProvidersFromTarget(ctx context.Context, acce
 	return nil
 }
 
+func shouldSkipRole(role string, roleExcludes []string) bool {
+	matched, err := match.MatchesAny(role, roleExcludes)
+	if err != nil {
+		utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err.Error()))
+		return false
+	}
+
+	return matched
+}
+
 func filterApImportList(importList []model.AccessProviderInputExtended, configMap *config.ConfigMap) []model.AccessProviderInputExtended {
 	toKeep := set.NewSet[string]()
 
@@ -65,12 +75,7 @@ func filterApImportList(importList []model.AccessProviderInputExtended, configMa
 
 	for _, apInput := range importList {
 		if apInput.PolicyType == model.Role || apInput.PolicyType == model.SSORole {
-			matched, err := match.MatchesAny(apInput.ApInput.Name, roleExcludes)
-			if err != nil {
-				utils.Logger.Error(fmt.Sprintf("invalid value for parameter %q: %s", constants.AwsAccessRoleExcludes, err.Error()))
-			}
-
-			if matched {
+			if shouldSkipRole(apInput.ApInput.Name, roleExcludes) {
 				utils.Logger.Debug(fmt.Sprintf("Skipping role %q as it was requested to be skipped", apInput.ApInput.ExternalId))
 			} else if len(apInput.ApInput.What) > 0 {
 				// Elements in the WHAT here already means that there are relevant permissions
@@ -83,6 +88,30 @@ func filterApImportList(importList []model.AccessProviderInputExtended, configMa
 
 			continue
 		} else if apInput.PolicyType == model.Policy {
+			if len(apInput.ApInput.Who.AccessProviders) > 0 {
+				toSkip := set.NewSet[string]()
+
+				// Look for roles that are excluded
+				for _, who := range apInput.ApInput.Who.AccessProviders {
+					if strings.HasPrefix(who, constants.RoleTypePrefix) {
+						roleName, _ := strings.CutPrefix(who, constants.RoleTypePrefix)
+
+						if shouldSkipRole(roleName, roleExcludes) {
+							toSkip.Add(who)
+						}
+					}
+				}
+
+				// We have some roles to skip, so remove them and mark the policy as incomplete
+				if len(toSkip) > 0 {
+					utils.Logger.Debug(fmt.Sprintf("Removing skipped roles %q from policy %q and marking as incomplete", toSkip.Slice(), apInput.ApInput.ExternalId))
+					newAps := set.NewSet[string](apInput.ApInput.Who.AccessProviders...)
+					newAps.RemoveAll(toSkip.Slice()...)
+					apInput.ApInput.Who.AccessProviders = newAps.Slice()
+					apInput.ApInput.Incomplete = ptr.Bool(true)
+				}
+			}
+
 			hasS3Actions := false
 
 			if len(apInput.ApInput.What) > 0 {
@@ -186,6 +215,11 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 		return nil, nil
 	}
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		return nil, fmt.Errorf("get bucket region map: %w", err)
+	}
+
 	for ind := range policies {
 		policy := policies[ind]
 
@@ -228,7 +262,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 			continue
 		}
 
-		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, a.cfgMap)
+		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, bucketRegionMap, a.cfgMap)
 
 		policyDocument := ""
 		if policy.PolicyDocument != nil {
@@ -272,15 +306,38 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 	return aps, nil
 }
 
+func (a *AccessSyncer) getBucketRegionMap() (map[string]string, error) {
+	if a.bucketRegionMap == nil {
+		a.bucketRegionMap = make(map[string]string)
+
+		buckets, err := a.s3Repo.ListBuckets(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("list buckets: %w", err)
+		}
+
+		for _, bucket := range buckets {
+			a.bucketRegionMap[bucket.Key] = bucket.Region
+		}
+	}
+
+	return a.bucketRegionMap, nil
+}
+
 func (a *AccessSyncer) convertPoliciesToWhat(policies []model.PolicyEntity) ([]sync_from_target.WhatItem, bool, string) {
 	// Making sure to never return nil
 	whatItems := make([]sync_from_target.WhatItem, 0, 10)
 	incomplete := false
 	policyDocuments := ""
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		utils.Logger.Error(fmt.Sprintf("Failed to get bucket region map: %s", err.Error()))
+		return nil, true, ""
+	}
+
 	for i := range policies {
 		policy := policies[i]
-		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, a.cfgMap)
+		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, bucketRegionMap, a.cfgMap)
 
 		if policy.PolicyDocument != nil {
 			policyDocuments += *policy.PolicyDocument + "\n"
@@ -461,7 +518,17 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 		return nil, fmt.Errorf("list access points: %w", err)
 	}
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		return nil, fmt.Errorf("get bucket region map: %w", err)
+	}
+
 	for _, accessPoint := range accessPoints {
+		if accessPoint.PolicyDocument == nil {
+			utils.Logger.Warn(fmt.Sprintf("Skipping access point %q as it has no policy document", accessPoint.Name))
+			continue
+		}
+
 		newAp := model.AccessProviderInputExtended{
 			PolicyType: model.AccessPoint,
 			ApInput: &sync_from_target.AccessProvider{
@@ -471,14 +538,11 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 				NamingHint: "",
 				ActualName: accessPoint.Name,
 				Action:     sync_from_target.Grant,
+				Policy:     *accessPoint.PolicyDocument,
 			}}
 
-		if accessPoint.PolicyDocument != nil {
-			newAp.ApInput.Policy = *accessPoint.PolicyDocument
-		}
-
 		incomplete := false
-		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.cfgMap)
+		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, bucketRegionMap, a.cfgMap)
 
 		if incomplete {
 			newAp.ApInput.Incomplete = ptr.Bool(true)

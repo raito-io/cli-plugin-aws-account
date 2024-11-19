@@ -48,7 +48,7 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAcces
 		s.Equal(aps[i].ApInput.Who.Users[0], "m_carissa")
 		s.Len(aps[i].ApInput.Who.AccessProviders, 1)
 		s.Equal(constants.RoleTypePrefix+"MarketingRole", aps[i].ApInput.Who.AccessProviders[0])
-		s.Equal("raito-data-corporate/operations", aps[i].ApInput.What[0].DataObject.FullName)
+		s.Equal("077954824694:eu-central-1:raito-data-corporate/operations", aps[i].ApInput.What[0].DataObject.FullName)
 		s.Equal("s3:GetObject", aps[i].ApInput.What[0].Permissions[0])
 		s.True(aps[i].ApInput.Incomplete == nil || !*aps[0].ApInput.Incomplete)
 
@@ -68,12 +68,14 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
 	config.Parameters[constants.AwsAccessSkipAWSManagedPolicies] = "true"
 	err := accessSyncer.SyncAccessProvidersFromTarget(context.Background(), handler, config)
 
+	doPrefix := "077954824694:eu-central-1:"
+
 	expectedAps := map[string]expectedAP{
-		"accesspoint:arn:aws:s3:eu-central-1:077954824694:accesspoint/operations": {whoUsers: []string{"m_carissa"}, whoAps: []string{"role:MarketingRole"}, name: "operations", whatDos: []string{"raito-data-corporate/operations"}, whatPermissions: []string{"s3:GetObject"}, incomplete: false, apType: "aws_access_point"},
+		"accesspoint:arn:aws:s3:eu-central-1:077954824694:accesspoint/operations": {whoUsers: []string{"m_carissa"}, whoAps: []string{"role:MarketingRole"}, name: "operations", whatDos: []string{doPrefix + "raito-data-corporate/operations"}, whatPermissions: []string{"s3:GetObject"}, incomplete: false, apType: "aws_access_point"},
 		"role:MarketingRole":                 {whoUsers: []string{"m_carissa"}, name: "MarketingRole", incomplete: false, apType: "aws_role"},
-		"user:d_hayden|inline:DustinPolicy|": {whoUsers: []string{"d_hayden"}, name: "User d_hayden inline policies", whatDos: []string{"raito-data-corporate/operations"}, whatPermissions: []string{"s3:GetObject"}, incomplete: false, apType: "aws_policy"},
-		"group:Sales|inline:SalesPolicy|":    {whoGroups: []string{"Sales"}, name: "Group Sales inline policies", whatDos: []string{"raito-data-corporate/sales"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_policy"},
-		"policy:marketing_policy":            {whoAps: []string{"role:MarketingRole"}, name: "marketing_policy", whatDos: []string{"raito-data-corporate/marketing"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_policy"},
+		"user:d_hayden|inline:DustinPolicy|": {whoUsers: []string{"d_hayden"}, name: "User d_hayden inline policies", whatDos: []string{doPrefix + "raito-data-corporate/operations"}, whatPermissions: []string{"s3:GetObject"}, incomplete: false, apType: "aws_policy"},
+		"group:Sales|inline:SalesPolicy|":    {whoGroups: []string{"Sales"}, name: "Group Sales inline policies", whatDos: []string{doPrefix + "raito-data-corporate/sales"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_policy"},
+		"policy:marketing_policy":            {whoAps: []string{"role:MarketingRole"}, name: "marketing_policy", whatDos: []string{doPrefix + "raito-data-corporate/marketing"}, whatPermissions: []string{"s3:GetObject", "s3:PutObject"}, incomplete: false, apType: "aws_policy"},
 	}
 
 	s.NoError(err)

@@ -47,11 +47,15 @@ func setupMockExportEnvironment(t *testing.T, ssoEnabled bool) (*MockdataAccessR
 	nameGenerator, err := NewNameGenerator("123456789012")
 	require.NoError(t, err)
 
+	s3RepoMock := NewMockdataAccessS3Repo(t)
+	s3RepoMock.EXPECT().ListBuckets(mock.Anything).Return([]model.AwsS3Entity{}, nil).Once()
+
 	syncer := &AccessSyncer{
 		repo:          repoMock,
 		ssoRepo:       ssoRepoMock,
 		iamRepo:       iamRepo,
 		nameGenerator: nameGenerator,
+		s3Repo:        s3RepoMock,
 	}
 
 	roles, err := getObjects[model.RoleEntity]("../testdata/aws/test_roles.json")

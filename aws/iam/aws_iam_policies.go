@@ -833,6 +833,8 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 
 	entityType := UserResourceType
 
+	userExcludes := slice.ParseCommaSeparatedList(repo.configMap.GetString(constants.AwsUserExcludes))
+
 	workerPool := workerpool.New(utils.GetConcurrency(repo.configMap))
 	var smu sync.Mutex
 	var resultErr error
@@ -841,6 +843,16 @@ func (repo *AwsIamRepository) getUserInlinePolicyBindings(ctx context.Context, c
 		entityName := entityNames[i]
 
 		if entityName == "root" {
+			continue
+		}
+
+		matched, err3 := match.MatchesAny(entityName, userExcludes)
+		if err3 != nil {
+			return nil, fmt.Errorf("matching user to exlude: %w", err3)
+		}
+
+		if matched {
+			utils.Logger.Debug(fmt.Sprintf("Skipping policy fetching for user %s as it is excluded", entityName))
 			continue
 		}
 
