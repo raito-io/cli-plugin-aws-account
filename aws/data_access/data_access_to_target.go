@@ -85,6 +85,11 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	utils.Logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		return fmt.Errorf("get bucket region map: %w", err)
+	}
+
 	feedbackMap := make(map[string]*sync_to_target.AccessProviderSyncFeedback)
 
 	// Sort access providers on type
@@ -150,7 +155,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	// Initialize handlers
 	for _, handler := range handlers {
-		err = handler.Initialize(ctx, a.cfgMap)
+		err = handler.Initialize(ctx, a.cfgMap, bucketRegionMap)
 		if err != nil {
 			return fmt.Errorf("initialize handler %T: %w", handler, err)
 		}

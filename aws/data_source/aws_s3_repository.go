@@ -59,7 +59,7 @@ func (repo *AwsS3Repository) ListBuckets(ctx context.Context) ([]model.AwsS3Enti
 	for _, bucket := range output.Buckets {
 		bl, err := client.GetBucketLocation(ctx, &s3.GetBucketLocationInput{Bucket: bucket.Name})
 		if err != nil {
-			return nil, fmt.Errorf("fetching bucket lockation: %w", err)
+			return nil, fmt.Errorf("fetching bucket location: %w", err)
 		}
 
 		region := string(bl.LocationConstraint)

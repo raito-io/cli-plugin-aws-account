@@ -21,8 +21,12 @@ import (
 func setupMockImportEnvironment(t *testing.T) (*MockdataAccessRepository, *AccessSyncer) {
 	repoMock := NewMockdataAccessRepository(t)
 
+	s3RepoMock := NewMockdataAccessS3Repo(t)
+	s3RepoMock.EXPECT().ListBuckets(mock.Anything).Return([]model.AwsS3Entity{}, nil).Once()
+
 	syncer := &AccessSyncer{
-		repo: repoMock,
+		repo:   repoMock,
+		s3Repo: s3RepoMock,
 	}
 
 	managedPolicies, err := getObjects[model.PolicyEntity]("../testdata/aws/test_managed_policies.json")

@@ -17,7 +17,7 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
-func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName string, name string, account string, cfg *config.ConfigMap) (*sync_from_target.WhoItem, []sync_from_target.WhatItem, bool) {
+func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName string, name string, account string, bucketRegionMap map[string]string, cfg *config.ConfigMap) (*sync_from_target.WhoItem, []sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, nil, false
 	}
@@ -76,6 +76,16 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 
 						continue
 					}
+
+					region, f := bucketRegionMap[bucketName]
+					if !f {
+						utils.Logger.Warn(fmt.Sprintf("Bucket %q not found. Unable to determine region. Skipping", bucketName))
+						localIncomplete = true
+
+						continue
+					}
+
+					fullName = fmt.Sprintf("%s:%s:%s", account, region, fullName)
 
 					permissionSet := whatMap[fullName]
 					if permissionSet == nil {
@@ -247,7 +257,7 @@ func handleStatements(policy *awspolicy.Policy, name string, handler func(statem
 	return incomplete
 }
 
-func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, account string, cfg *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
+func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, account string, bucketRegionMap map[string]string, cfg *config.ConfigMap) ([]sync_from_target.WhatItem, bool) {
 	if policy == nil {
 		return nil, false
 	}
@@ -289,6 +299,23 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, a
 					} else {
 						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder, cfg)
 					}
+
+					bucketName := fullName
+
+					if !isBucket {
+						parts := strings.Split(fullName, "/")
+						bucketName = parts[0]
+					}
+
+					region, f := bucketRegionMap[bucketName]
+					if !f {
+						utils.Logger.Warn(fmt.Sprintf("Bucket %q not found. Unable to determine region. Skipping", bucketName))
+						localIncomplete = true
+
+						continue
+					}
+
+					fullName = fmt.Sprintf("%s:%s:%s", account, region, fullName)
 				}
 			} else if resource == "*" {
 				fullName = account

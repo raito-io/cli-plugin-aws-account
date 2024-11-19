@@ -147,7 +147,7 @@ func (a *AccessProvidersByType) GetAllAccessProvidersInInheritanceChainForWhat(t
 
 type AccessHandlerExecutor interface {
 	Initialize(configmap *config.ConfigMap)
-	FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error)
+	FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error)
 	HookInlinePolicies(ap *sync_to_target.AccessProvider)
 	ExternalId(name string, details *AccessProviderDetails) *string
 	HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error)
@@ -177,10 +177,10 @@ type AccessHandler struct {
 	executor AccessHandlerExecutor
 }
 
-func (a *AccessHandler) Initialize(ctx context.Context, configmap *config.ConfigMap) error {
+func (a *AccessHandler) Initialize(ctx context.Context, configmap *config.ConfigMap, bucketRegionMap map[string]string) error {
 	a.executor.Initialize(configmap)
 
-	bindings, err := a.executor.FetchExistingBindings(ctx)
+	bindings, err := a.executor.FetchExistingBindings(ctx, bucketRegionMap)
 	if err != nil {
 		return fmt.Errorf("fetch existing bindings: %w", err)
 	}
@@ -347,7 +347,7 @@ func (r *roleAccessHandler) Initialize(configmap *config.ConfigMap) {
 	r.configMap = configmap
 }
 
-func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing roles")
 
 	roleExcludes := slice.ParseCommaSeparatedList(r.configMap.GetString(constants.AwsAccessRoleExcludes))
@@ -518,7 +518,7 @@ func (p *policyAccessHandler) Initialize(configmap *config.ConfigMap) {
 	p.configMap = configmap
 }
 
-func (p *policyAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+func (p *policyAccessHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing managed policies")
 
 	managedPolicies, err := p.repo.GetManagedPolicies(ctx)
@@ -797,13 +797,13 @@ func (a *accessPointHandler) Initialize(configmap *config.ConfigMap) {
 	a.defaultRegion = strings.Split(configmap.GetStringWithDefault(constants.AwsRegions, "eu-central1"), ",")[0]
 }
 
-func (a *accessPointHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+func (a *accessPointHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
 	utils.Logger.Info("Fetching existing access points")
 
 	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
 
 	for _, region := range utils.GetRegions(a.configMap) {
-		err := a.fetchExistingAccessPointsForRegion(ctx, region, existingPolicyBindings)
+		err := a.fetchExistingAccessPointsForRegion(ctx, region, existingPolicyBindings, bucketRegionMap)
 		if err != nil {
 			return nil, fmt.Errorf("fetching existing access points for region %s: %w", region, err)
 		}
@@ -812,7 +812,7 @@ func (a *accessPointHandler) FetchExistingBindings(ctx context.Context) (map[str
 	return existingPolicyBindings, nil
 }
 
-func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Context, region string, existingPolicyBindings map[string]set.Set[model.PolicyBinding]) error {
+func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Context, region string, existingPolicyBindings map[string]set.Set[model.PolicyBinding], bucketRegionMap map[string]string) error {
 	accessPoints, err := a.repo.ListAccessPoints(ctx, region)
 	if err != nil {
 		return fmt.Errorf("error fetching existing access points: %w", err)
@@ -823,7 +823,7 @@ func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Cont
 
 		existingPolicyBindings[accessPoint.Name] = set.Set[model.PolicyBinding]{}
 
-		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.configMap)
+		who, _, _ := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, bucketRegionMap, a.configMap)
 		if who != nil {
 			// Note: Groups are not supported here in AWS.
 			for _, userName := range who.Users {
@@ -1083,7 +1083,7 @@ func (s *ssoRoleAccessHandler) Initialize(configmap *config.ConfigMap) {
 	s.config = configmap
 }
 
-func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context) (map[string]set.Set[model.PolicyBinding], error) {
+func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
 	result := make(map[string]set.Set[model.PolicyBinding])
 
 	permissionSetArns, err := s.ssoAdmin.ListSsoRole(ctx)

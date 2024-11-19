@@ -7,6 +7,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	awspolicy "github.com/n4ch04/aws-policy"
+	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/golang-set/set"
 
@@ -76,13 +77,19 @@ type dataAccessIamRepository interface {
 	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
 }
 
+type dataAccessS3Repo interface {
+	ListBuckets(ctx context.Context) ([]model.AwsS3Entity, error)
+}
+
 type AccessSyncer struct {
-	repo         dataAccessRepository
-	ssoRepo      dataAccessSsoRepository
-	iamRepo      dataAccessIamRepository
-	account      string
-	userGroupMap map[string][]string
-	cfgMap       *config.ConfigMap
+	repo            dataAccessRepository
+	ssoRepo         dataAccessSsoRepository
+	iamRepo         dataAccessIamRepository
+	s3Repo          dataAccessS3Repo
+	account         string
+	userGroupMap    map[string][]string
+	cfgMap          *config.ConfigMap
+	bucketRegionMap map[string]string
 
 	nameGenerator *NameGenerator
 }
@@ -126,6 +133,8 @@ func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigM
 	}
 
 	a.iamRepo = iam.NewAwsIamRepository(configMap)
+
+	a.s3Repo = data_source.NewAwsS3Repository(configMap)
 
 	a.nameGenerator, err = NewNameGenerator(a.account)
 	if err != nil {

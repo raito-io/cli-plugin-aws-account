@@ -215,6 +215,11 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 		return nil, nil
 	}
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		return nil, fmt.Errorf("get bucket region map: %w", err)
+	}
+
 	for ind := range policies {
 		policy := policies[ind]
 
@@ -257,7 +262,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 			continue
 		}
 
-		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, a.cfgMap)
+		whatItems, incomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, bucketRegionMap, a.cfgMap)
 
 		policyDocument := ""
 		if policy.PolicyDocument != nil {
@@ -301,15 +306,38 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 	return aps, nil
 }
 
+func (a *AccessSyncer) getBucketRegionMap() (map[string]string, error) {
+	if a.bucketRegionMap == nil {
+		a.bucketRegionMap = make(map[string]string)
+
+		buckets, err := a.s3Repo.ListBuckets(context.Background())
+		if err != nil {
+			return nil, fmt.Errorf("list buckets: %w", err)
+		}
+
+		for _, bucket := range buckets {
+			a.bucketRegionMap[bucket.Key] = bucket.Region
+		}
+	}
+
+	return a.bucketRegionMap, nil
+}
+
 func (a *AccessSyncer) convertPoliciesToWhat(policies []model.PolicyEntity) ([]sync_from_target.WhatItem, bool, string) {
 	// Making sure to never return nil
 	whatItems := make([]sync_from_target.WhatItem, 0, 10)
 	incomplete := false
 	policyDocuments := ""
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		utils.Logger.Error(fmt.Sprintf("Failed to get bucket region map: %s", err.Error()))
+		return nil, true, ""
+	}
+
 	for i := range policies {
 		policy := policies[i]
-		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, a.cfgMap)
+		policyWhat, policyIncomplete := iam.CreateWhatFromPolicyDocument(policy.PolicyParsed, policy.Name, a.account, bucketRegionMap, a.cfgMap)
 
 		if policy.PolicyDocument != nil {
 			policyDocuments += *policy.PolicyDocument + "\n"
@@ -490,6 +518,11 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 		return nil, fmt.Errorf("list access points: %w", err)
 	}
 
+	bucketRegionMap, err := a.getBucketRegionMap()
+	if err != nil {
+		return nil, fmt.Errorf("get bucket region map: %w", err)
+	}
+
 	for _, accessPoint := range accessPoints {
 		if accessPoint.PolicyDocument == nil {
 			utils.Logger.Warn(fmt.Sprintf("Skipping access point %q as it has no policy document", accessPoint.Name))
@@ -509,7 +542,7 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 			}}
 
 		incomplete := false
-		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, a.cfgMap)
+		newAp.ApInput.Who, newAp.ApInput.What, incomplete = iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoint.PolicyParsed, accessPoint.Bucket, accessPoint.Name, a.account, bucketRegionMap, a.cfgMap)
 
 		if incomplete {
 			newAp.ApInput.Incomplete = ptr.Bool(true)

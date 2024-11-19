@@ -13,6 +13,7 @@ packages:
       dataAccessRepository:
       dataAccessSsoRepository:
       dataAccessIamRepository:
+      dataAccessS3Repo:
   github.com/raito-io/cli-plugin-aws-account/aws/usage:
     config:
       dir: "{{.InterfaceDir}}"
