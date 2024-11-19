@@ -46,7 +46,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().True(strings.HasSuffix(accessPoints[0].PolicyParsed.Statements[0].Resource[0], "/object/operations/*"))
 	s.Assert().ElementsMatch([]string{"arn:aws:iam::077954824694:user/m_carissa", "arn:aws:iam::077954824694:role/MarketingRole"}, accessPoints[0].PolicyParsed.Statements[0].Principal["AWS"])
 
-	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, "077954824694", s.cfg)
+	who, what, incomplete := iam.CreateWhoAndWhatFromAccessPointPolicy(accessPoints[0].PolicyParsed, accessPoints[0].Bucket, accessPoints[0].Name, "077954824694", map[string]string{"raito-data-corporate": "eu-central-1"}, s.cfg)
 	s.Assert().False(incomplete)
 
 	s.Assert().Len(who.Groups, 0)
@@ -56,7 +56,7 @@ func (s *IAMAccessPointsTestSuite) TestIAMPolicies_ListAccessPoints() {
 	s.Assert().Equal(who.Users[0], "m_carissa")
 
 	s.Assert().Len(what, 1)
-	s.Assert().Equal("raito-data-corporate/operations", what[0].DataObject.FullName)
+	s.Assert().Equal("077954824694:eu-central-1:raito-data-corporate/operations", what[0].DataObject.FullName)
 	s.Assert().ElementsMatch([]string{"s3:GetObject"}, what[0].Permissions)
 }
 
