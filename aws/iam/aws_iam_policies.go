@@ -47,6 +47,76 @@ func (repo *AwsIamRepository) ClearManagedPoliciesCache() {
 	managedPoliciesCache = nil
 }
 
+func (repo *AwsIamRepository) GetManagedPolicyByName(ctx context.Context, name string) (*model.PolicyEntity, error) {
+	client, err := repo.GetIamClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	policyArn := repo.GetPolicyArn(name, false, repo.configMap)
+
+	policyOutput, err := client.GetPolicy(ctx, &iam.GetPolicyInput{PolicyArn: &policyArn})
+	if err != nil {
+		var noSuchEntityErr *types.NoSuchEntityException
+		if errors.As(err, &noSuchEntityErr) {
+			// Instead, searching as an aws managed policy
+			policyArn = repo.GetPolicyArn(name, true, repo.configMap)
+
+			policyOutput, err = client.GetPolicy(ctx, &iam.GetPolicyInput{PolicyArn: &policyArn})
+			if err != nil {
+				if errors.As(err, &noSuchEntityErr) {
+					return nil, nil
+				} else {
+					return nil, fmt.Errorf("get policy: %w", err)
+				}
+
+			}
+		} else {
+			return nil, fmt.Errorf("get policy: %w", err)
+		}
+	}
+
+	if policyOutput == nil || policyOutput.Policy == nil {
+		return nil, nil
+	}
+
+	// Now gather the policy details
+	parsedPolicy := policyOutput.Policy
+	tags := utils.GetTags(parsedPolicy.Tags)
+
+	policyVersionInput := iam.GetPolicyVersionInput{
+		PolicyArn: parsedPolicy.Arn,
+		VersionId: parsedPolicy.DefaultVersionId,
+	}
+
+	policyVersionResp, err3 := client.GetPolicyVersion(ctx, &policyVersionInput)
+	if err3 != nil {
+		return nil, fmt.Errorf("get policy version for %q: %w", *parsedPolicy.PolicyName, err3)
+	}
+
+	policyDoc, policyDocReadable, err3 := repo.parsePolicyDocument(policyVersionResp.PolicyVersion.Document, "", *parsedPolicy.PolicyName)
+	if err3 != nil {
+		return nil, fmt.Errorf("parse policy document for %q: %w", *parsedPolicy.PolicyName, err3)
+	}
+
+	raitoPolicy := model.PolicyEntity{
+		ARN:             *parsedPolicy.Arn,
+		Name:            *parsedPolicy.PolicyName,
+		Id:              *parsedPolicy.PolicyId,
+		AttachmentCount: *parsedPolicy.AttachmentCount,
+		Tags:            tags,
+		PolicyDocument:  policyDocReadable,
+		PolicyParsed:    policyDoc,
+	}
+
+	err = repo.AddAttachedEntitiesToManagedPolicy(ctx, client, &raitoPolicy)
+	if err != nil {
+		return nil, fmt.Errorf("add attached entities to managed policy: %w", err)
+	}
+
+	return &raitoPolicy, nil
+}
+
 func (repo *AwsIamRepository) GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error) {
 	excludes := slice.ParseCommaSeparatedList(repo.configMap.GetString(constants.AwsAccessManagedPolicyExcludes))
 

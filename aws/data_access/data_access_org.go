@@ -107,6 +107,7 @@ func (e *roleEnricher) enrich(aps []model.AccessProviderInputExtended) error {
 			// Changing the (display) name of the role to the permission set name. Leaving actualName and others to the original as they are used to match on.
 			ap.ApInput.Name = permissionSet
 
+			ap.ApInput.ExternalId = constants.SsoRoleTypePrefix + strings.Split(ap.ApInput.ExternalId, ":")[1] // Replacing the prefix of the external ID
 			ap.ApInput.Type = aws.String(string(model.SSORole))
 			ap.ApInput.WhatLocked = aws.Bool(true)
 			ap.ApInput.WhatLockedReason = aws.String("This policy is managed by AWS")

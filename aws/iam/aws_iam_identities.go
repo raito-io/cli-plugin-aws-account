@@ -255,11 +255,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []strin
 			})
 
 			if err3 != nil {
-				utils.Logger.Error(fmt.Sprintf("Error getting role details for %q: %s", *roleFromList.RoleName, err3.Error()))
-
-				smu.Lock()
-				resultErr = multierror.Append(resultErr, err3)
-				smu.Unlock()
+				utils.Logger.Warn(fmt.Sprintf("Unable to fetch role details for %q: %s", *roleFromList.RoleName, err3.Error()))
 
 				return
 			}
@@ -330,7 +326,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []strin
 // the principals input parameters define which users will be able to assume the policy initially
 func (repo *AwsIamRepository) CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error) {
 	if len(userNames) == 0 {
-		return false, fmt.Errorf("no who defined")
+		return false, fmt.Errorf("at least one user is required to create a role")
 	}
 
 	client, err := repo.GetIamClient(ctx)

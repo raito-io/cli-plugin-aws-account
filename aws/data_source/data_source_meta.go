@@ -45,7 +45,7 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeCreated:                  true,
 				CanBeAssumed:                  true,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.Role)},
+				AllowedWhoAccessProviderTypes: []string{},
 			},
 			{
 				Type:                          string(model.Policy),
@@ -55,7 +55,7 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeCreated:                  true,
 				CanBeAssumed:                  false,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.Policy), string(model.Role)},
+				AllowedWhoAccessProviderTypes: []string{string(model.Role)},
 			},
 			{
 				Type:                          string(model.AccessPoint),
@@ -65,14 +65,16 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeCreated:                  true,
 				CanBeAssumed:                  false,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.AccessPoint), string(model.Role)},
+				AllowedWhoAccessProviderTypes: []string{string(model.Role)},
 			},
 		}
 		accessProviderTypes = append(accessProviderTypes, metaDataProvider.AccessProviderTypes()...)
 
 		if cfg.GetStringWithDefault(constants.AwsOrganizationProfile, "") != "" {
 			for _, apt := range accessProviderTypes {
-				apt.AllowedWhoAccessProviderTypes = append(apt.AllowedWhoAccessProviderTypes, string(model.SSORole))
+				if apt.Type == string(model.Policy) || apt.Type == string(model.AccessPoint) {
+					apt.AllowedWhoAccessProviderTypes = append(apt.AllowedWhoAccessProviderTypes, string(model.SSORole))
+				}
 			}
 
 			accessProviderTypes = append(accessProviderTypes, &ds.AccessProviderType{
@@ -80,10 +82,10 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				Label:                         "AWS SSO Role",
 				Icon:                          "",
 				IsNamedEntity:                 true,
-				CanBeCreated:                  false,
+				CanBeCreated:                  true,
 				CanBeAssumed:                  true,
 				CanAssumeMultiple:             false,
-				AllowedWhoAccessProviderTypes: []string{string(model.SSORole)},
+				AllowedWhoAccessProviderTypes: []string{},
 				IdentityStoreTypeForWho:       "aws-organization",
 			})
 		}

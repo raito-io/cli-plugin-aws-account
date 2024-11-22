@@ -149,7 +149,7 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 	}
 
 	if c, found := typeCount[model.AccessPoint]; found && c > 0 {
-		s3AccessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
+		s3AccessPointHandler := NewAccessPointHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
 		handlers = append(handlers, &s3AccessPointHandler)
 	}
 

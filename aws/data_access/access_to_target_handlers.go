@@ -52,7 +52,7 @@ func (a *AccessProvidersByType) AddAccessProvider(t model.AccessProviderType, ap
 
 	a.AccessProviderById[ap.Id] = details
 
-	// Generate nane
+	// Generate name
 	name, err := nameGenerator.GenerateName(ap, t)
 	if err != nil {
 		logFeedbackError(apFeedback, fmt.Sprintf("failed to generate actual name for access provider %q: %s", ap.Name, err.Error()))
@@ -147,7 +147,7 @@ func (a *AccessProvidersByType) GetAllAccessProvidersInInheritanceChainForWhat(t
 
 type AccessHandlerExecutor interface {
 	Initialize(configmap *config.ConfigMap)
-	FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error)
+	FetchExistingBindings(ctx context.Context, name string, bucketRegionMap map[string]string) (set.Set[model.PolicyBinding], error)
 	HookInlinePolicies(ap *sync_to_target.AccessProvider)
 	ExternalId(name string, details *AccessProviderDetails) *string
 	HandleGroupBindings(ctx context.Context, groups []string) (set.Set[model.PolicyBinding], error)
@@ -170,9 +170,7 @@ type AccessHandler struct {
 	accessProviderDetails map[string]*AccessProviderDetails
 	accessProvidersByType *AccessProvidersByType
 	handlerType           model.AccessProviderType
-
-	// cache
-	existingBindings map[string]set.Set[model.PolicyBinding]
+	bucketRegionMap       map[string]string
 
 	executor AccessHandlerExecutor
 }
@@ -180,12 +178,7 @@ type AccessHandler struct {
 func (a *AccessHandler) Initialize(ctx context.Context, configmap *config.ConfigMap, bucketRegionMap map[string]string) error {
 	a.executor.Initialize(configmap)
 
-	bindings, err := a.executor.FetchExistingBindings(ctx, bucketRegionMap)
-	if err != nil {
-		return fmt.Errorf("fetch existing bindings: %w", err)
-	}
-
-	a.existingBindings = bindings
+	a.bucketRegionMap = bucketRegionMap
 
 	return nil
 }
@@ -196,15 +189,24 @@ func (a *AccessHandler) PrepareAccessProviders(ctx context.Context) {
 	}
 }
 
+func (a *AccessHandler) getExistingBindings(ctx context.Context, name string) (set.Set[model.PolicyBinding], error) {
+	return a.executor.FetchExistingBindings(ctx, name, a.bucketRegionMap)
+}
+
 func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name string, details *AccessProviderDetails) {
-	existingBindings, found := a.existingBindings[name]
-
-	if found {
-		details.existingBindings = existingBindings
-	}
-
 	ap := details.ap
 	apFeedback := details.apFeedback
+
+	existingBindings, err := a.getExistingBindings(ctx, name)
+	if err != nil {
+		logFeedbackError(apFeedback, fmt.Sprintf("fetching existing binding for %q: %v", name, err.Error()))
+
+		return
+	}
+
+	if existingBindings != nil {
+		details.existingBindings = existingBindings
+	}
 
 	if ap.Action != sync_to_target.Grant && ap.Action != sync_to_target.Purpose {
 		logFeedbackError(apFeedback, fmt.Sprintf("unsupported access provider action: %d", ap.Action))
@@ -215,7 +217,7 @@ func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name s
 	a.executor.HookInlinePolicies(ap)
 
 	if ap.Delete {
-		if found {
+		if existingBindings != nil {
 			details.action = ActionDelete
 			a.accessProviderDetails[name] = details
 		}
@@ -225,21 +227,19 @@ func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name s
 
 	// Create or update
 	details.action = ActionCreate
-	if found {
+	if existingBindings != nil {
 		details.action = ActionUpdate
 	}
 
-	var err error
-
 	apFeedback.ExternalId = a.executor.ExternalId(name, details)
-
-	// Storing the inheritance information to handle every we covered all APs
-	apInheritFromNames := a.resolveInheritance(ap.Who.InheritFrom...)
-
-	details.inheritance = apInheritFromNames
 
 	// Handling the WHO by converting it to policy bindings
 	details.newBindings = set.NewSet[model.PolicyBinding]()
+
+	// Storing the inheritance information to handle every we covered all APs
+	apInheritFromNames := a.resolveInheritance(details.newBindings, ap.Who.InheritFrom...)
+
+	details.inheritance = apInheritFromNames
 
 	for _, user := range ap.Who.Users {
 		key := model.PolicyBinding{
@@ -259,23 +259,41 @@ func (a *AccessHandler) preparationForAccessProvider(ctx context.Context, name s
 	details.newBindings.AddSet(apGroupBindings)
 }
 
-func (a *AccessHandler) resolveInheritance(names ...string) map[model.AccessProviderType][]string {
+func (a *AccessHandler) resolveInheritance(bindings set.Set[model.PolicyBinding], names ...string) map[model.AccessProviderType][]string {
 	result := map[model.AccessProviderType][]string{}
 
 	for _, name := range names {
 		if !strings.HasPrefix(name, "ID:") {
+			if strings.Contains(name, ":") {
+				parts := strings.Split(name, ":")
+
+				if apType, found := model.PrefixToAccessProviderTypeMap[parts[0]+":"]; found {
+					realName := strings.Join(parts[1:], ":")
+					result[apType] = append(result[apType], realName)
+
+					if apType == model.Role {
+						bindings.Add(model.PolicyBinding{
+							Type:         iam.RoleResourceType,
+							ResourceName: realName,
+						})
+					}
+
+					continue
+				}
+			}
+
 			// No id is set so we assume the name is the name of the access provider with the same type
 			result[a.handlerType] = append(result[a.handlerType], name)
-		}
+		} else {
+			parts := strings.Split(name, "ID:")
+			if len(parts) != 2 {
+				continue
+			}
 
-		parts := strings.Split(name, "ID:")
-		if len(parts) != 2 {
-			continue
-		}
-
-		apID := parts[1]
-		if details, found := a.accessProvidersByType.AccessProviderById[apID]; found {
-			result[details.apType] = append(result[details.apType], details.name)
+			apID := parts[1]
+			if details, found := a.accessProvidersByType.AccessProviderById[apID]; found {
+				result[details.apType] = append(result[details.apType], details.name)
+			}
 		}
 	}
 
@@ -303,10 +321,10 @@ func (a *AccessHandler) ProcessInheritance() map[string]*AccessProviderDetails {
 
 			for _, inheritedFrom := range inheritedSet {
 				if _, f := inheritedAccessProviderMap[inheritedFrom]; f {
-					utils.Logger.Info(fmt.Sprintf("Add %q to inversed inheritance of %q", name, inheritedFrom))
+					utils.Logger.Debug(fmt.Sprintf("Add %q to inversed inheritance of %q", name, inheritedFrom))
 					inheritedAccessProviderMap[inheritedFrom].inverseInheritance[a.handlerType] = append(inheritedAccessProviderMap[inheritedFrom].inverseInheritance[a.handlerType], name)
 				} else {
-					utils.Logger.Warn(fmt.Sprintf("Didn't found %q to in access providers of expected type %s", inheritedFrom, apType))
+					utils.Logger.Warn(fmt.Sprintf("Didn't find %q in access providers of expected type %s", inheritedFrom, apType))
 				}
 			}
 		}
@@ -339,6 +357,7 @@ type roleAccessHandler struct {
 	repo            dataAccessRepository
 	getUserGroupMap UserGroupMapFunc
 	account         string
+	existing        map[string]set.Set[model.PolicyBinding]
 
 	configMap *config.ConfigMap
 }
@@ -347,14 +366,28 @@ func (r *roleAccessHandler) Initialize(configmap *config.ConfigMap) {
 	r.configMap = configmap
 }
 
-func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
-	utils.Logger.Info("Fetching existing roles")
+func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context, name string, bucketRegionMap map[string]string) (set.Set[model.PolicyBinding], error) {
+	// TODO naive and slow implementation, should be optimized by only fetching this specific role
+	err := r.fetchAllExistingBindings(ctx, bucketRegionMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.existing[name], nil
+}
+
+func (r *roleAccessHandler) fetchAllExistingBindings(ctx context.Context, bucketRegionMap map[string]string) error {
+	if r.existing != nil { // already loaded the existing roles
+		return nil
+	}
+
+	utils.Logger.Info("Fetching all existing roles")
 
 	roleExcludes := slice.ParseCommaSeparatedList(r.configMap.GetString(constants.AwsAccessRoleExcludes))
 
 	roles, err := r.repo.GetRoles(ctx, roleExcludes)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching existing roles: %w", err)
+		return fmt.Errorf("error fetching existing roles: %w", err)
 	}
 
 	existingRoleAssumptions := map[string]set.Set[model.PolicyBinding]{}
@@ -376,7 +409,8 @@ func (r *roleAccessHandler) FetchExistingBindings(ctx context.Context, bucketReg
 
 	utils.Logger.Info(fmt.Sprintf("Fetched existing %d roles", len(existingRoleAssumptions)))
 
-	return existingRoleAssumptions, nil
+	r.existing = existingRoleAssumptions
+	return nil
 }
 
 func (r *roleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {
@@ -507,6 +541,7 @@ type policyAccessHandler struct {
 	account         string
 	accessProviders *AccessProvidersByType
 	repo            dataAccessRepository
+	existing        map[string]set.Set[model.PolicyBinding]
 
 	inlineUserPoliciesToDelete  map[string][]string
 	inlineGroupPoliciesToDelete map[string][]string
@@ -518,12 +553,35 @@ func (p *policyAccessHandler) Initialize(configmap *config.ConfigMap) {
 	p.configMap = configmap
 }
 
-func (p *policyAccessHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
+func (p *policyAccessHandler) FetchExistingBindings(ctx context.Context, name string, bucketRegionMap map[string]string) (set.Set[model.PolicyBinding], error) {
+	policy, err := p.repo.GetManagedPolicyByName(ctx, name)
+	if err != nil {
+		return nil, fmt.Errorf("fetching policy by name %q: %w", name, err)
+	}
+
+	if policy == nil {
+		return nil, nil
+	}
+
+	bindings := set.Set[model.PolicyBinding]{}
+
+	bindings.Add(removeArn(policy.UserBindings)...)
+	bindings.Add(removeArn(policy.GroupBindings)...)
+	bindings.Add(removeArn(policy.RoleBindings)...)
+
+	return bindings, nil
+}
+
+func (p *policyAccessHandler) fetchAllExistingBindings(ctx context.Context, bucketRegionMap map[string]string) error {
+	if p.existing != nil { // already loaded the existing policies
+		return nil
+	}
+
 	utils.Logger.Info("Fetching existing managed policies")
 
 	managedPolicies, err := p.repo.GetManagedPolicies(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("error fetching existing managed policies: %w", err)
+		return fmt.Errorf("error fetching existing managed policies: %w", err)
 	}
 
 	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
@@ -540,7 +598,8 @@ func (p *policyAccessHandler) FetchExistingBindings(ctx context.Context, bucketR
 
 	utils.Logger.Info(fmt.Sprintf("Fetched existing %d managed policies", len(existingPolicyBindings)))
 
-	return existingPolicyBindings, nil
+	p.existing = existingPolicyBindings
+	return nil
 }
 
 func (p *policyAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {
@@ -680,7 +739,7 @@ func (p *policyAccessHandler) updatePolicyBindings(ctx context.Context, detailMa
 					continue
 				}
 			case iam.RoleResourceType:
-				utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", name, binding.ResourceName))
+				utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from role: %s", name, binding.ResourceName))
 
 				err := p.repo.DetachRoleFromManagedPolicy(ctx, policyArn, []string{binding.ResourceName})
 				if err != nil {
@@ -770,7 +829,7 @@ func (p *policyAccessHandler) deleteInlinePolicies(ctx context.Context, policies
 	}
 }
 
-func NewAccessProviderHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) AccessHandler {
+func NewAccessPointHandler(allAccessProviders *AccessProvidersByType, repo dataAccessRepository, getUserGroupMap UserGroupMapFunc, account string) AccessHandler {
 	executor := &accessPointHandler{
 		accessProviders: allAccessProviders,
 		repo:            repo,
@@ -787,6 +846,7 @@ type accessPointHandler struct {
 	repo            dataAccessRepository
 	getUserGroupMap UserGroupMapFunc
 	defaultRegion   string
+	existing        map[string]set.Set[model.PolicyBinding]
 
 	configMap *config.ConfigMap
 }
@@ -797,7 +857,21 @@ func (a *accessPointHandler) Initialize(configmap *config.ConfigMap) {
 	a.defaultRegion = strings.Split(configmap.GetStringWithDefault(constants.AwsRegions, "eu-central1"), ",")[0]
 }
 
-func (a *accessPointHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
+func (a *accessPointHandler) FetchExistingBindings(ctx context.Context, name string, bucketRegionMap map[string]string) (set.Set[model.PolicyBinding], error) {
+	// TODO naive and slow implementation, should be optimized by only fetching this specific access point
+	err := a.fetchAllExistingBindings(ctx, bucketRegionMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return a.existing[name], nil
+}
+
+func (a *accessPointHandler) fetchAllExistingBindings(ctx context.Context, bucketRegionMap map[string]string) error {
+	if a.existing != nil { // already loaded the existing access points
+		return nil
+	}
+
 	utils.Logger.Info("Fetching existing access points")
 
 	existingPolicyBindings := map[string]set.Set[model.PolicyBinding]{}
@@ -805,11 +879,12 @@ func (a *accessPointHandler) FetchExistingBindings(ctx context.Context, bucketRe
 	for _, region := range utils.GetRegions(a.configMap) {
 		err := a.fetchExistingAccessPointsForRegion(ctx, region, existingPolicyBindings, bucketRegionMap)
 		if err != nil {
-			return nil, fmt.Errorf("fetching existing access points for region %s: %w", region, err)
+			return fmt.Errorf("fetching existing access points for region %s: %w", region, err)
 		}
 	}
 
-	return existingPolicyBindings, nil
+	a.existing = existingPolicyBindings
+	return nil
 }
 
 func (a *accessPointHandler) fetchExistingAccessPointsForRegion(ctx context.Context, region string, existingPolicyBindings map[string]set.Set[model.PolicyBinding], bucketRegionMap map[string]string) error {
@@ -1075,6 +1150,7 @@ type ssoRoleAccessHandler struct {
 	repo            dataAccessRepository
 	ssoAdmin        dataAccessSsoRepository
 	getUserGroupMap UserGroupMapFunc
+	existing        map[string]set.Set[model.PolicyBinding]
 
 	config *config.ConfigMap
 }
@@ -1083,28 +1159,38 @@ func (s *ssoRoleAccessHandler) Initialize(configmap *config.ConfigMap) {
 	s.config = configmap
 }
 
-func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context, bucketRegionMap map[string]string) (map[string]set.Set[model.PolicyBinding], error) {
+func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context, name string, bucketRegionMap map[string]string) (set.Set[model.PolicyBinding], error) {
+	// TODO naive and slow implementation, should be optimized by only fetching this specific permission set
+	err := s.fetchAllExistingBindings(ctx, bucketRegionMap)
+	if err != nil {
+		return nil, err
+	}
+
+	return s.existing[name], nil
+}
+
+func (s *ssoRoleAccessHandler) fetchAllExistingBindings(ctx context.Context, bucketRegionMap map[string]string) error {
 	result := make(map[string]set.Set[model.PolicyBinding])
 
 	permissionSetArns, err := s.ssoAdmin.ListSsoRole(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("fetching existing permission sets: %w", err)
+		return fmt.Errorf("fetching existing permission sets: %w", err)
 	}
 
 	users, err := s.ssoAdmin.GetUsers(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get users: %w", err)
+		return fmt.Errorf("get users: %w", err)
 	}
 
 	groups, err := s.ssoAdmin.GetGroups(ctx)
 	if err != nil {
-		return nil, fmt.Errorf("get groups: %w", err)
+		return fmt.Errorf("get groups: %w", err)
 	}
 
 	for _, arn := range permissionSetArns {
 		createdByRaito, err := s.ssoAdmin.HasRaitoCreatedTag(ctx, arn)
 		if err != nil {
-			return nil, fmt.Errorf("get raito created tag: %w", err)
+			return fmt.Errorf("get raito created tag: %w", err)
 		}
 
 		if !createdByRaito {
@@ -1115,12 +1201,12 @@ func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context, bucket
 
 		permissionSetDetails, err := s.ssoAdmin.GetSsoRole(ctx, arn)
 		if err != nil {
-			return nil, fmt.Errorf("get permission set details: %w", err)
+			return fmt.Errorf("get permission set details: %w", err)
 		}
 
 		assignments, err := s.ssoAdmin.ListPermissionSetAssignment(ctx, arn)
 		if err != nil {
-			return nil, fmt.Errorf("error fetching existing permission set assignments: %w", err)
+			return fmt.Errorf("error fetching existing permission set assignments: %w", err)
 		}
 
 		bindings := set.NewSet[model.PolicyBinding]()
@@ -1159,7 +1245,8 @@ func (s *ssoRoleAccessHandler) FetchExistingBindings(ctx context.Context, bucket
 		result[*permissionSetDetails.Name] = bindings
 	}
 
-	return result, nil
+	s.existing = result
+	return nil
 }
 
 func (s *ssoRoleAccessHandler) HookInlinePolicies(ap *sync_to_target.AccessProvider) {

@@ -4,6 +4,7 @@ import (
 	"time"
 
 	awspolicy "github.com/n4ch04/aws-policy"
+	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	ds "github.com/raito-io/cli/base/data_source"
@@ -20,6 +21,13 @@ const (
 	Policy      AccessProviderType = "aws_policy"
 	AccessPoint AccessProviderType = "aws_access_point"
 )
+
+var PrefixToAccessProviderTypeMap = map[string]AccessProviderType{
+	constants.PolicyTypePrefix:      Policy,
+	constants.RoleTypePrefix:        Role,
+	constants.SsoRoleTypePrefix:     SSORole,
+	constants.AccessPointTypePrefix: AccessPoint,
+}
 
 type AccessProviderInputExtended struct {
 	ApInput      *sync_from_target.AccessProvider
