@@ -19,25 +19,21 @@ const (
 )
 
 type AccessProviderDetails struct {
-	ap                 *sync_to_target.AccessProvider
-	name               string
-	apType             model.AccessProviderType
-	action             AccessProviderAction
-	inheritance        map[model.AccessProviderType][]string
-	inverseInheritance map[model.AccessProviderType][]string
-	newBindings        set.Set[model.PolicyBinding]
-	existingBindings   set.Set[model.PolicyBinding]
-	apFeedback         *sync_to_target.AccessProviderSyncFeedback
+	ap               *sync_to_target.AccessProvider
+	name             string
+	apType           model.AccessProviderType
+	action           AccessProviderAction
+	targetBindings   set.Set[model.PolicyBinding]
+	existingBindings set.Set[model.PolicyBinding]
+	apFeedback       *sync_to_target.AccessProviderSyncFeedback
 }
 
 func NewAccessProviderDetails(ap *sync_to_target.AccessProvider, t model.AccessProviderType, apFeedback *sync_to_target.AccessProviderSyncFeedback) *AccessProviderDetails {
 	return &AccessProviderDetails{
-		ap:                 ap,
-		apType:             t,
-		action:             ActionUnknown,
-		inheritance:        map[model.AccessProviderType][]string{},
-		inverseInheritance: map[model.AccessProviderType][]string{},
-		apFeedback:         apFeedback,
+		ap:         ap,
+		apType:     t,
+		action:     ActionUnknown,
+		apFeedback: apFeedback,
 	}
 }
 
@@ -46,9 +42,9 @@ func (a *AccessProviderDetails) GetExistingOrNewBindings() set.Set[model.PolicyB
 		return a.existingBindings
 	}
 
-	return a.newBindings
+	return a.targetBindings
 }
 
 func (a *AccessProviderDetails) IsExternal() bool {
-	return a.newBindings == nil
+	return a.targetBindings == nil
 }

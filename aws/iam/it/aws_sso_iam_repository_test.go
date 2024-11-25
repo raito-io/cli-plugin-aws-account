@@ -53,7 +53,7 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_SsoRole_CreateDelete
 	})
 
 	s.T().Run("List sso role", func(t *testing.T) {
-		roles, err := s.repo.ListSsoRole(context.Background())
+		roles, err := s.repo.ListSsoRoles(context.Background())
 
 		assert.NoError(t, err)
 		assert.Contains(t, roles, arn)

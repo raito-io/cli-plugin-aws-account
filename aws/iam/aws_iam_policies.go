@@ -457,12 +457,12 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 
 	policyDoc, err := createPolicyDocument(statements)
 	if err != nil {
-		return fmt.Errorf("updating management policy: %w", err)
+		return fmt.Errorf("creating policy document: %w", err)
 	}
 
 	versions, err := client.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyArn})
 	if err != nil {
-		return fmt.Errorf("updating management policy: %w", err)
+		return fmt.Errorf("listing policy versions: %w", err)
 	}
 
 	// check if the current default policy document is the same as the new one, if so, don't update
@@ -477,12 +477,12 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 		})
 
 		if localErr != nil {
-			return fmt.Errorf("updating management policy: %w", localErr)
+			return fmt.Errorf("get policy version: %w", localErr)
 		}
 
 		existingPolicyDoc, localErr2 := url.QueryUnescape(*defaultVersion.PolicyVersion.Document)
 		if localErr2 != nil {
-			return fmt.Errorf("updating management policy: %w", localErr2)
+			return fmt.Errorf("unescaping query: %w", localErr2)
 		}
 
 		utils.Logger.Debug(existingPolicyDoc)
@@ -512,7 +512,7 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 				})
 
 				if localErr != nil {
-					return fmt.Errorf("updating management policy: %w", localErr)
+					return fmt.Errorf("deleting policy version: %w", localErr)
 				}
 
 				break
@@ -526,7 +526,7 @@ func (repo *AwsIamRepository) UpdateManagedPolicy(ctx context.Context, policyNam
 		SetAsDefault:   true,
 	})
 	if err != nil {
-		return fmt.Errorf("updating management policy: %w", err)
+		return fmt.Errorf("creating policy version: %w", err)
 	}
 
 	return nil
@@ -1164,6 +1164,49 @@ func (repo *AwsIamRepository) getS3ControlClient(ctx context.Context, region *st
 	return client
 }
 
+func (repo *AwsIamRepository) GetAccessPointByNameAndRegion(ctx context.Context, name, region string) (*model.AwsS3AccessPoint, error) {
+	client := repo.getS3ControlClient(ctx, &region)
+
+	apOutput, err := client.GetAccessPoint(ctx, &s3control.GetAccessPointInput{
+		AccountId: &repo.account,
+		Name:      &name,
+	})
+
+	if err != nil {
+		var noSuchEntityErr *types.NoSuchEntityException
+		if errors.As(err, &noSuchEntityErr) {
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("getting access point %s:%s: %w", region, name, err)
+		}
+	}
+
+	ap := &model.AwsS3AccessPoint{
+		Name: *apOutput.Name,
+		Arn:  *apOutput.AccessPointArn,
+	}
+
+	if apOutput.Bucket != nil {
+		ap.Bucket = *apOutput.Bucket
+	}
+
+	policy, err3 := client.GetAccessPointPolicy(ctx, &s3control.GetAccessPointPolicyInput{Name: apOutput.Name, AccountId: &repo.account})
+
+	var operationErr *http.ResponseError
+	if errors.As(err3, &operationErr) && operationErr.HTTPStatusCode() == 404 {
+		utils.Logger.Info(fmt.Sprintf("No policy found for access point %s", *apOutput.Name))
+	} else if err3 != nil {
+		return nil, fmt.Errorf("fetching access point policy: %w", err3)
+	} else if policy.Policy != nil {
+		ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *apOutput.Name, *apOutput.Name)
+		if err3 != nil {
+			return nil, fmt.Errorf("parse policy document: %w", err3)
+		}
+	}
+
+	return ap, nil
+}
+
 func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error) {
 	client := repo.getS3ControlClient(ctx, &region)
 
@@ -1204,16 +1247,7 @@ func (repo *AwsIamRepository) ListAccessPoints(ctx context.Context, region strin
 			var operationErr *http.ResponseError
 			if errors.As(err3, &operationErr) && operationErr.HTTPStatusCode() == 404 {
 				utils.Logger.Info(fmt.Sprintf("No policy found for access point %s", *sourceAp.Name))
-				utils.Logger.Debug(fmt.Sprintf("Error of type %T: %+v", err3, err3))
 			} else if err3 != nil {
-				utils.Logger.Error(fmt.Sprintf("Error of type %T: %+v", err3, err3))
-
-				e := errors.Unwrap(err3)
-				for e != nil {
-					utils.Logger.Error(fmt.Sprintf("Error of type %T: %+v", e, e))
-					e = errors.Unwrap(e)
-				}
-
 				return nil, fmt.Errorf("fetching access point policy: %w", err3)
 			} else if policy.Policy != nil {
 				ap.PolicyParsed, ap.PolicyDocument, err3 = repo.parsePolicyDocument(policy.Policy, *sourceAp.Name, *sourceAp.Name)

@@ -3,6 +3,7 @@ package iam
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -199,6 +200,73 @@ func (repo *AwsIamRepository) ClearRolesCache() {
 	ssoRolesCache = nil
 }
 
+func (repo *AwsIamRepository) GetRoleByName(ctx context.Context, roleName string) (*model.RoleEntity, error) {
+	client, err := repo.GetIamClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	roleOutput, err := client.GetRole(ctx, &iam.GetRoleInput{RoleName: &roleName})
+	if err != nil {
+		var noSuchEntityErr *types.NoSuchEntityException
+		if errors.As(err, &noSuchEntityErr) {
+			return nil, nil
+		} else {
+			return nil, fmt.Errorf("get role: %w", err)
+		}
+	}
+
+	roleEntity, err2 := repo.convertRoleToRoleEntity(roleOutput.Role)
+	if err2 != nil {
+		return nil, fmt.Errorf("convert role to role entity: %w", err2)
+	}
+
+	return roleEntity, nil
+}
+
+func (repo *AwsIamRepository) convertRoleToRoleEntity(role *types.Role) (*model.RoleEntity, error) {
+	var Arn, Id, Name, Description string
+	var roleLastUsed *time.Time
+
+	if role.RoleLastUsed != nil && role.RoleLastUsed.LastUsedDate != nil {
+		roleLastUsed = role.RoleLastUsed.LastUsedDate
+	}
+
+	if role.Arn != nil {
+		Arn = *role.Arn
+	}
+
+	if role.RoleId != nil {
+		Id = *role.RoleId
+	}
+
+	if role.RoleName != nil {
+		Name = *role.RoleName
+	}
+
+	if role.Description != nil {
+		Description = *role.Description
+	}
+
+	tags := utils.GetTags(role.Tags)
+
+	trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
+	if err2 != nil {
+		return nil, fmt.Errorf("reading trust policy from role %s: %s", *role.RoleName, err2.Error())
+	}
+
+	return &model.RoleEntity{
+		ARN:                      Arn,
+		Id:                       Id,
+		Name:                     Name,
+		Description:              Description,
+		AssumeRolePolicyDocument: trustPolicyDocument,
+		AssumeRolePolicy:         trustPolicy,
+		Tags:                     tags,
+		LastUsedDate:             roleLastUsed,
+	}, nil
+}
+
 func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []string) ([]model.RoleEntity, error) {
 	if rolesCache != nil {
 		return rolesCache, nil
@@ -260,56 +328,16 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []strin
 				return
 			}
 
-			var Arn, Id, Name, Description string
-			var roleLastUsed *time.Time
-
-			role := roleDetailsRaw.Role
-			if role.RoleLastUsed != nil && role.RoleLastUsed.LastUsedDate != nil {
-				roleLastUsed = role.RoleLastUsed.LastUsedDate
-			}
-
-			if role.Arn != nil {
-				Arn = *role.Arn
-			}
-
-			if role.RoleId != nil {
-				Id = *role.RoleId
-			}
-
-			if role.RoleName != nil {
-				Name = *role.RoleName
-			}
-
-			if role.Description != nil {
-				Description = *role.Description
-			}
-
-			tags := utils.GetTags(role.Tags)
-
-			trustPolicy, trustPolicyDocument, err2 := repo.parsePolicyDocument(role.AssumeRolePolicyDocument, Name, "trust-policy")
-			if err2 != nil {
-				utils.Logger.Error(fmt.Sprintf("Error reading trust policy from role %s: %s", *roleFromList.RoleName, err2.Error()))
-
-				smu.Lock()
-				resultErr = multierror.Append(resultErr, err2)
-				smu.Unlock()
-
-				return
-			}
-
+			roleEntity, err2 := repo.convertRoleToRoleEntity(roleDetailsRaw.Role)
 			smu.Lock()
 			defer smu.Unlock()
 
-			result = append(result, model.RoleEntity{
-				ARN:                      Arn,
-				Id:                       Id,
-				Name:                     Name,
-				Description:              Description,
-				AssumeRolePolicyDocument: trustPolicyDocument,
-				AssumeRolePolicy:         trustPolicy,
-				Tags:                     tags,
-				LastUsedDate:             roleLastUsed,
-			})
+			if err2 != nil {
+				resultErr = multierror.Append(resultErr, err2)
+				return
+			}
+
+			result = append(result, *roleEntity)
 		})
 	}
 
@@ -364,11 +392,77 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error
 		return err
 	}
 
+	err = repo.detachAllPoliciesFromRole(ctx, client, name)
+	if err != nil {
+		return fmt.Errorf("detach policies from role: %w", err)
+	}
+
+	err = repo.deleteInlinePoliciesFromRole(ctx, client, name)
+	if err != nil {
+		return fmt.Errorf("deleting inline policies from role: %w", err)
+	}
+
 	_, err = client.DeleteRole(ctx, &iam.DeleteRoleInput{
 		RoleName: aws.String(name),
 	})
 	if err != nil {
 		return fmt.Errorf("delete role: %w", err)
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) detachAllPoliciesFromRole(ctx context.Context, client *iam.Client, roleName string) error {
+	// Create a paginator for the ListAttachedRolePolicies operation
+	paginator := iam.NewListAttachedRolePoliciesPaginator(client, &iam.ListAttachedRolePoliciesInput{
+		RoleName: aws.String(roleName),
+	})
+
+	// Iterate through the pages
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("listing attached policies for role %s: %v", roleName, err)
+		}
+
+		// Detach each policy
+		for _, policy := range page.AttachedPolicies {
+			_, err = client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+				RoleName:  aws.String(roleName),
+				PolicyArn: policy.PolicyArn,
+			})
+			if err != nil {
+				return fmt.Errorf("detach policy %s from role %s: %v", *policy.PolicyName, roleName, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+func (repo *AwsIamRepository) deleteInlinePoliciesFromRole(ctx context.Context, client *iam.Client, roleName string) error {
+	// Create a paginator for the ListRolePolicies operation
+	paginator := iam.NewListRolePoliciesPaginator(client, &iam.ListRolePoliciesInput{
+		RoleName: aws.String(roleName),
+	})
+
+	// Iterate through the pages
+	for paginator.HasMorePages() {
+		page, err := paginator.NextPage(ctx)
+		if err != nil {
+			return fmt.Errorf("listing inline policies for role %s: %v", roleName, err)
+		}
+
+		// Delete each inline policy
+		for _, policyName := range page.PolicyNames {
+			_, err = client.DeleteRolePolicy(ctx, &iam.DeleteRolePolicyInput{
+				RoleName:   aws.String(roleName),
+				PolicyName: aws.String(policyName),
+			})
+			if err != nil {
+				return fmt.Errorf("failed to delete inline policy %s from role %s: %v", policyName, roleName, err)
+			}
+		}
 	}
 
 	return nil

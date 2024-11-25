@@ -151,7 +151,7 @@ func (repo *AwsSsoIamRepository) DeleteSsoRole(ctx context.Context, permissionSe
 	return nil
 }
 
-func (repo *AwsSsoIamRepository) ListSsoRole(ctx context.Context) ([]string, error) {
+func (repo *AwsSsoIamRepository) ListSsoRoles(ctx context.Context) ([]string, error) {
 	result := make([]string, 0)
 
 	iterator := ssoadmin.NewListPermissionSetsPaginator(repo.client, &ssoadmin.ListPermissionSetsInput{

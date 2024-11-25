@@ -782,11 +782,11 @@ func (_c *MockdataAccessSsoRepository_ListPermissionSetAssignment_Call) RunAndRe
 }
 
 // ListSsoRole provides a mock function with given fields: ctx
-func (_m *MockdataAccessSsoRepository) ListSsoRole(ctx context.Context) ([]string, error) {
+func (_m *MockdataAccessSsoRepository) ListSsoRoles(ctx context.Context) ([]string, error) {
 	ret := _m.Called(ctx)
 
 	if len(ret) == 0 {
-		panic("no return value specified for ListSsoRole")
+		panic("no return value specified for ListSsoRoles")
 	}
 
 	var r0 []string
@@ -811,7 +811,7 @@ func (_m *MockdataAccessSsoRepository) ListSsoRole(ctx context.Context) ([]strin
 	return r0, r1
 }
 
-// MockdataAccessSsoRepository_ListSsoRole_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSsoRole'
+// MockdataAccessSsoRepository_ListSsoRole_Call is a *mock.Call that shadows Run/Return methods with type explicit version for method 'ListSsoRoles'
 type MockdataAccessSsoRepository_ListSsoRole_Call struct {
 	*mock.Call
 }
@@ -819,7 +819,7 @@ type MockdataAccessSsoRepository_ListSsoRole_Call struct {
 // ListSsoRole is a helper method to define mock.On call
 //   - ctx context.Context
 func (_e *MockdataAccessSsoRepository_Expecter) ListSsoRole(ctx interface{}) *MockdataAccessSsoRepository_ListSsoRole_Call {
-	return &MockdataAccessSsoRepository_ListSsoRole_Call{Call: _e.mock.On("ListSsoRole", ctx)}
+	return &MockdataAccessSsoRepository_ListSsoRole_Call{Call: _e.mock.On("ListSsoRoles", ctx)}
 }
 
 func (_c *MockdataAccessSsoRepository_ListSsoRole_Call) Run(run func(ctx context.Context)) *MockdataAccessSsoRepository_ListSsoRole_Call {
