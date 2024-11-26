@@ -1144,7 +1144,16 @@ func GetS3Permission(permission string) (*ds.DataObjectTypePermission, bool) {
 		}
 	}
 
+	if newPermission, f := actionToPermissionMap[permission]; f {
+		permission = newPermission
+	}
+
 	p, found := permissionLookupTable[permission]
 
 	return p, found
+}
+
+// Map to map some actions to the permission they require
+var actionToPermissionMap = map[string]string{
+	"s3:HeadObject": "s3:GetObject",
 }

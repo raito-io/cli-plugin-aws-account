@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/aws/smithy-go/ptr"
 	"github.com/hashicorp/go-multierror"
@@ -23,61 +24,123 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
+const roleDelay = 10
+const workerPoolSize = 3
+
+type AccessToTargetSyncer struct {
+	accessSyncer *AccessSyncer
+
+	feedbackMap   map[string]*sync_to_target.AccessProviderSyncFeedback
+	nameGenerator *NameGenerator
+
+	Roles          []*sync_to_target.AccessProvider
+	Policies       []*sync_to_target.AccessProvider
+	AccessPoints   []*sync_to_target.AccessProvider
+	PermissionSets []*sync_to_target.AccessProvider
+
+	cachedPermissionSets map[string]*permissionSetData
+
+	accessProviderById map[string]*sync_to_target.AccessProvider
+	idToExternalIdMap  map[string]string
+
+	userGroupMap map[string][]string
+
+	repo    dataAccessRepository
+	ssoRepo dataAccessSsoRepository
+	iamRepo dataAccessIamRepository
+	cfgMap  *config.ConfigMap
+
+	lock sync.Mutex
+}
+
+func NewAccessToTargetSyncer(a *AccessSyncer) *AccessToTargetSyncer {
+	return &AccessToTargetSyncer{
+		accessSyncer: a,
+		repo:         a.repo,
+		ssoRepo:      a.ssoRepo,
+		iamRepo:      a.iamRepo,
+		cfgMap:       a.cfgMap,
+	}
+}
+
 func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler, configMap *config.ConfigMap) error {
 	err := a.initialize(ctx, configMap)
 	if err != nil {
 		return err
 	}
 
-	return a.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler)
+	toTargetSyncer := NewAccessToTargetSyncer(a)
+
+	return toTargetSyncer.doSyncAccessProviderToTarget(ctx, accessProviders, accessProviderFeedbackHandler)
 }
 
-func logFeedbackError(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
-	utils.Logger.Error(msg)
-	apFeedback.Errors = append(apFeedback.Errors, msg)
-}
-
-func logFeedbackWarning(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
-	utils.Logger.Warn(msg)
-	apFeedback.Warnings = append(apFeedback.Warnings, msg)
-}
-
-func (a *AccessSyncer) getUserGroupMap(ctx context.Context) (map[string][]string, error) {
-	if a.userGroupMap != nil {
-		return a.userGroupMap, nil
-	}
-
-	groups, err := a.iamRepo.GetGroups(ctx)
+func (a *AccessToTargetSyncer) initialize() error {
+	nameGenerator, err := NewNameGenerator(a.accessSyncer.account)
 	if err != nil {
-		return nil, fmt.Errorf("get groups: %w", err)
+		return fmt.Errorf("new name generator: %w", err)
 	}
 
-	a.userGroupMap = make(map[string][]string)
+	a.nameGenerator = nameGenerator
 
-	users, err := a.iamRepo.GetUsers(ctx, false)
+	_, err = a.accessSyncer.getBucketRegionMap() // Making sure to initialize the bucket region map
 	if err != nil {
-		return nil, fmt.Errorf("get users: %w", err)
+		return fmt.Errorf("get bucket region map: %w", err)
 	}
 
-	userMap := make(map[string]string)
-	for _, u := range users {
-		userMap[u.ExternalId] = u.Name
-	}
+	a.feedbackMap = make(map[string]*sync_to_target.AccessProviderSyncFeedback)
+	a.idToExternalIdMap = make(map[string]string)
+	a.accessProviderById = make(map[string]*sync_to_target.AccessProvider)
 
-	for _, g := range groups {
-		for _, m := range g.Members {
-			if userName, f := userMap[m]; f {
-				a.userGroupMap[g.Name] = append(a.userGroupMap[g.Name], userName)
-			} else {
-				utils.Logger.Warn(fmt.Sprintf("Could not find member %s for group %s", m, g.Name))
-			}
+	return nil
+}
+
+// loadAccessProviders loads the access providers into the syncer by putting them into the correct maps.
+func (a *AccessToTargetSyncer) loadAccessProviders(accessProviders []*sync_to_target.AccessProvider) {
+	for i := range accessProviders {
+		accessProvider := accessProviders[i]
+
+		if accessProvider == nil {
+			continue
+		}
+
+		apType := resolveApType(accessProvider, a.accessSyncer.cfgMap)
+
+		t := a.addAccessProvider(apType, accessProvider)
+		if t == nil {
+			continue
 		}
 	}
-
-	return a.userGroupMap, nil
 }
 
-func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler) (err error) {
+func (a *AccessToTargetSyncer) addAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider) *model.AccessProviderType {
+	// Create the initial feedback object
+	apFeedback := &sync_to_target.AccessProviderSyncFeedback{
+		AccessProvider: ap.Id,
+		Type:           ptr.String(string(t)),
+	}
+	a.feedbackMap[ap.Id] = apFeedback
+
+	a.accessProviderById[ap.Id] = ap
+
+	if ap.ExternalId != nil {
+		a.idToExternalIdMap[ap.Id] = *ap.ExternalId
+	}
+
+	switch t {
+	case model.Role:
+		a.Roles = append(a.Roles, ap)
+	case model.SSORole:
+		a.PermissionSets = append(a.PermissionSets, ap)
+	case model.Policy:
+		a.Policies = append(a.Policies, ap)
+	case model.AccessPoint:
+		a.AccessPoints = append(a.AccessPoints, ap)
+	}
+
+	return &t
+}
+
+func (a *AccessToTargetSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessProviders *sync_to_target.AccessProviderImport, accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler) (err error) {
 	if accessProviders == nil || len(accessProviders.AccessProviders) == 0 {
 		utils.Logger.Info("No access providers to sync from Raito to AWS")
 		return nil
@@ -85,116 +148,45 @@ func (a *AccessSyncer) doSyncAccessProviderToTarget(ctx context.Context, accessP
 
 	utils.Logger.Info(fmt.Sprintf("Provisioning %d access providers to AWS", len(accessProviders.AccessProviders)))
 
-	bucketRegionMap, err := a.getBucketRegionMap()
+	err = a.initialize() // some initialization stuff we need to do
 	if err != nil {
-		return fmt.Errorf("get bucket region map: %w", err)
+		return fmt.Errorf("initialize: %w", err)
 	}
 
-	feedbackMap := make(map[string]*sync_to_target.AccessProviderSyncFeedback)
-
-	// Sort access providers on type
-	typeSortedAccessProviders := NewAccessProvidersByType()
-
-	typeCount := make(map[model.AccessProviderType]int)
-
-	for i := range accessProviders.AccessProviders {
-		accessProvider := accessProviders.AccessProviders[i]
-
-		if accessProvider == nil {
-			continue
-		}
-
-		// Create the initial feedback object
-		apFeedback := &sync_to_target.AccessProviderSyncFeedback{
-			AccessProvider: accessProvider.Id,
-		}
-		feedbackMap[accessProvider.Id] = apFeedback
-
-		apType := resolveApType(accessProvider, a.cfgMap)
-		apFeedback.Type = ptr.String(string(apType))
-
-		t := typeSortedAccessProviders.AddAccessProvider(apType, accessProvider, apFeedback, a.nameGenerator)
-		if t == nil {
-			continue
-		}
-
-		if _, found := typeCount[*t]; !found {
-			typeCount[*t] = 0
-		}
-
-		typeCount[*t]++
-	}
-
-	// Based on AWS dependencies we handle the access providers in the following order:
-	// 1. Roles
-	// 2. Policies
-	// 3. Permission Sets (if organization is enabled)
-	// 4. Access Points
-
-	handlers := make([]*AccessHandler, 0, 4)
-
-	if c, found := typeCount[model.Role]; found && c > 0 {
-		roleHandler := NewRoleAccessHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
-		handlers = append(handlers, &roleHandler)
-	}
-
-	if c, found := typeCount[model.Policy]; found && c > 0 {
-		policyHandler := NewPolicyAccessHandler(&typeSortedAccessProviders, a.repo, a.account)
-		handlers = append(handlers, &policyHandler)
-	}
-
-	if c, found := typeCount[model.SSORole]; !utils.CheckNilInterface(a.ssoRepo) && found && c > 0 {
-		ssoRoleHandler := NewSSORoleAccessHandler(&typeSortedAccessProviders, a.repo, a.ssoRepo, a.getUserGroupMap, a.account)
-		handlers = append(handlers, &ssoRoleHandler)
-	}
-
-	if c, found := typeCount[model.AccessPoint]; found && c > 0 {
-		s3AccessPointHandler := NewAccessProviderHandler(&typeSortedAccessProviders, a.repo, a.getUserGroupMap, a.account)
-		handlers = append(handlers, &s3AccessPointHandler)
-	}
-
-	// Initialize handlers
-	for _, handler := range handlers {
-		err = handler.Initialize(ctx, a.cfgMap, bucketRegionMap)
-		if err != nil {
-			return fmt.Errorf("initialize handler %T: %w", handler, err)
-		}
-	}
+	a.loadAccessProviders(accessProviders.AccessProviders)
 
 	// Making sure we always send the feedback back
 	defer func() {
-		for _, feedback := range feedbackMap {
-			err2 := accessProviderFeedbackHandler.AddAccessProviderFeedback(*feedback)
-			if err2 != nil {
-				err = multierror.Append(err, err2)
-			}
-		}
+		err = a.sendFeedback(accessProviderFeedbackHandler)
 	}()
 
-	// Start processing access providers
-	for _, handler := range handlers {
-		handler.PrepareAccessProviders(ctx)
-	}
+	// The possible hierarchy links are these:
+	// access point -> role
+	// access point -> sso role
+	// policy -> role
+	// policy -> sso role
+	//
+	// We'll start with handling from the top to make sure these are created when trying to link to them.
 
-	// Process Inheritance
-	for _, handler := range handlers {
-		handler.ProcessInheritance()
-	}
-
-	// Update access providers
-	for _, handler := range handlers {
-		utils.Logger.Info(fmt.Sprintf("Handling update and creation of access providers with type %s", handler.handlerType))
-		handler.HandleUpdates(ctx)
-	}
-
-	// Delete old access providers
-	for i := range handlers {
-		handler := handlers[len(handlers)-1-i]
-		utils.Logger.Info(fmt.Sprintf("Handling deletion of access providers with type %s", handler.handlerType))
-		handler.HandleDeletes(ctx)
-	}
+	a.handleRoles(ctx)
+	a.handleSSORoles(ctx)
+	a.handleAccessPoints(ctx)
+	a.handlePolicies(ctx)
 
 	return nil
+}
+
+func (a *AccessToTargetSyncer) sendFeedback(accessProviderFeedbackHandler wrappers.AccessProviderFeedbackHandler) error {
+	var err error
+
+	for _, feedback := range a.feedbackMap {
+		err2 := accessProviderFeedbackHandler.AddAccessProviderFeedback(*feedback)
+		if err2 != nil {
+			err = multierror.Append(err, err2)
+		}
+	}
+
+	return err
 }
 
 func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMap) model.AccessProviderType {
@@ -213,88 +205,6 @@ func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMa
 	utils.Logger.Warn(fmt.Sprintf("No type provided for access provider %q. Using Policy as default", ap.Name))
 
 	return model.Policy
-}
-
-// convertResourceURLsForAccessPoint converts all the resource ARNs in the policy statements to the corresponding ones for the access point.
-// e.g. "arn:aws:s3:::bucket/folder1" would become "arn:aws:s3:eu-central-1:077954824694:accesspoint/operations/object/folder1/*"
-func convertResourceURLsForAccessPoint(statements []*awspolicy.Statement, accessPointArn string) {
-	for _, statement := range statements {
-		for i, resource := range statement.Resource {
-			if strings.HasPrefix(resource, "arn:aws:s3:") {
-				fullName := strings.Split(resource, ":")[5]
-				if strings.Contains(fullName, "/") {
-					fullName = fullName[strings.Index(fullName, "/")+1:]
-					if !strings.HasPrefix(fullName, "*") {
-						fullName += "/*"
-					}
-
-					statement.Resource[i] = fmt.Sprintf("%s/object/%s", accessPointArn, fullName)
-				} else {
-					statement.Resource[i] = accessPointArn
-				}
-			}
-		}
-	}
-}
-
-// extractBucketForAccessPoint extracts the bucket name and region from the policy statements of an access point.
-// When there is non found or multiple buckets, an error is returned.
-func extractBucketForAccessPoint(whatItems []sync_to_target.WhatItem) (string, string, error) {
-	bucket := ""
-	region := ""
-
-	for _, whatItem := range whatItems {
-		thisBucket := whatItem.DataObject.FullName
-		if strings.Contains(thisBucket, "/") {
-			thisBucket = thisBucket[:strings.Index(thisBucket, "/")] //nolint:gocritic
-		}
-
-		parts := strings.Split(thisBucket, ":")
-		if len(parts) != 3 {
-			return "", "", fmt.Errorf("unexpected full name for S3 object: %s", whatItem.DataObject.FullName)
-		}
-
-		thisBucketName := parts[2]
-		thisBucketRegion := parts[1]
-
-		if bucket != "" && bucket != thisBucketName {
-			return "", "", fmt.Errorf("an access point can only have one bucket associated with it")
-		}
-
-		bucket = thisBucketName
-		region = thisBucketRegion
-	}
-
-	if bucket == "" {
-		return "", "", fmt.Errorf("unable to determine the bucket for this access point")
-	}
-
-	return bucket, region, nil
-}
-
-// mergeStatementsOnPermissions merges statements that have the same permissions.
-func mergeStatementsOnPermissions(statements []*awspolicy.Statement) []*awspolicy.Statement {
-	mergedStatements := make([]*awspolicy.Statement, 0, len(statements))
-
-	permissions := map[string]*awspolicy.Statement{}
-
-	for _, s := range statements {
-		actionList := s.Action
-		sort.Strings(actionList)
-		actions := strings.Join(actionList, ",")
-
-		if existing, f := permissions[actions]; f {
-			existing.Resource = append(existing.Resource, s.Resource...)
-		} else {
-			permissions[actions] = s
-		}
-	}
-
-	for _, s := range permissions {
-		mergedStatements = append(mergedStatements, s)
-	}
-
-	return mergedStatements
 }
 
 func createPolicyStatementsFromWhat(whatItems []sync_to_target.WhatItem, cfg *config.ConfigMap) []*awspolicy.Statement {
@@ -362,7 +272,7 @@ func optimizePermissions(allPermissions, userPermissions []string) []string {
 	i := 0
 
 	for i < len(userPermissions) {
-		if !contains(allPermissions, userPermissions[i]) {
+		if !slices.Contains(allPermissions, userPermissions[i]) {
 			i++
 			continue
 		}
@@ -433,23 +343,73 @@ func findCommonPrefix(a, b string) string {
 	return a[:i]
 }
 
-func contains(slice []string, val string) bool {
-	for _, item := range slice {
-		if item == val {
-			return true
+// getUserGroupMap returns a map of group names to users they contain
+func (a *AccessToTargetSyncer) getUserGroupMap(ctx context.Context) (map[string][]string, error) {
+	if a.userGroupMap != nil {
+		return a.userGroupMap, nil
+	}
+
+	groups, err := a.iamRepo.GetGroups(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("get groups: %w", err)
+	}
+
+	a.userGroupMap = make(map[string][]string)
+
+	users, err := a.iamRepo.GetUsers(ctx, false)
+	if err != nil {
+		return nil, fmt.Errorf("get users: %w", err)
+	}
+
+	userMap := make(map[string]string)
+	for _, u := range users {
+		userMap[u.ExternalId] = u.Name
+	}
+
+	for _, g := range groups {
+		for _, m := range g.Members {
+			if userName, f := userMap[m]; f {
+				a.userGroupMap[g.Name] = append(a.userGroupMap[g.Name], userName)
+			} else {
+				utils.Logger.Warn(fmt.Sprintf("Could not find member %s for group %s", m, g.Name))
+			}
 		}
 	}
 
-	return false
+	return a.userGroupMap, nil
 }
 
-func removeArn(input []model.PolicyBinding) []model.PolicyBinding {
-	result := []model.PolicyBinding{}
+func logFeedbackError(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
+	utils.Logger.Error(msg)
+	apFeedback.Errors = append(apFeedback.Errors, msg)
+}
 
-	for _, val := range input {
-		val.ResourceId = ""
-		result = append(result, val)
+func logFeedbackWarning(apFeedback *sync_to_target.AccessProviderSyncFeedback, msg string) {
+	utils.Logger.Warn(msg)
+	apFeedback.Warnings = append(apFeedback.Warnings, msg)
+}
+
+func (a *AccessToTargetSyncer) unpackGroups(ctx context.Context, groups []string, result set.Set[string]) error {
+	if len(groups) == 0 {
+		return nil
 	}
 
-	return result
+	userGroupMap, err := a.getUserGroupMap(ctx)
+	if err != nil {
+		return fmt.Errorf("get user group map: %w", err)
+	}
+
+	for _, group := range groups {
+		if users, f := userGroupMap[group]; f {
+			for _, user := range users {
+				result.Add(user)
+			}
+		}
+	}
+
+	return nil
+}
+
+func getNameFromExternalId(externalId string) string {
+	return externalId[strings.Index(externalId, ":")+1:]
 }

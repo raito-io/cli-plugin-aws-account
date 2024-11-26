@@ -20,6 +20,7 @@ import (
 )
 
 type dataAccessRepository interface {
+	GetManagedPolicyByName(ctx context.Context, name string) (*model.PolicyEntity, error)
 	GetManagedPolicies(ctx context.Context) ([]model.PolicyEntity, error)
 	CreateManagedPolicy(ctx context.Context, policyName string, statements []*awspolicy.Statement) (*types.Policy, error)
 	UpdateManagedPolicy(ctx context.Context, policyName string, awsManaged bool, statements []*awspolicy.Statement) error
@@ -35,12 +36,14 @@ type dataAccessRepository interface {
 	GetUsers(ctx context.Context, withDetails bool) ([]model.UserEntity, error)
 	GetGroups(ctx context.Context) ([]model.GroupEntity, error)
 	GetRoles(ctx context.Context, excludedRoles []string) ([]model.RoleEntity, error)
+	GetRoleByName(ctx context.Context, roleName string) (*model.RoleEntity, error)
 	CreateRole(ctx context.Context, name, description string, userNames []string) (bool, error)
 	DeleteRole(ctx context.Context, name string) error
 	GetSsoRoleWithPrefix(ctx context.Context, prefixName string, excludedRoles []string) (*model.RoleEntity, error)
 	UpdateAssumeEntities(ctx context.Context, roleName string, userNames []string) error
 	GetInlinePoliciesForEntities(ctx context.Context, entityNames []string, entityType string) (map[string][]model.PolicyEntity, error)
 	ListAccessPoints(ctx context.Context, region string) ([]model.AwsS3AccessPoint, error)
+	GetAccessPointByNameAndRegion(ctx context.Context, name, region string) (*model.AwsS3AccessPoint, error)
 	DeleteInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string) error
 	UpdateInlinePolicy(ctx context.Context, policyName, resourceName, resourceType string, statements []*awspolicy.Statement) error
 	GetPolicyArn(policyName string, awsManaged bool, configMap *config.ConfigMap) string
@@ -55,7 +58,7 @@ type dataAccessSsoRepository interface {
 	CreateSsoRole(ctx context.Context, name, description string) (arn string, err error)
 	UpdateSsoRole(ctx context.Context, arn string, description string) error
 	DeleteSsoRole(ctx context.Context, permissionSetArn string) error
-	ListSsoRole(ctx context.Context) ([]string, error)
+	ListSsoRoles(ctx context.Context) ([]string, error)
 	AssignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error
 	UnassignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error
 	ListPermissionSetAssignment(ctx context.Context, permissionSetArn string) ([]ssoTypes.AccountAssignment, error)
@@ -87,11 +90,8 @@ type AccessSyncer struct {
 	iamRepo         dataAccessIamRepository
 	s3Repo          dataAccessS3Repo
 	account         string
-	userGroupMap    map[string][]string
 	cfgMap          *config.ConfigMap
 	bucketRegionMap map[string]string
-
-	nameGenerator *NameGenerator
 }
 
 func NewDataAccessSyncer() *AccessSyncer {
@@ -135,11 +135,6 @@ func (a *AccessSyncer) initialize(ctx context.Context, configMap *config.ConfigM
 	a.iamRepo = iam.NewAwsIamRepository(configMap)
 
 	a.s3Repo = data_source.NewAwsS3Repository(configMap)
-
-	a.nameGenerator, err = NewNameGenerator(a.account)
-	if err != nil {
-		return fmt.Errorf("new name generator: %w", err)
-	}
 
 	return nil
 }

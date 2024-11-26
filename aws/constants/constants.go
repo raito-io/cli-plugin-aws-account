@@ -36,9 +36,6 @@ const (
 
 	AwsS3CloudTrailBucket = "aws-s3-cloudtrail-bucket"
 
-	// To make a distinct difference between policies and roles when reading ACs from the target, we'll prefix policy names with this value.
-	PolicyPrefix = "policy/"
-
 	// Inline prefix is used for prefixing part of the external id, preceding the comma-separated list of inline policy ARNs used
 	InlinePrefix          = "inline:"
 	PolicyTypePrefix      = "policy:"

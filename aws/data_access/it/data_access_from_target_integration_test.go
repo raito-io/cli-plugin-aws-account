@@ -66,6 +66,7 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
 	// Skipping AWS managed policies for performance reasons
 	config.Parameters[constants.AwsAccessManagedPolicyExcludes] = "Amazon.+,AWS.+"
 	config.Parameters[constants.AwsAccessSkipAWSManagedPolicies] = "true"
+
 	err := accessSyncer.SyncAccessProvidersFromTarget(context.Background(), handler, config)
 
 	doPrefix := "077954824694:eu-central-1:"
@@ -85,33 +86,33 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
 func (s *DataAccessFromTargetTestSuite) verifyAps(handler *mocks.SimpleAccessProviderHandler, expectedAps map[string]expectedAP) {
 	for _, ap := range handler.AccessProviders {
 		if expected, ok := expectedAps[ap.ExternalId]; ok {
-			s.Assert().Equal(expected.name, ap.Name)
+			s.Assert().Equal(expected.name, ap.Name, "for ap %s", ap.ExternalId)
 
-			s.Assert().Len(expected.whoUsers, len(ap.Who.Users))
+			s.Assert().Len(expected.whoUsers, len(ap.Who.Users), "for ap %s", ap.ExternalId)
 			if expected.whoUsers != nil {
-				s.Assert().ElementsMatch(expected.whoUsers, ap.Who.Users)
+				s.Assert().ElementsMatch(expected.whoUsers, ap.Who.Users, "for ap %s", ap.ExternalId)
 			}
 
-			s.Assert().Len(expected.whoGroups, len(ap.Who.Groups))
+			s.Assert().Len(expected.whoGroups, len(ap.Who.Groups), "for ap %s", ap.ExternalId)
 			if expected.whoGroups != nil {
-				s.Assert().ElementsMatch(expected.whoGroups, ap.Who.Groups)
+				s.Assert().ElementsMatch(expected.whoGroups, ap.Who.Groups, "for ap %s", ap.ExternalId)
 			}
 
-			s.Assert().Len(expected.whoAps, len(ap.Who.AccessProviders))
+			s.Assert().Len(expected.whoAps, len(ap.Who.AccessProviders), "for ap %s", ap.ExternalId)
 			if expected.whoAps != nil {
-				s.Assert().ElementsMatch(expected.whoAps, ap.Who.AccessProviders)
+				s.Assert().ElementsMatch(expected.whoAps, ap.Who.AccessProviders, "for ap %s", ap.ExternalId)
 			}
 
 			if expected.whatDos != nil {
 				dos, perm := flattenWhat(ap.What)
-				s.Assert().ElementsMatch(expected.whatDos, dos)
-				s.Assert().ElementsMatch(expected.whatPermissions, perm)
+				s.Assert().ElementsMatch(expected.whatDos, dos, "for ap %s", ap.ExternalId)
+				s.Assert().ElementsMatch(expected.whatPermissions, perm, "for ap %s", ap.ExternalId)
 			}
 
 			if expected.incomplete {
-				s.Assert().True(ap.Incomplete != nil && *ap.Incomplete)
+				s.Assert().True(ap.Incomplete != nil && *ap.Incomplete, "for ap %s", ap.ExternalId)
 			} else {
-				s.Assert().True(ap.Incomplete == nil || !*ap.Incomplete)
+				s.Assert().True(ap.Incomplete == nil || !*ap.Incomplete, "for ap %s", ap.ExternalId)
 			}
 
 			delete(expectedAps, ap.ExternalId)

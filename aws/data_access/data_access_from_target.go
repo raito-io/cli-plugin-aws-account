@@ -269,14 +269,12 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 			policyDocument = *policy.PolicyDocument
 		}
 
-		prefixedName := fmt.Sprintf("%s%s", constants.PolicyPrefix, policy.Name)
-
 		apInput := sync_from_target.AccessProvider{
 			ExternalId: constants.PolicyTypePrefix + policy.Name,
 			Name:       policy.Name,
-			ActualName: prefixedName,
+			ActualName: policy.Name,
 			Type:       aws.String(string(model.Policy)),
-			NamingHint: prefixedName,
+			NamingHint: policy.Name,
 			Action:     sync_from_target.Grant,
 			Policy:     policyDocument,
 			Who: &sync_from_target.WhoItem{

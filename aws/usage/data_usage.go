@@ -282,6 +282,11 @@ func (s *DataUsageSyncer) readAndParseUsageLog(ctx context.Context, bucketName s
 
 				globalPermission, _ := permissions.GetS3Permission(permission)
 
+				if globalPermission == nil {
+					utils.Logger.Warn(fmt.Sprintf("Could not find global permission for %q", permission))
+					continue
+				}
+
 				for _, a := range globalPermission.UsageGlobalPermissions {
 					action, actionErr := data_usage.ActionTypeString(a)
 					if actionErr != nil {
