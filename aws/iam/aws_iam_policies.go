@@ -599,13 +599,12 @@ func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, pol
 	}
 
 	for _, userName := range userNames {
-		_, err := client.AttachUserPolicy(ctx, &iam.AttachUserPolicyInput{
+		_, err = client.AttachUserPolicy(ctx, &iam.AttachUserPolicyInput{
 			PolicyArn: aws.String(policyArn),
 			UserName:  aws.String(userName),
 		})
 		if err != nil {
-			utils.Logger.Error(fmt.Sprintf("Couldn't attach policy %v to user %v: %v\n", policyArn, userName, err.Error()))
-			return fmt.Errorf("attach policyto user %q: %w", userName, err)
+			return fmt.Errorf("attach policy to user %q: %w", userName, err)
 		}
 	}
 

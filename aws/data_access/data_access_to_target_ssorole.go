@@ -40,11 +40,11 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 			return
 		}
 
-		utils.Logger.Info(fmt.Sprintf("Deleting role %s", role.Name))
+		utils.Logger.Info(fmt.Sprintf("Deleting permission set %s", role.Name))
 
 		err2 := a.ssoRepo.DeleteSsoRole(ctx, existingPermissionSet.arn)
 		if err2 != nil {
-			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while removing role %q: %s", name, err2.Error()))
+			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while removing permission set %q: %s", name, err2.Error()))
 		}
 
 		return
