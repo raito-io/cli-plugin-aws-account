@@ -272,7 +272,6 @@ func optimizePermissions(allPermissions, userPermissions []string) []string {
 	i := 0
 
 	for i < len(userPermissions) {
-
 		if !slices.Contains(allPermissions, userPermissions[i]) {
 			i++
 			continue
