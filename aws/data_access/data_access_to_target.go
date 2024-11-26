@@ -6,7 +6,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -16,6 +15,7 @@ import (
 	"github.com/hashicorp/go-multierror"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source/permissions"
 	"github.com/raito-io/cli-plugin-aws-account/aws/iam"
+	"github.com/raito-io/cli-plugin-aws-account/aws/utils/bimap"
 	ds "github.com/raito-io/cli/base/data_source"
 
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
@@ -55,7 +55,6 @@ type AccessToTargetSyncer struct {
 	ssoRepo dataAccessSsoRepository
 	iamRepo dataAccessIamRepository
 	cfgMap  *config.ConfigMap
-	lock    sync.Mutex
 }
 
 func NewAccessToTargetSyncer(a *AccessSyncer) *AccessToTargetSyncer {
@@ -110,14 +109,14 @@ func (a *AccessToTargetSyncer) loadAccessProviders(accessProviders []*sync_to_ta
 
 		apType := resolveApType(accessProvider, a.accessSyncer.cfgMap)
 
-		t := a.addAccessProvider(apType, accessProvider, a.nameGenerator)
+		t := a.addAccessProvider(apType, accessProvider)
 		if t == nil {
 			continue
 		}
 	}
 }
 
-func (a *AccessToTargetSyncer) addAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider, nameGenerator *NameGenerator) *model.AccessProviderType {
+func (a *AccessToTargetSyncer) addAccessProvider(t model.AccessProviderType, ap *sync_to_target.AccessProvider) *model.AccessProviderType {
 	// Create the initial feedback object
 	apFeedback := &sync_to_target.AccessProviderSyncFeedback{
 		AccessProvider: ap.Id,
@@ -211,6 +210,7 @@ func (a *AccessToTargetSyncer) handleRole(ctx context.Context, role *sync_to_tar
 		if err != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while removing role %q: %s", name, err.Error()))
 		}
+
 		return
 	}
 
@@ -335,6 +335,7 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 		if err2 != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while removing role %q: %s", name, err2.Error()))
 		}
+
 		return
 	}
 
@@ -421,28 +422,9 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 	}
 
 	for binding := range bindingsToRemove {
-		var principalType ssoTypes.PrincipalType
-		var principalId string
-
-		if binding.Type == iam.UserResourceType {
-			principalType = ssoTypes.PrincipalTypeUser
-			principalId, _ = users.GetBackwards(binding.ResourceName)
-
-			if principalId == "" {
-				logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to find user to unassign %q", binding.ResourceName))
-
-				continue
-			}
-		} else if binding.Type == iam.GroupResourceType {
-			principalType = ssoTypes.PrincipalTypeGroup
-			principalId, _ = groups.GetBackwards(binding.ResourceName)
-
-			if principalId == "" {
-				logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to find group to unassign %q", binding.ResourceName))
-
-				continue
-			}
-		} else {
+		principalType, principalId, err2 := a.handlePermissionSetBindings(binding, users, groups)
+		if err2 != nil {
+			logFeedbackError(a.feedbackMap[role.Id], err2.Error())
 			continue
 		}
 
@@ -455,28 +437,9 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 	bindingsToAdd := utils.SetSubtract(targetBindings, existingBindings)
 
 	for binding := range bindingsToAdd {
-		var principalType ssoTypes.PrincipalType
-		var principalId string
-
-		if binding.Type == iam.UserResourceType {
-			principalType = ssoTypes.PrincipalTypeUser
-			principalId, _ = users.GetBackwards(binding.ResourceName)
-
-			if principalId == "" {
-				logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to find user to assign %q", binding.ResourceName))
-
-				continue
-			}
-		} else if binding.Type == iam.GroupResourceType {
-			principalType = ssoTypes.PrincipalTypeGroup
-			principalId, _ = groups.GetBackwards(binding.ResourceName)
-
-			if principalId == "" {
-				logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to find group to assign %q", binding.ResourceName))
-
-				continue
-			}
-		} else {
+		principalType, principalId, err2 := a.handlePermissionSetBindings(binding, users, groups)
+		if err2 != nil {
+			logFeedbackError(a.feedbackMap[role.Id], err2.Error())
 			continue
 		}
 
@@ -487,21 +450,35 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 	}
 }
 
-func (a *AccessToTargetSyncer) updatePermissionSetWhat(ctx context.Context, role *sync_to_target.AccessProvider, name string, permissionSetArn string) {
-	a.updatePermissionSetWhatDataObjects(ctx, role, name, permissionSetArn)
+func (a *AccessToTargetSyncer) handlePermissionSetBindings(binding model.PolicyBinding, users bimap.Bimap[string, string], groups bimap.Bimap[string, string]) (ssoTypes.PrincipalType, string, error) {
+	var principalType ssoTypes.PrincipalType
+	var principalId string
 
-	err := a.updatePermissionSetWhatPolicies(ctx, role, name, permissionSetArn)
-	if err != nil {
-		logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Gailed to update roles for permission set %q: %s", name, err.Error()))
+	if binding.Type == iam.UserResourceType {
+		principalType = ssoTypes.PrincipalTypeUser
+		principalId, _ = users.GetBackwards(binding.ResourceName)
+
+		if principalId == "" {
+			return "", "", fmt.Errorf("failed to find user to assign %q", binding.ResourceName)
+		}
+
+		return principalType, principalId, nil
+	} else if binding.Type == iam.GroupResourceType {
+		principalType = ssoTypes.PrincipalTypeGroup
+		principalId, _ = groups.GetBackwards(binding.ResourceName)
+
+		if principalId == "" {
+			return "", "", fmt.Errorf("failed to find group to assign %q", binding.ResourceName)
+		}
+
+		return principalType, principalId, nil
 	}
+
+	return "", "", fmt.Errorf("unknown binding type %q", binding.Type)
 }
 
-func (a *AccessToTargetSyncer) updatePermissionSetWhatPolicies(ctx context.Context, role *sync_to_target.AccessProvider, name string, permissionSetArn string) error {
-	// TODO
-	return nil
-}
-
-func (a *AccessToTargetSyncer) updatePermissionSetWhatDataObjects(ctx context.Context, role *sync_to_target.AccessProvider, name string, permissionSetArn string) {
+func (a *AccessToTargetSyncer) updatePermissionSetWhat(ctx context.Context, role *sync_to_target.AccessProvider, name string, permissionSetArn string) {
+	// Note: the WHAT are only the direct data objects now. The other WHAT are handled with the updates in the policies.
 	statements := createPolicyStatementsFromWhat(role.What, a.cfgMap)
 
 	err := a.ssoRepo.UpdateInlinePolicyToPermissionSet(ctx, permissionSetArn, statements)
@@ -514,6 +491,10 @@ type permissionSetData struct {
 	name     string
 	arn      string
 	bindings set.Set[model.PolicyBinding]
+}
+
+func (a *AccessToTargetSyncer) clearPermissionSetsCache() {
+	a.cachedPermissionSets = nil
 }
 
 func (a *AccessToTargetSyncer) fetchExistingPermissionSets(ctx context.Context) (map[string]*permissionSetData, error) {
@@ -626,6 +607,8 @@ func (a *AccessToTargetSyncer) handleSSORoles(ctx context.Context) {
 	}
 
 	wp.StopWait()
+
+	a.clearPermissionSetsCache() // Clearing the cache to make sure we fetch all the newly created ones.
 }
 
 func (a *AccessToTargetSyncer) handleAccessPoints(ctx context.Context) {
@@ -685,6 +668,7 @@ func (a *AccessToTargetSyncer) handleAccessPoints(ctx context.Context) {
 
 		groupUsers := set.NewSet[string]()
 		err = a.unpackGroups(ctx, accessPoint.Who.Groups, groupUsers)
+
 		if err != nil {
 			logFeedbackError(a.feedbackMap[accessPoint.Id], fmt.Sprintf("Error while unpacking groups for access point %q: %s", newName, err.Error()))
 			continue
@@ -813,201 +797,6 @@ func filterAccessPointPermissions(statements []*awspolicy.Statement) {
 
 		statement.Action = actions
 	}
-}
-
-func (a *AccessToTargetSyncer) handlePolicies(ctx context.Context) {
-	for _, policy := range a.Policies {
-		newName, err := a.nameGenerator.GenerateName(policy, model.Policy)
-		if err != nil {
-			logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while generating name for policy %q: %s", policy.Name, err.Error()))
-			continue
-		}
-
-		utils.Logger.Info(fmt.Sprintf("Generated policy name %q for grant %q", newName, policy.Name))
-
-		nameToDelete := ""
-		if policy.Delete {
-			nameToDelete = newName
-		}
-
-		if policy.ExternalId != nil && *policy.ExternalId != "" {
-			origName := getNameFromExternalId(*policy.ExternalId) // Parsing the name out of the external ID
-
-			if newName != origName {
-				nameToDelete = origName
-			}
-		}
-
-		var existingPolicy *model.PolicyEntity
-
-		if nameToDelete != "" {
-			utils.Logger.Info(fmt.Sprintf("Deleting policy %s", nameToDelete))
-
-			// We're assuming that an AWS managed policy can't be deleted
-			err = a.repo.DeleteManagedPolicy(ctx, nameToDelete, false)
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while removing policy %q: %s", nameToDelete, err.Error()))
-			}
-
-			if policy.Delete { // If we needed just to delete it, that's all we need to do
-				continue
-			}
-		} else {
-			existingPolicy, err = a.repo.GetManagedPolicyByName(ctx, newName)
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while fetching existing policy %q: %s", newName, err.Error()))
-				continue
-			}
-		}
-
-		existingUserBindings := set.NewSet[string]()
-		existingGroupBindings := set.NewSet[string]()
-		existingRoleBindings := set.NewSet[string]()
-
-		statements := createPolicyStatementsFromWhat(policy.What, a.cfgMap)
-		var policyArn string
-
-		if existingPolicy == nil {
-			utils.Logger.Info(fmt.Sprintf("Creating policy %s", newName))
-
-			p, err2 := a.repo.CreateManagedPolicy(ctx, newName, statements)
-			if err2 != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to create managed policy %q: %s", newName, err2.Error()))
-				continue
-			} else if p == nil {
-				logFeedbackWarning(a.feedbackMap[policy.Id], fmt.Sprintf("Policy %q not created.", newName))
-				continue
-			}
-
-			policyArn = *p.Arn
-		} else {
-			policyArn = existingPolicy.ARN
-			utils.Logger.Info(fmt.Sprintf("Updating policy %s", newName))
-
-			err = a.repo.UpdateManagedPolicy(ctx, newName, false, statements)
-
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to update managed policy %q: %s", newName, err.Error()))
-				continue
-			}
-
-			existingUserBindings.Add(policyBindingsToNames(existingPolicy.UserBindings)...)
-			existingGroupBindings.Add(policyBindingsToNames(existingPolicy.GroupBindings)...)
-			existingRoleBindings.Add(policyBindingsToNames(existingPolicy.RoleBindings)...)
-		}
-
-		a.feedbackMap[policy.Id].ExternalId = ptr.String(constants.PolicyTypePrefix + newName)
-		a.feedbackMap[policy.Id].ActualName = newName
-		a.idToExternalIdMap[policy.Id] = constants.PolicyTypePrefix + newName
-
-		// Now handling the WHO part of the policy
-
-		// Adding and removing users from the policy
-		targetUserBindings := set.NewSet[string](policy.Who.Users...)
-
-		usersToAdd := utils.SetSubtract(targetUserBindings, existingUserBindings)
-		for _, user := range usersToAdd.Slice() {
-			utils.Logger.Debug(fmt.Sprintf("Attaching policy %s to user: %s", newName, user))
-
-			err = a.repo.AttachUserToManagedPolicy(ctx, policyArn, []string{user})
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to attach user %q to managed policy %q: %s", user, newName, err.Error()))
-				continue
-			}
-		}
-
-		usersToRemove := utils.SetSubtract(existingUserBindings, targetUserBindings)
-		for _, user := range usersToRemove.Slice() {
-			utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from user: %s", newName, user))
-
-			err = a.repo.DetachUserFromManagedPolicy(ctx, policyArn, []string{user})
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to detach user %q from managed policy %q: %s", user, newName, err.Error()))
-				continue
-			}
-		}
-
-		// Adding and removing groups from the policy
-		targetGroupBindings := set.NewSet[string](policy.Who.Groups...)
-
-		groupsToAdd := utils.SetSubtract(targetGroupBindings, existingGroupBindings)
-		for _, group := range groupsToAdd.Slice() {
-			utils.Logger.Debug(fmt.Sprintf("Attaching policy %s to group: %s", newName, group))
-
-			err = a.repo.AttachGroupToManagedPolicy(ctx, policyArn, []string{group})
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to attach group %q to managed policy %q: %s", group, newName, err.Error()))
-				continue
-			}
-		}
-
-		groupsToRemove := utils.SetSubtract(existingGroupBindings, targetGroupBindings)
-		for _, group := range groupsToRemove.Slice() {
-			utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from group: %s", newName, group))
-
-			err = a.repo.DetachGroupFromManagedPolicy(ctx, policyArn, []string{group})
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to detach group %q from managed policy %q: %s", group, newName, err.Error()))
-				continue
-			}
-		}
-
-		// Adding and removing roles from the policy
-		targetRoleBindings := set.NewSet[string]()
-
-		for _, inherited := range policy.Who.InheritFrom {
-			inheritedExternalId := inherited
-
-			if strings.HasPrefix(inherited, "ID:") {
-				id := inherited[3:] // Cutting off the 'ID:' prefix
-				if externalId, found := a.idToExternalIdMap[id]; found {
-					inheritedExternalId = externalId
-				} else {
-					logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to attach dependency %q to managed policy %q", inherited, newName))
-					continue
-				}
-			}
-
-			if !strings.HasPrefix(inheritedExternalId, constants.RoleTypePrefix) {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Invalid role reference %q in managed policy %q", inherited, newName))
-				continue
-			}
-
-			targetRoleBindings.Add(getNameFromExternalId(inheritedExternalId))
-		}
-
-		rolesToAdd := utils.SetSubtract(targetRoleBindings, existingRoleBindings)
-		for _, role := range rolesToAdd.Slice() {
-			utils.Logger.Debug(fmt.Sprintf("Attaching policy %s to role: %s", newName, role))
-
-			err = a.repo.AttachRoleToManagedPolicy(ctx, policyArn, []string{role})
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to attach role %q to managed policy %q: %s", role, newName, err.Error()))
-				continue
-			}
-		}
-
-		rolesToRemove := utils.SetSubtract(existingRoleBindings, targetRoleBindings)
-		for _, role := range rolesToRemove.Slice() {
-			utils.Logger.Debug(fmt.Sprintf("Detaching policy %s from role: %s", newName, role))
-
-			err = a.repo.DetachRoleFromManagedPolicy(ctx, policyArn, []string{role})
-			if err != nil {
-				logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Failed to detach role %q from managed policy %q: %s", role, newName, err.Error()))
-				continue
-			}
-		}
-	}
-}
-
-func policyBindingsToNames(bindings []model.PolicyBinding) []string {
-	names := make([]string, 0, len(bindings))
-
-	for _, binding := range bindings {
-		names = append(names, binding.ResourceName)
-	}
-
-	return names
 }
 
 func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMap) model.AccessProviderType {

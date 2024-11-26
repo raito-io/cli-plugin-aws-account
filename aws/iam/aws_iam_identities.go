@@ -329,6 +329,7 @@ func (repo *AwsIamRepository) GetRoles(ctx context.Context, roleExcludes []strin
 			}
 
 			roleEntity, err2 := repo.convertRoleToRoleEntity(roleDetailsRaw.Role)
+
 			smu.Lock()
 			defer smu.Unlock()
 

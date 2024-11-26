@@ -69,7 +69,6 @@ func (repo *AwsIamRepository) GetManagedPolicyByName(ctx context.Context, name s
 				} else {
 					return nil, fmt.Errorf("get policy: %w", err)
 				}
-
 			}
 		} else {
 			return nil, fmt.Errorf("get policy: %w", err)

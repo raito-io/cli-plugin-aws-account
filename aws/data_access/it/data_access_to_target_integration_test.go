@@ -48,13 +48,17 @@ func (s *DataAccessToTargetTestSuite) name(val string) string {
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_CreateAllTogether() {
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
-
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+	idToExternalIdMap := make(map[string]string)
 
 	p1Name := s.name("policy-all-1")
 	p2Name := s.name("policy-all-2")
 	r1Name := s.name("role-all-1")
 	r2Name := s.name("role-all-2")
+
+	defer func() {
+		s.deleteAps([]string{r1Name, r2Name, p1Name, p2Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy), string(model.Policy)}, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{
@@ -147,25 +151,25 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_CreateAllTogether() {
 	s.Require().NoError(err)
 	s.Require().Len(feedbackHandler.AccessProviderFeedback, 4)
 
-	idToExternalIdMap := make(map[string]string)
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		s.Require().Len(feedback.Errors, 0)
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
-
-	// Now deleting them all
-	s.deleteAps([]string{r1Name, r2Name, p1Name, p2Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy), string(model.Policy)}, accessSyncer)
 }
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate() {
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
-
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+	idToExternalIdMap := make(map[string]string)
 
 	p1Name := s.name("policy-sep-1")
 	p2Name := s.name("policy-sep-2")
 	r1Name := s.name("role-sep-1")
 	r2Name := s.name("role-sep-2")
+
+	defer func() {
+		s.deleteAps([]string{r1Name, r2Name, p1Name, p2Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy), string(model.Policy)}, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{
@@ -215,7 +219,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate
 	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.Require().NoError(err)
 	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
-	idToExternalIdMap := make(map[string]string)
+
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		s.Require().Len(feedback.Errors, 0)
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
@@ -272,16 +276,19 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate
 
 	err = accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.checkNoErrors(feedbackHandler, err, 2)
-
-	s.deleteAps([]string{r1Name, r2Name, p1Name, p2Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy), string(model.Policy)}, accessSyncer)
 }
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate() {
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
+	idToExternalIdMap := make(map[string]string)
 
 	p1Name := s.name("policy-update-1")
 	r1Name := s.name("role-update-1")
 	r2Name := s.name("role-update-2")
+
+	defer func() {
+		s.deleteAps([]string{r1Name, r2Name, p1Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy)}, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{
@@ -352,7 +359,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate()
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
 	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.checkNoErrors(feedbackHandler, err, 3)
-	idToExternalIdMap := make(map[string]string)
+
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
@@ -387,16 +394,19 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate()
 	feedbackHandler = mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
 	err = accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.checkNoErrors(feedbackHandler, err, 1)
-
-	s.deleteAps([]string{r1Name, r2Name, p1Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy)}, accessSyncer)
 }
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAndUpdate() {
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
+	idToExternalIdMap := make(map[string]string)
 
 	p1Name := s.name("policy-rename-1")
 	r1Name := s.name("role-rename-1")
 	r2Name := s.name("role-rename-2")
+
+	defer func() {
+		s.deleteAps([]string{r1Name, r2Name, p1Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy)}, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{
@@ -467,7 +477,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAn
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
 	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.checkNoErrors(feedbackHandler, err, 3)
-	idToExternalIdMap := make(map[string]string)
+
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
@@ -505,8 +515,6 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAn
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
-
-	s.deleteAps([]string{r1Name, r2Name, p1Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.Policy)}, accessSyncer)
 }
 
 func (s *DataAccessToTargetTestSuite) checkNoErrors(feedbackHandler *mocks.SimpleAccessProviderFeedbackHandler, err error, expectedCount int) {
@@ -519,10 +527,15 @@ func (s *DataAccessToTargetTestSuite) checkNoErrors(feedbackHandler *mocks.Simpl
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPointUpdate() {
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
+	idToExternalIdMap := make(map[string]string)
 
 	ap1Name := s.name("ap1")
 	r1Name := s.name("role-ap-update-1")
 	r2Name := s.name("role-ap-update-2")
+
+	defer func() {
+		s.deleteAps([]string{r1Name, r2Name, ap1Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.AccessPoint)}, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{
@@ -593,7 +606,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPoi
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
 	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.checkNoErrors(feedbackHandler, err, 3)
-	idToExternalIdMap := make(map[string]string)
+
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
@@ -631,19 +644,26 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPoi
 	feedbackHandler = mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
 	err = accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.checkNoErrors(feedbackHandler, err, 1)
-
-	s.deleteAps([]string{r1Name, r2Name, ap1Name}, idToExternalIdMap, []string{string(model.Role), string(model.Role), string(model.AccessPoint)}, accessSyncer)
 }
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_ManyRoles() {
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(s.GetConfig())
-
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+	idToExternalIdMap := make(map[string]string)
 
 	roleNames := []string{}
 	for i := 0; i < 50; i++ {
 		roleNames = append(roleNames, fmt.Sprintf("role-many-%d", i))
 	}
+
+	roleTypes := make([]string, len(roleNames))
+	for i := 0; i < len(roleNames); i++ {
+		roleTypes[i] = string(model.Role)
+	}
+
+	defer func() {
+		s.deleteAps(roleNames, idToExternalIdMap, roleTypes, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{},
@@ -676,19 +696,12 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_ManyRoles() {
 	s.Require().NoError(err)
 	s.Require().Len(feedbackHandler.AccessProviderFeedback, len(roleNames))
 
-	idToExternalIdMap := make(map[string]string)
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		s.Require().Len(feedback.Errors, 0)
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
 
 	// Now deleting them all
-	roleTypes := make([]string, len(roleNames))
-	for i := 0; i < len(roleNames); i++ {
-		roleTypes[i] = string(model.Role)
-	}
-
-	s.deleteAps(roleNames, idToExternalIdMap, roleTypes, accessSyncer)
 }
 
 func (s *DataAccessToTargetTestSuite) TestAccessSyncer_SSORole() {
@@ -700,18 +713,24 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_SSORole() {
 	config.Parameters[constants.AwsOrganizationRegion] = "eu-west-1"
 
 	accessSyncer := data_access.NewDataAccessSyncerFromConfig(config)
-
 	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+	idToExternalIdMap := make(map[string]string)
 
-	roleName := s.name("TestSSORole")
+	sso1Name := s.name("SSORole1")
+	sso2Name := s.name("SSORole2")
+	p1Name := s.name("TestPolicy1")
+
+	defer func() {
+		s.deleteAps([]string{sso1Name, sso2Name, p1Name}, idToExternalIdMap, []string{string(model.SSORole), string(model.SSORole), string(model.Policy)}, accessSyncer)
+	}()
 
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{
 			{
-				Id:          roleName,
-				Name:        roleName,
-				Description: roleName + " Description",
-				NamingHint:  roleName,
+				Id:          sso1Name,
+				Name:        sso1Name,
+				Description: sso1Name + " Description",
+				NamingHint:  sso1Name,
 				Type:        ptr.String(string(model.SSORole)),
 				Action:      sync_to_target.Grant,
 				Who: sync_to_target.WhoItem{
@@ -727,20 +746,100 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_SSORole() {
 					},
 				},
 			},
+			{
+				Id:          p1Name,
+				Name:        p1Name,
+				Description: p1Name + " Description",
+				NamingHint:  p1Name,
+				Type:        ptr.String(string(model.Policy)),
+				Action:      sync_to_target.Grant,
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"d_hayden"},
+					InheritFrom: []string{"ID:" + sso1Name},
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "077954824694:eu-central-1:raito-data-corporate/marketing",
+							Type:     "folder",
+						},
+						Permissions: []string{"s3:GetObject", "s3:PutObject"},
+					},
+				},
+			},
 		},
 	}
 
 	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
 	s.Require().NoError(err)
-	s.Require().Len(feedbackHandler.AccessProviderFeedback, 1)
+	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
 
-	idToExternalIdMap := make(map[string]string)
 	for _, feedback := range feedbackHandler.AccessProviderFeedback {
 		s.Require().Len(feedback.Errors, 0)
 		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
 	}
 
-	s.deleteAps([]string{roleName}, idToExternalIdMap, []string{string(model.SSORole)}, accessSyncer)
+	aps = &sync_to_target.AccessProviderImport{
+		AccessProviders: []*sync_to_target.AccessProvider{
+			{
+				Id:          sso2Name,
+				Name:        sso2Name,
+				Description: sso2Name + " Description",
+				NamingHint:  sso2Name,
+				Type:        ptr.String(string(model.SSORole)),
+				Action:      sync_to_target.Grant,
+				Who: sync_to_target.WhoItem{
+					Users: []string{"ruben@raito.io"},
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "077954824694:eu-central-1:raito-data-corporate/operations",
+							Type:     "folder",
+						},
+						Permissions: []string{"s3:GetObject"},
+					},
+				},
+			},
+			{
+				Id:          p1Name,
+				Name:        p1Name,
+				Description: p1Name + " Description",
+				NamingHint:  p1Name,
+				Type:        ptr.String(string(model.Policy)),
+				ExternalId:  ptr.String(idToExternalIdMap[p1Name]),
+				Action:      sync_to_target.Grant,
+				Who: sync_to_target.WhoItem{
+					Users:       []string{"m_carissa"},
+					InheritFrom: []string{"ID:" + sso2Name}, // Adding it to SSO role 2
+				},
+				DeletedWho: &sync_to_target.WhoItem{
+					Users:       []string{"d_hayden"},
+					InheritFrom: []string{idToExternalIdMap[sso1Name]}, // Removing it from SSO role 1
+				},
+				What: []sync_to_target.WhatItem{
+					{
+						DataObject: &data_source.DataObjectReference{
+							FullName: "077954824694:eu-central-1:raito-data-corporate/marketing",
+							Type:     "folder",
+						},
+						Permissions: []string{"s3:GetObject", "s3:PutObject"},
+					},
+				},
+			},
+		},
+	}
+
+	feedbackHandler = mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+
+	err = accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
+	s.Require().NoError(err)
+	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
+
+	for _, feedback := range feedbackHandler.AccessProviderFeedback {
+		s.Require().Len(feedback.Errors, 0)
+		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
+	}
 }
 
 func (s *DataAccessToTargetTestSuite) deleteAps(ids []string, idToExternalIdMap map[string]string, types []string, accessSyncer *data_access.AccessSyncer) {
