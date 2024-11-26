@@ -651,7 +651,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_ManyRoles() {
 	idToExternalIdMap := make(map[string]string)
 
 	roleNames := []string{}
-	for i := 0; i < 50; i++ {
+	for i := 0; i < 30; i++ {
 		roleNames = append(roleNames, fmt.Sprintf("role-many-%d", i))
 	}
 

@@ -25,7 +25,7 @@ import (
 )
 
 const roleDelay = 10
-const workerPoolSize = 5
+const workerPoolSize = 3
 
 type AccessToTargetSyncer struct {
 	accessSyncer *AccessSyncer
