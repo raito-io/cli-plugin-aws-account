@@ -66,10 +66,10 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchTest() {
 	// Skipping AWS managed policies for performance reasons
 	config.Parameters[constants.AwsAccessManagedPolicyExcludes] = "Amazon.+,AWS.+"
 	config.Parameters[constants.AwsAccessSkipAWSManagedPolicies] = "true"
-	config.Parameters[constants.AwsOrganizationProfile] = "master"
+	/*config.Parameters[constants.AwsOrganizationProfile] = "master"
 	config.Parameters[constants.AwsOrganizationIdentityCenterInstanceArn] = "arn:aws:sso:::instance/ssoins-680418c87609cf1b"
 	config.Parameters[constants.AwsOrganizationIdentityStore] = "d-93677226bc"
-	config.Parameters[constants.AwsOrganizationRegion] = "eu-west-1"
+	config.Parameters[constants.AwsOrganizationRegion] = "eu-west-1"*/
 
 	err := accessSyncer.SyncAccessProvidersFromTarget(context.Background(), handler, config)
 

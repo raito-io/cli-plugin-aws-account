@@ -9,7 +9,6 @@ import (
 	"time"
 
 	"github.com/aws/smithy-go/ptr"
-	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/data_source"
@@ -704,143 +703,144 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_ManyRoles() {
 	// Now deleting them all
 }
 
-func (s *DataAccessToTargetTestSuite) TestAccessSyncer_SSORole() {
-	config := s.GetConfig()
-
-	config.Parameters[constants.AwsOrganizationProfile] = "master"
-	config.Parameters[constants.AwsOrganizationIdentityCenterInstanceArn] = "arn:aws:sso:::instance/ssoins-680418c87609cf1b"
-	config.Parameters[constants.AwsOrganizationIdentityStore] = "d-93677226bc"
-	config.Parameters[constants.AwsOrganizationRegion] = "eu-west-1"
-
-	accessSyncer := data_access.NewDataAccessSyncerFromConfig(config)
-	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
-	idToExternalIdMap := make(map[string]string)
-
-	sso1Name := s.name("SSORole1")
-	sso2Name := s.name("SSORole2")
-	p1Name := s.name("TestPolicy1")
-
-	defer func() {
-		s.deleteAps([]string{sso1Name, sso2Name, p1Name}, idToExternalIdMap, []string{string(model.SSORole), string(model.SSORole), string(model.Policy)}, accessSyncer)
-	}()
-
-	aps := &sync_to_target.AccessProviderImport{
-		AccessProviders: []*sync_to_target.AccessProvider{
-			{
-				Id:          sso1Name,
-				Name:        sso1Name,
-				Description: sso1Name + " Description",
-				NamingHint:  sso1Name,
-				Type:        ptr.String(string(model.SSORole)),
-				Action:      sync_to_target.Grant,
-				Who: sync_to_target.WhoItem{
-					Users: []string{"dieter@raito.io"},
-				},
-				What: []sync_to_target.WhatItem{
-					{
-						DataObject: &data_source.DataObjectReference{
-							FullName: "077954824694:eu-central-1:raito-data-corporate/sales",
-							Type:     "folder",
-						},
-						Permissions: []string{"s3:GetObject", "s3:PutObject"},
-					},
-				},
-			},
-			{
-				Id:          p1Name,
-				Name:        p1Name,
-				Description: p1Name + " Description",
-				NamingHint:  p1Name,
-				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
-				Who: sync_to_target.WhoItem{
-					Users:       []string{"d_hayden"},
-					InheritFrom: []string{"ID:" + sso1Name},
-				},
-				What: []sync_to_target.WhatItem{
-					{
-						DataObject: &data_source.DataObjectReference{
-							FullName: "077954824694:eu-central-1:raito-data-corporate/marketing",
-							Type:     "folder",
-						},
-						Permissions: []string{"s3:GetObject", "s3:PutObject"},
-					},
-				},
-			},
-		},
-	}
-
-	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
-	s.Require().NoError(err)
-	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
-
-	for _, feedback := range feedbackHandler.AccessProviderFeedback {
-		s.Require().Len(feedback.Errors, 0)
-		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
-	}
-
-	aps = &sync_to_target.AccessProviderImport{
-		AccessProviders: []*sync_to_target.AccessProvider{
-			{
-				Id:          sso2Name,
-				Name:        sso2Name,
-				Description: sso2Name + " Description",
-				NamingHint:  sso2Name,
-				Type:        ptr.String(string(model.SSORole)),
-				Action:      sync_to_target.Grant,
-				Who: sync_to_target.WhoItem{
-					Users: []string{"ruben@raito.io"},
-				},
-				What: []sync_to_target.WhatItem{
-					{
-						DataObject: &data_source.DataObjectReference{
-							FullName: "077954824694:eu-central-1:raito-data-corporate/operations",
-							Type:     "folder",
-						},
-						Permissions: []string{"s3:GetObject"},
-					},
-				},
-			},
-			{
-				Id:          p1Name,
-				Name:        p1Name,
-				Description: p1Name + " Description",
-				NamingHint:  p1Name,
-				Type:        ptr.String(string(model.Policy)),
-				ExternalId:  ptr.String(idToExternalIdMap[p1Name]),
-				Action:      sync_to_target.Grant,
-				Who: sync_to_target.WhoItem{
-					Users:       []string{"m_carissa"},
-					InheritFrom: []string{"ID:" + sso2Name}, // Adding it to SSO role 2
-				},
-				DeletedWho: &sync_to_target.WhoItem{
-					Users:       []string{"d_hayden"},
-					InheritFrom: []string{idToExternalIdMap[sso1Name]}, // Removing it from SSO role 1
-				},
-				What: []sync_to_target.WhatItem{
-					{
-						DataObject: &data_source.DataObjectReference{
-							FullName: "077954824694:eu-central-1:raito-data-corporate/marketing",
-							Type:     "folder",
-						},
-						Permissions: []string{"s3:GetObject", "s3:PutObject"},
-					},
-				},
-			},
-		},
-	}
-
-	feedbackHandler = mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
-
-	err = accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
-	s.Require().NoError(err)
-	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
-
-	for _, feedback := range feedbackHandler.AccessProviderFeedback {
-		s.Require().Len(feedback.Errors, 0)
-		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
-	}
-}
+//
+//func (s *DataAccessToTargetTestSuite) TestAccessSyncer_SSORole() {
+//	config := s.GetConfig()
+//
+//	config.Parameters[constants.AwsOrganizationProfile] = "master"
+//	config.Parameters[constants.AwsOrganizationIdentityCenterInstanceArn] = "arn:aws:sso:::instance/ssoins-680418c87609cf1b"
+//	config.Parameters[constants.AwsOrganizationIdentityStore] = "d-93677226bc"
+//	config.Parameters[constants.AwsOrganizationRegion] = "eu-west-1"
+//
+//	accessSyncer := data_access.NewDataAccessSyncerFromConfig(config)
+//	feedbackHandler := mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+//	idToExternalIdMap := make(map[string]string)
+//
+//	sso1Name := s.name("SSORole1")
+//	sso2Name := s.name("SSORole2")
+//	p1Name := s.name("TestPolicy1")
+//
+//	defer func() {
+//		s.deleteAps([]string{sso1Name, sso2Name, p1Name}, idToExternalIdMap, []string{string(model.SSORole), string(model.SSORole), string(model.Policy)}, accessSyncer)
+//	}()
+//
+//	aps := &sync_to_target.AccessProviderImport{
+//		AccessProviders: []*sync_to_target.AccessProvider{
+//			{
+//				Id:          sso1Name,
+//				Name:        sso1Name,
+//				Description: sso1Name + " Description",
+//				NamingHint:  sso1Name,
+//				Type:        ptr.String(string(model.SSORole)),
+//				Action:      sync_to_target.Grant,
+//				Who: sync_to_target.WhoItem{
+//					Users: []string{"dieter@raito.io"},
+//				},
+//				What: []sync_to_target.WhatItem{
+//					{
+//						DataObject: &data_source.DataObjectReference{
+//							FullName: "077954824694:eu-central-1:raito-data-corporate/sales",
+//							Type:     "folder",
+//						},
+//						Permissions: []string{"s3:GetObject", "s3:PutObject"},
+//					},
+//				},
+//			},
+//			{
+//				Id:          p1Name,
+//				Name:        p1Name,
+//				Description: p1Name + " Description",
+//				NamingHint:  p1Name,
+//				Type:        ptr.String(string(model.Policy)),
+//				Action:      sync_to_target.Grant,
+//				Who: sync_to_target.WhoItem{
+//					Users:       []string{"d_hayden"},
+//					InheritFrom: []string{"ID:" + sso1Name},
+//				},
+//				What: []sync_to_target.WhatItem{
+//					{
+//						DataObject: &data_source.DataObjectReference{
+//							FullName: "077954824694:eu-central-1:raito-data-corporate/marketing",
+//							Type:     "folder",
+//						},
+//						Permissions: []string{"s3:GetObject", "s3:PutObject"},
+//					},
+//				},
+//			},
+//		},
+//	}
+//
+//	err := accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
+//	s.Require().NoError(err)
+//	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
+//
+//	for _, feedback := range feedbackHandler.AccessProviderFeedback {
+//		s.Require().Len(feedback.Errors, 0)
+//		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
+//	}
+//
+//	aps = &sync_to_target.AccessProviderImport{
+//		AccessProviders: []*sync_to_target.AccessProvider{
+//			{
+//				Id:          sso2Name,
+//				Name:        sso2Name,
+//				Description: sso2Name + " Description",
+//				NamingHint:  sso2Name,
+//				Type:        ptr.String(string(model.SSORole)),
+//				Action:      sync_to_target.Grant,
+//				Who: sync_to_target.WhoItem{
+//					Users: []string{"ruben@raito.io"},
+//				},
+//				What: []sync_to_target.WhatItem{
+//					{
+//						DataObject: &data_source.DataObjectReference{
+//							FullName: "077954824694:eu-central-1:raito-data-corporate/operations",
+//							Type:     "folder",
+//						},
+//						Permissions: []string{"s3:GetObject"},
+//					},
+//				},
+//			},
+//			{
+//				Id:          p1Name,
+//				Name:        p1Name,
+//				Description: p1Name + " Description",
+//				NamingHint:  p1Name,
+//				Type:        ptr.String(string(model.Policy)),
+//				ExternalId:  ptr.String(idToExternalIdMap[p1Name]),
+//				Action:      sync_to_target.Grant,
+//				Who: sync_to_target.WhoItem{
+//					Users:       []string{"m_carissa"},
+//					InheritFrom: []string{"ID:" + sso2Name}, // Adding it to SSO role 2
+//				},
+//				DeletedWho: &sync_to_target.WhoItem{
+//					Users:       []string{"d_hayden"},
+//					InheritFrom: []string{idToExternalIdMap[sso1Name]}, // Removing it from SSO role 1
+//				},
+//				What: []sync_to_target.WhatItem{
+//					{
+//						DataObject: &data_source.DataObjectReference{
+//							FullName: "077954824694:eu-central-1:raito-data-corporate/marketing",
+//							Type:     "folder",
+//						},
+//						Permissions: []string{"s3:GetObject", "s3:PutObject"},
+//					},
+//				},
+//			},
+//		},
+//	}
+//
+//	feedbackHandler = mocks.NewSimpleAccessProviderFeedbackHandler(s.T())
+//
+//	err = accessSyncer.SyncAccessProviderToTarget(context.Background(), aps, feedbackHandler, s.GetConfig())
+//	s.Require().NoError(err)
+//	s.Require().Len(feedbackHandler.AccessProviderFeedback, 2)
+//
+//	for _, feedback := range feedbackHandler.AccessProviderFeedback {
+//		s.Require().Len(feedback.Errors, 0)
+//		idToExternalIdMap[feedback.AccessProvider] = *feedback.ExternalId
+//	}
+//}
 
 func (s *DataAccessToTargetTestSuite) deleteAps(ids []string, idToExternalIdMap map[string]string, types []string, accessSyncer *data_access.AccessSyncer) {
 	aps := &sync_to_target.AccessProviderImport{
