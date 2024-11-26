@@ -6,6 +6,7 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
@@ -55,6 +56,8 @@ type AccessToTargetSyncer struct {
 	ssoRepo dataAccessSsoRepository
 	iamRepo dataAccessIamRepository
 	cfgMap  *config.ConfigMap
+
+	lock sync.Mutex
 }
 
 func NewAccessToTargetSyncer(a *AccessSyncer) *AccessToTargetSyncer {
@@ -269,9 +272,11 @@ func (a *AccessToTargetSyncer) handleRole(ctx context.Context, role *sync_to_tar
 		}
 	}
 
+	a.lock.Lock()
 	a.feedbackMap[role.Id].ExternalId = ptr.String(constants.RoleTypePrefix + name)
 	a.feedbackMap[role.Id].ActualName = name
 	a.idToExternalIdMap[role.Id] = constants.RoleTypePrefix + name
+	a.lock.Unlock()
 
 	// Handling the what of the role
 	if len(statements) > 0 {
@@ -367,9 +372,11 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 		}
 	}
 
+	a.lock.Lock()
 	a.feedbackMap[role.Id].ExternalId = ptr.String(constants.SsoRoleTypePrefix + name)
 	a.feedbackMap[role.Id].ActualName = name
 	a.idToExternalIdMap[role.Id] = constants.SsoRoleTypePrefix + name
+	a.lock.Unlock()
 
 	// Update who
 	existingBindings := set.NewSet[model.PolicyBinding]()
@@ -767,9 +774,11 @@ func (a *AccessToTargetSyncer) handleAccessPoints(ctx context.Context) {
 			}
 		}
 
+		a.lock.Lock()
 		a.feedbackMap[accessPoint.Id].ExternalId = ptr.String(constants.AccessPointTypePrefix + s3ApArn)
 		a.feedbackMap[accessPoint.Id].ActualName = newName
 		a.idToExternalIdMap[accessPoint.Id] = constants.AccessPointTypePrefix + s3ApArn
+		a.lock.Unlock()
 	}
 }
 

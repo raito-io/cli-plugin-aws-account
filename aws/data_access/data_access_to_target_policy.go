@@ -102,9 +102,11 @@ func (a *AccessToTargetSyncer) handlePolicy(ctx context.Context, policy *sync_to
 
 	isAWSManaged := strings.EqualFold(parsedArn.AccountID, "aws")
 
+	a.lock.Lock()
 	a.feedbackMap[policy.Id].ExternalId = ptr.String(constants.PolicyTypePrefix + newName)
 	a.feedbackMap[policy.Id].ActualName = newName
 	a.idToExternalIdMap[policy.Id] = constants.PolicyTypePrefix + newName
+	a.lock.Unlock()
 
 	// Now handling the WHO part of the policy
 	a.handlePolicyWho(ctx, policy, newName, existingUserBindings, policyArn, existingGroupBindings, existingRoleBindings, isAWSManaged, permissionSetsToProvision)
