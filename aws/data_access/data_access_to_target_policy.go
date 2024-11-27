@@ -91,7 +91,13 @@ func (a *AccessToTargetSyncer) handlePolicy(ctx context.Context, policy *sync_to
 
 		existingUserBindings.Add(policyBindingsToNames(existingPolicy.UserBindings)...)
 		existingGroupBindings.Add(policyBindingsToNames(existingPolicy.GroupBindings)...)
-		existingRoleBindings.Add(policyBindingsToNames(existingPolicy.RoleBindings)...)
+
+		// Remove the SSO role bindings as they are handled differently
+		for _, roleBinding := range existingPolicy.RoleBindings {
+			if !strings.HasPrefix(roleBinding.ResourceName, constants.SsoReservedPrefix) {
+				existingRoleBindings.Add(roleBinding.ResourceName)
+			}
+		}
 	}
 
 	parsedArn, err := arn.Parse(policyArn)
@@ -109,12 +115,12 @@ func (a *AccessToTargetSyncer) handlePolicy(ctx context.Context, policy *sync_to
 	a.lock.Unlock()
 
 	// Now handling the WHO part of the policy
-	a.handlePolicyWho(ctx, policy, newName, existingUserBindings, policyArn, existingGroupBindings, existingRoleBindings, isAWSManaged, permissionSetsToProvision)
+	a.handlePolicyWho(ctx, policy, newName, policyArn, existingUserBindings, existingGroupBindings, existingRoleBindings, isAWSManaged, permissionSetsToProvision)
 
 	return permissionSetsToProvision.Slice()
 }
 
-func (a *AccessToTargetSyncer) handlePolicyWho(ctx context.Context, policy *sync_to_target.AccessProvider, newName string, existingUserBindings set.Set[string], policyArn string, existingGroupBindings set.Set[string], existingRoleBindings set.Set[string], isAWSManaged bool, permissionSetsToProvision set.Set[string]) {
+func (a *AccessToTargetSyncer) handlePolicyWho(ctx context.Context, policy *sync_to_target.AccessProvider, newName string, policyArn string, existingUserBindings set.Set[string], existingGroupBindings set.Set[string], existingRoleBindings set.Set[string], isAWSManaged bool, permissionSetsToProvision set.Set[string]) {
 	a.handlePolicyUsers(ctx, policy, newName, existingUserBindings, policyArn)
 
 	a.handlePolicyGroups(ctx, policy, newName, existingGroupBindings, policyArn)
@@ -203,13 +209,13 @@ func (a *AccessToTargetSyncer) handlePolicyWho(ctx context.Context, policy *sync
 		// TODO check if not attached yet (or it may fail
 		var err error
 		if isAWSManaged {
-			err = a.ssoRepo.AttachAwsManagedPolicyToPermissionSet(ctx, permSetArn, policy.Name)
+			err = a.ssoRepo.AttachAwsManagedPolicyToPermissionSet(ctx, permSetArn, newName)
 		} else {
-			err = a.ssoRepo.AttachCustomerManagedPolicyToPermissionSet(ctx, permSetArn, policy.Name, nil)
+			err = a.ssoRepo.AttachCustomerManagedPolicyToPermissionSet(ctx, permSetArn, newName, nil)
 		}
 
 		if err != nil {
-			logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while attaching policy %q to permission set %q: %s", policy.Name, permSetArn, err.Error()))
+			logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while attaching policy %q to permission set %q: %s", newName, permSetArn, err.Error()))
 		}
 
 		permissionSetsToProvision.Add(permSetArn)
@@ -226,13 +232,13 @@ func (a *AccessToTargetSyncer) handlePolicyWho(ctx context.Context, policy *sync
 		// TODO check if actually attached (or it will fail)
 		var err error
 		if isAWSManaged {
-			err = a.ssoRepo.DetachAwsManagedPolicyFromPermissionSet(ctx, permSetArn, policy.Name)
+			err = a.ssoRepo.DetachAwsManagedPolicyFromPermissionSet(ctx, permSetArn, newName)
 		} else {
-			err = a.ssoRepo.DetachCustomerManagedPolicyFromPermissionSet(ctx, permSetArn, policy.Name, nil)
+			err = a.ssoRepo.DetachCustomerManagedPolicyFromPermissionSet(ctx, permSetArn, newName, nil)
 		}
 
 		if err != nil {
-			logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while detaching policy %q from permission set %q: %s", policy.Name, permSetArn, err.Error()))
+			logFeedbackError(a.feedbackMap[policy.Id], fmt.Sprintf("Error while detaching policy %q from permission set %q: %s", newName, permSetArn, err.Error()))
 		}
 
 		permissionSetsToProvision.Add(permSetArn)
@@ -293,7 +299,7 @@ func (a *AccessToTargetSyncer) handlePolicyUsers(ctx context.Context, policy *sy
 	}
 }
 
-func (a *AccessToTargetSyncer) handlePolicies(ctx context.Context) {
+func (a *AccessToTargetSyncer) handlePolicies(ctx context.Context) []string {
 	permissionSetsToProvision := set.NewSet[string]()
 
 	wp := workerpool.New(workerPoolSize)
@@ -322,16 +328,7 @@ func (a *AccessToTargetSyncer) handlePolicies(ctx context.Context) {
 
 	wp.StopWait()
 
-	if len(permissionSetsToProvision.Slice()) > 0 {
-		utils.Logger.Info(fmt.Sprintf("Provisioning the following permission sets: %v", permissionSetsToProvision.Slice()))
-	}
-
-	for _, permSetArn := range permissionSetsToProvision.Slice() {
-		_, err := a.ssoRepo.ProvisionPermissionSet(ctx, permSetArn)
-		if err != nil {
-			utils.Logger.Error(fmt.Sprintf("Failed to provision permission set %q: %s", permSetArn, err.Error()))
-		}
-	}
+	return permissionSetsToProvision.Slice()
 }
 
 func (a *AccessToTargetSyncer) getPermissionSetArnFromExternalId(ctx context.Context, ssoRole string) (string, error) {
