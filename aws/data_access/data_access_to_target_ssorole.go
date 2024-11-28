@@ -156,8 +156,6 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to remove %s %q from permission set %q: %s", principalType, binding.ResourceName, name, err.Error()))
 		}
 	}
-
-	return
 }
 
 func (a *AccessToTargetSyncer) handlePermissionSetBindings(binding model.PolicyBinding, users bimap.Bimap[string, string], groups bimap.Bimap[string, string]) (ssoTypes.PrincipalType, string, error) {
