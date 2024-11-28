@@ -50,7 +50,7 @@ When your company used `IAM Identity Center` to manage roles through permission 
 More information on this can be found later in this guide.
 
 ### To AWS
-Access Controls defined in Raito Cloud, are converted into IAM Roles and Policies in AWS, depending on the type of access control chosen.
+Access Controls defined in Raito Cloud, are converted into IAM Roles, Policies, S3 Access Points and Permission sets in AWS, depending on the type of access control chosen.
 
 At this point in time, access controls of type policy are always managed policies (not inline) and attached to the necessary users, groups and/or roles.
 Access Controls of type policy that were originally imported for the inline policies of users or groups and that were now internalized in Raito Cloud, will now be created as managed policies as well. The original inline policies that created the Access Control of type policy will be removed.
@@ -159,7 +159,7 @@ More information can be found on the [AWS SDK documentation](https://docs.aws.am
 |---------------------|-----------|-------------------------------------|
 | Row level filtering | ❌         | Not applicable                      |
 | Column masking      | ❌         | Not applicable                      |
-| Locking             | ❌         | Not supported                       |
+| Locking             | ❌         | Not (yet) supported                 |
 | Replay              | ✅         | Explicit deletes cannot be replayed |
 | Usage               | ✅         | Based on CloudTrail logs            |
 
@@ -189,6 +189,13 @@ All users and groups associated with the trust policy document of the Role, are 
 Inline policies will be parsed to extract the permissions and added as what-items to the grant that will be imported in Raito.
 If organisation is defined and role start with `AWSReservedSSO_`, the role will be imported as `AWS SSO Role`.
 
+#### AWS Permission Set
+This is only done when the necessary organization parameters are set in the target configuration (`aws-organization-profile`, `aws-organization-region`, `aws-organization-identity-center-instance-arn`, `aws-organization-identity-store`).
+
+Roles are imported as `grant` with type `AWS Permission Set`.  
+What happens is that roles that start with `AWSReservedSSO_` will be matched with the corresponding permission set in the AWS IAM Identity Center from the organization account.
+Everything except for the WHO component will be locked for these imported grants, because permission sets are not entirely compatible with Raito's access control model.
+
 #### AWS Policy
 Managed policies, inline user and group policies are imported as `grant` with type `AWS Policy`.
 All users and groups associated with the policy are added as who-items to the grant that will be imported in Raito.
@@ -200,15 +207,31 @@ S3 Access points are imported as `grant` with type `AWS Access Point`.
 All users and groups associated with the access point are added as who-items to the grant that will be imported in Raito.
 The permissions of the access point are added as what-items to the grant that will be imported in Raito.
 
-## To Target
-#### Grants
-Grants can be implemented as `AWS Role`, `AWS Policy` or `AWS Access Point` depending on the given type.
-The who-items will be added as users and groups to the corresponding AWS entity.
-The what-items will be added as permissions to the corresponding AWS entity.
+### To Target
+#### AWS Role
+Grants of type `AWS Role` are exported as AWS IAM roles. 
 
-#### Purposes
-Purposes are implemented as `AWS Roles` if no organization is defined.
-Otherwise, purposes are implemented as `AWS SSO Role`.
+The directly linked data objects will be converted into the inline policy of the role.
+Users are directly assigned to the role and groups are unpacked to their users and assigned to the role.
+
+#### AWS Permission Set
+Grants of type `AWS Permission Set` are exported as AWS permission sets. This is only supported when the necessary organization parameters are set in the target configuration (`aws-organization-profile`, `aws-organization-region`, `aws-organization-identity-center-instance-arn`, `aws-organization-identity-store`).
+
+Note that a permission set is created per account and the name of the permission set will contain the account ID. This is because the permission set model is not entirely compatible with Raito's access control model.
+The directly linked data objects will be converted into the inline policy of the role. Grants of type AWS Policy that are linked to this grant will be linked to the resulting permission set in AWS.  
+Users and groups from the who-list are directly assigned to the permission set for the target AWS account.
+
+#### AWS Policy
+Grants of type `AWS Policy` are exported as AWS IAM managed policies. 
+
+Users and groups from the who-list are directly assigned to the policy. Links to AWS roles and permission sets are also kept up-to-date.
+
+Note: for the link to permission sets, only diffs are applied because these links managed from the side of the permission set. This way, you can add and remove policies to/from permission sets without touching the rest.
+
+#### AWS S3 Account Points
+Grants of type `AWS Access Points` are exported as AWS S3 Access Points.
+
+Users are directly assigned to the access point and groups are unpacked to their users and assigned to the access point. Links to AWS roles and permission sets are also kept up-to-date.
 
 ## Warnings and Limitations
 

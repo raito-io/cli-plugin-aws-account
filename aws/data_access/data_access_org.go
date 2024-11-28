@@ -113,11 +113,11 @@ func (e *roleEnricher) enrich(aps []model.AccessProviderInputExtended) error {
 			ap.ApInput.ExternalId = constants.SsoRoleTypePrefix + ap.ApInput.ExternalId[strings.Index(ap.ApInput.ExternalId, ":")+1:] // Replacing the prefix of the external ID
 			ap.ApInput.Type = aws.String(string(model.SSORole))
 			ap.ApInput.WhatLocked = aws.Bool(true)
-			ap.ApInput.WhatLockedReason = aws.String("This policy is managed by AWS")
+			ap.ApInput.WhatLockedReason = aws.String("For imported permission sets, only the WHO can be edited")
 			ap.ApInput.NameLocked = aws.Bool(true)
-			ap.ApInput.NameLockedReason = aws.String("This policy is managed by AWS")
+			ap.ApInput.NameLockedReason = aws.String("For imported permission sets, only the WHO can be edited")
 			ap.ApInput.DeleteLocked = aws.Bool(true)
-			ap.ApInput.DeleteLockedReason = aws.String("This policy is managed by AWS")
+			ap.ApInput.DeleteLockedReason = aws.String("For imported permission sets, only the WHO can be edited")
 
 			if assignees, f := permissionSets[permissionSet]; f {
 				for _, assignee := range assignees {

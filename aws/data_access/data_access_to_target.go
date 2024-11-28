@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/aws/smithy-go/ptr"
+	"github.com/gammazero/workerpool"
 	"github.com/hashicorp/go-multierror"
 	ds "github.com/raito-io/cli/base/data_source"
 
@@ -168,10 +169,34 @@ func (a *AccessToTargetSyncer) doSyncAccessProviderToTarget(ctx context.Context,
 	//
 	// We'll start with handling from the top to make sure these are created when trying to link to them.
 
+	permissionSetsToProvision := set.NewSet[string]()
+
 	a.handleRoles(ctx)
-	a.handleSSORoles(ctx)
+
+	permSets := a.handleSSORoles(ctx)
+	permissionSetsToProvision.Add(permSets...)
+
 	a.handleAccessPoints(ctx)
-	a.handlePolicies(ctx)
+
+	permSets = a.handlePolicies(ctx)
+	permissionSetsToProvision.Add(permSets...)
+
+	if len(permissionSetsToProvision.Slice()) > 0 {
+		utils.Logger.Info(fmt.Sprintf("Provisioning the following permission sets: %v", permissionSetsToProvision.Slice()))
+
+		wp2 := workerpool.New(workerPoolSize)
+
+		for _, permSetArn := range permissionSetsToProvision.Slice() {
+			wp2.Submit(func() {
+				err2 := a.ssoRepo.ProvisionPermissionSetAndWait(ctx, permSetArn)
+				if err2 != nil {
+					utils.Logger.Error(fmt.Sprintf("Failed to provision permission set %q: %s", permSetArn, err2.Error()))
+				}
+			})
+		}
+
+		wp2.StopWait()
+	}
 
 	return nil
 }

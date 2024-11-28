@@ -62,7 +62,7 @@ type dataAccessSsoRepository interface {
 	AssignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error
 	UnassignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error
 	ListPermissionSetAssignment(ctx context.Context, permissionSetArn string) ([]ssoTypes.AccountAssignment, error)
-	ProvisionPermissionSet(ctx context.Context, permissionSetArn string) (*ssoTypes.PermissionSetProvisioningStatus, error)
+	ProvisionPermissionSetAndWait(ctx context.Context, permissionSetArn string) error
 	AttachAwsManagedPolicyToPermissionSet(ctx context.Context, permissionSetArn string, policyArn string) error
 	DetachAwsManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string, policyArn string) error
 	ListAwsManagedPolicyFromPermissionSet(ctx context.Context, permissionSetArn string) (set.Set[string], error)

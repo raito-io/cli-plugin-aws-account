@@ -16,7 +16,7 @@ import (
 	"github.com/raito-io/golang-set/set"
 )
 
-func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_target.AccessProvider, name string) {
+func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_target.AccessProvider, name string) string {
 	if role.ExternalId != nil {
 		origName := getNameFromExternalId(*role.ExternalId) // Parsing the name out of the external ID
 
@@ -29,7 +29,7 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 	existingPermissionSets, err := a.fetchExistingPermissionSets(ctx)
 	if err != nil {
 		logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while fetching existing permission sets: %s", err.Error()))
-		return
+		return ""
 	}
 
 	existingPermissionSet := existingPermissionSets[name]
@@ -37,17 +37,17 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 	if role.Delete {
 		if existingPermissionSet == nil {
 			utils.Logger.Info(fmt.Sprintf("No existing permission set found for role %q. Skipping deletion.", name))
-			return
+			return ""
 		}
 
-		utils.Logger.Info(fmt.Sprintf("Deleting role %s", role.Name))
+		utils.Logger.Info(fmt.Sprintf("Deleting permission set %s", role.Name))
 
 		err2 := a.ssoRepo.DeleteSsoRole(ctx, existingPermissionSet.arn)
 		if err2 != nil {
-			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while removing role %q: %s", name, err2.Error()))
+			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Error while removing permission set %q: %s", name, err2.Error()))
 		}
 
-		return
+		return ""
 	}
 
 	permissionSetArn := ""
@@ -58,12 +58,12 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 		permissionSetArn, err = a.ssoRepo.CreateSsoRole(ctx, name, role.Description)
 		if err != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to create permission set %q: %s", name, err.Error()))
-			return
+			return ""
 		}
 
 		if permissionSetArn == "" {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to create permission set %q: no ARN returned", name))
-			return
+			return ""
 		}
 	} else {
 		utils.Logger.Info(fmt.Sprintf("Updating permission set %q", name))
@@ -74,7 +74,7 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 		err = a.ssoRepo.UpdateSsoRole(ctx, existingPermissionSet.arn, role.Description)
 		if err != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to update permission set %q: %s", name, err.Error()))
-			return
+			return ""
 		}
 	}
 
@@ -95,10 +95,7 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 	// Update What
 	a.updatePermissionSetWhat(ctx, role, name, permissionSetArn)
 
-	_, err = a.ssoRepo.ProvisionPermissionSet(ctx, permissionSetArn)
-	if err != nil {
-		logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to provision permission set %q: %s", name, err.Error()))
-	}
+	return permissionSetArn
 }
 
 func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role *sync_to_target.AccessProvider, existingBindings set.Set[model.PolicyBinding], permissionSetArn string, name string) {
@@ -118,8 +115,6 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 		})
 	}
 
-	bindingsToRemove := utils.SetSubtract(existingBindings, targetBindings)
-
 	users, err := a.ssoRepo.GetUsers(ctx)
 	if err != nil {
 		logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("failed to get users: %s", err.Error()))
@@ -134,21 +129,7 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 		return
 	}
 
-	for binding := range bindingsToRemove {
-		principalType, principalId, err2 := a.handlePermissionSetBindings(binding, users, groups)
-		if err2 != nil {
-			logFeedbackError(a.feedbackMap[role.Id], err2.Error())
-			continue
-		}
-
-		err = a.ssoRepo.UnassignPermissionSet(ctx, permissionSetArn, principalType, principalId)
-		if err != nil {
-			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to remove %s %q from permission set %q: %s", principalType, binding.ResourceName, name, err.Error()))
-		}
-	}
-
 	bindingsToAdd := utils.SetSubtract(targetBindings, existingBindings)
-
 	for binding := range bindingsToAdd {
 		principalType, principalId, err2 := a.handlePermissionSetBindings(binding, users, groups)
 		if err2 != nil {
@@ -159,6 +140,20 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 		err = a.ssoRepo.AssignPermissionSet(ctx, permissionSetArn, principalType, principalId)
 		if err != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to add %s %q to permission set %q: %s", principalType, binding.ResourceName, name, err.Error()))
+		}
+	}
+
+	bindingsToRemove := utils.SetSubtract(existingBindings, targetBindings)
+	for binding := range bindingsToRemove {
+		principalType, principalId, err2 := a.handlePermissionSetBindings(binding, users, groups)
+		if err2 != nil {
+			logFeedbackError(a.feedbackMap[role.Id], err2.Error())
+			continue
+		}
+
+		err = a.ssoRepo.UnassignPermissionSet(ctx, permissionSetArn, principalType, principalId)
+		if err != nil {
+			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to remove %s %q from permission set %q: %s", principalType, binding.ResourceName, name, err.Error()))
 		}
 	}
 }
@@ -301,8 +296,9 @@ func (a *AccessToTargetSyncer) fetchExistingPermissionSets(ctx context.Context) 
 	return a.cachedPermissionSets, nil
 }
 
-func (a *AccessToTargetSyncer) handleSSORoles(ctx context.Context) {
+func (a *AccessToTargetSyncer) handleSSORoles(ctx context.Context) []string {
 	wp := workerpool.New(workerPoolSize)
+	permissionSetsDone := set.NewSet[string]()
 
 	for _, ssoRole := range a.PermissionSets {
 		// Doing this synchronous as it is not thread-safe and fast enough
@@ -315,11 +311,19 @@ func (a *AccessToTargetSyncer) handleSSORoles(ctx context.Context) {
 		utils.Logger.Info(fmt.Sprintf("Generated role name %q for grant %q", name, ssoRole.Name))
 
 		wp.Submit(func() {
-			a.handleSSORole(ctx, ssoRole, name)
+			permissionArn := a.handleSSORole(ctx, ssoRole, name)
+
+			if permissionArn != "" {
+				a.lock.Lock()
+				permissionSetsDone.Add(permissionArn)
+				a.lock.Unlock()
+			}
 		})
 	}
 
 	wp.StopWait()
 
 	a.clearPermissionSetsCache() // Clearing the cache to make sure we fetch all the newly created ones.
+
+	return permissionSetsDone.Slice()
 }

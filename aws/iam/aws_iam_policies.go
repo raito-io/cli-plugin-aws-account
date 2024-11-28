@@ -562,8 +562,19 @@ func (repo *AwsIamRepository) DeleteManagedPolicy(ctx context.Context, policyNam
 
 	utils.Logger.Info(fmt.Sprintf("Detaching %d roles from policy %s", len(emptyPolicy.RoleBindings), policyArn))
 
-	if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, utils.GetResourceNamesFromPolicyBindingArray(emptyPolicy.RoleBindings)); localErr != nil {
-		return fmt.Errorf("deleting managed policy: %w", localErr)
+	var roleNames []string
+
+	// Removing the SSO reserved roles
+	for _, roleBinding := range emptyPolicy.RoleBindings {
+		if !strings.HasPrefix(roleBinding.ResourceName, constants.SsoReservedPrefix) {
+			roleNames = append(roleNames, roleBinding.ResourceName)
+		}
+	}
+
+	if len(roleNames) > 0 {
+		if localErr := repo.DetachRoleFromManagedPolicy(ctx, policyArn, roleNames); localErr != nil {
+			return fmt.Errorf("deleting managed policy: %w", localErr)
+		}
 	}
 
 	versions, err := client.ListPolicyVersions(ctx, &iam.ListPolicyVersionsInput{PolicyArn: &policyArn})
@@ -599,13 +610,12 @@ func (repo *AwsIamRepository) AttachUserToManagedPolicy(ctx context.Context, pol
 	}
 
 	for _, userName := range userNames {
-		_, err := client.AttachUserPolicy(ctx, &iam.AttachUserPolicyInput{
+		_, err = client.AttachUserPolicy(ctx, &iam.AttachUserPolicyInput{
 			PolicyArn: aws.String(policyArn),
 			UserName:  aws.String(userName),
 		})
 		if err != nil {
-			utils.Logger.Error(fmt.Sprintf("Couldn't attach policy %v to user %v: %v\n", policyArn, userName, err.Error()))
-			return fmt.Errorf("attach policyto user %q: %w", userName, err)
+			return fmt.Errorf("attach policy to user %q: %w", userName, err)
 		}
 	}
 
@@ -679,13 +689,12 @@ func (repo *AwsIamRepository) DetachGroupFromManagedPolicy(ctx context.Context, 
 	}
 
 	for _, groupName := range groupNames {
-		_, err := client.DetachGroupPolicy(ctx, &iam.DetachGroupPolicyInput{
+		_, err2 := client.DetachGroupPolicy(ctx, &iam.DetachGroupPolicyInput{
 			PolicyArn: aws.String(policyArn),
 			GroupName: aws.String(groupName),
 		})
-		if err != nil {
-			utils.Logger.Error(fmt.Sprintf("Couldn't detach policy %v from group %v. Here's why: %v\n", policyArn, groupName, err.Error()))
-			return fmt.Errorf("detach policy from group %q: %w", groupName, err)
+		if err2 != nil {
+			return fmt.Errorf("detach policy %s from group %q: %w", policyArn, groupName, err2)
 		}
 	}
 
@@ -699,13 +708,12 @@ func (repo *AwsIamRepository) DetachRoleFromManagedPolicy(ctx context.Context, p
 	}
 
 	for _, roleName := range roleNames {
-		_, err := client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
+		_, err2 := client.DetachRolePolicy(ctx, &iam.DetachRolePolicyInput{
 			PolicyArn: aws.String(policyArn),
 			RoleName:  aws.String(roleName),
 		})
-		if err != nil {
-			utils.Logger.Error(fmt.Sprintf("Couldn't detach policy %v from role %v. Here's why: %v\n", policyArn, roleName, err.Error()))
-			return fmt.Errorf("detach policy from role %q: %w", roleName, err)
+		if err2 != nil {
+			return fmt.Errorf("detach policy %s from role %q: %w", policyArn, roleName, err2)
 		}
 	}
 

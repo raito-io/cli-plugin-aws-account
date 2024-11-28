@@ -79,7 +79,7 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 
 			accessProviderTypes = append(accessProviderTypes, &ds.AccessProviderType{
 				Type:                          string(model.SSORole),
-				Label:                         "AWS SSO Role",
+				Label:                         "AWS Permission Set",
 				Icon:                          "",
 				IsNamedEntity:                 true,
 				CanBeCreated:                  true,
