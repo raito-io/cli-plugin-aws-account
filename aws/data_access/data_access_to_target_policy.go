@@ -19,8 +19,6 @@ import (
 func (a *AccessToTargetSyncer) handlePolicy(ctx context.Context, policy *sync_to_target.AccessProvider, newName string) []string {
 	permissionSetsToProvision := set.NewSet[string]()
 
-	utils.Logger.Info(fmt.Sprintf("Generated policy name %q for grant %q", newName, policy.Name))
-
 	nameToDelete := ""
 	if policy.Delete {
 		nameToDelete = newName

@@ -120,3 +120,12 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 		})
 	}
 }
+
+func TestNameGenerator_GenerateActualName(t *testing.T) {
+	nameGenerator, err := NewNameGenerator("1234")
+	require.NoError(t, err)
+
+	name, err := nameGenerator.GenerateName(&sync_to_target.AccessProvider{Name: "someAp", NamingHint: "policy/CustomAccess"}, model.Policy)
+	require.NoError(t, err)
+	require.Equal(t, "policy_CustomAccess", name)
+}
