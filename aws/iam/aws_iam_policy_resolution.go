@@ -30,7 +30,7 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 	roles := set.NewSet[string]()
 
 	if len(policy.Statements) > 1 {
-		utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains more than 1 statement.", name))
+		utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains more than 1 statement.", name))
 		return whoItem, []sync_from_target.WhatItem{}, true
 	}
 
@@ -71,7 +71,7 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 
 						resourceActions, incompleteResource = mapResourceActions(actions, data_source.Folder, cfg)
 					} else {
-						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q. Unexpected access point path", name, resource))
+						utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q. Unexpected access point path", name, resource))
 						localIncomplete = true
 
 						continue
@@ -96,17 +96,17 @@ func CreateWhoAndWhatFromAccessPointPolicy(policy *awspolicy.Policy, bucketName 
 					permissionSet.Add(resourceActions...)
 
 					if !localIncomplete && incompleteResource {
-						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown actions (%v).", name, actions))
+						utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown actions (%v).", name, actions))
 						localIncomplete = true
 					}
 				} else {
-					utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q. Expected the path to start with %q", name, resource, prefix))
+					utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q. Expected the path to start with %q", name, resource, prefix))
 					localIncomplete = true
 
 					continue
 				}
 			} else {
-				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q.", name, resource))
+				utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for access point %q contains unknown resource reference %q.", name, resource))
 				localIncomplete = true
 
 				continue
@@ -146,7 +146,7 @@ func CreateWhoFromTrustPolicyDocument(policy *awspolicy.Policy, role string, acc
 
 				break
 			} else {
-				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized.", action, role))
+				utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Trust Policy action %q for role %q not recognized.", action, role))
 				localIncomplete = true
 			}
 		}
@@ -167,7 +167,7 @@ func handlePrincipal(p map[string][]string, awsAccount, errorPrefix string, user
 		if principalType == "AWS" {
 			for _, principal := range principals {
 				if strings.Contains(principal, "*") {
-					utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains wildcards in principal", errorPrefix))
+					utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: %s contains wildcards in principal", errorPrefix))
 					localIncomplete = true
 
 					continue
@@ -175,7 +175,7 @@ func handlePrincipal(p map[string][]string, awsAccount, errorPrefix string, user
 
 				resource, err := utils.ParseAndValidateArn(principal, &awsAccount, ptr.String("iam"))
 				if err != nil {
-					utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains invalid arn: %s", errorPrefix, err.Error()))
+					utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: %s contains invalid arn: %s", errorPrefix, err.Error()))
 					localIncomplete = true
 
 					continue
@@ -187,7 +187,7 @@ func handlePrincipal(p map[string][]string, awsAccount, errorPrefix string, user
 					lastPart := parts[len(parts)-1]
 
 					if parts[1] == "*" {
-						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains wildcard IAM resource %q.", errorPrefix, resource))
+						utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: %s contains wildcard IAM resource %q.", errorPrefix, resource))
 						localIncomplete = true
 					} else if strings.EqualFold(parts[0], "user") {
 						users.Add(lastPart)
@@ -200,16 +200,16 @@ func handlePrincipal(p map[string][]string, awsAccount, errorPrefix string, user
 
 						roles.Add(constants.RoleTypePrefix + lastPart)
 					} else {
-						utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains unknown IAM resource %q.", errorPrefix, resource))
+						utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: %s contains unknown IAM resource %q.", errorPrefix, resource))
 						localIncomplete = true
 					}
 				} else {
-					utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains unknown IAM resource %q.", errorPrefix, resource))
+					utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: %s contains unknown IAM resource %q.", errorPrefix, resource))
 					localIncomplete = true
 				}
 			}
 		} else {
-			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: %s contains unrecognized principal type %q.", errorPrefix, principalType))
+			utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: %s contains unrecognized principal type %q.", errorPrefix, principalType))
 			localIncomplete = true
 
 			continue
@@ -229,21 +229,21 @@ func handleStatements(policy *awspolicy.Policy, name string, handler func(statem
 		effect := statement.Effect
 
 		if !strings.EqualFold(effect, "allow") {
-			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q has unknown effect statement %q.", name, effect))
+			utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q has unknown effect statement %q.", name, effect))
 			incomplete = true
 
 			continue
 		}
 
 		if len(statement.NotResource) > 0 || len(statement.NotPrincipal) > 0 || len(statement.NotAction) > 0 {
-			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains not-statements.", name))
+			utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains not-statements.", name))
 			incomplete = true
 
 			continue
 		}
 
 		if len(statement.Condition) > 0 {
-			utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains conditions.", name))
+			utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains conditions.", name))
 			incomplete = true
 
 			continue
@@ -287,7 +287,7 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, a
 					fullName = account
 					resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource, cfg)
 				} else if fullName == "accesspoint" || strings.HasPrefix(fullName, "accesspoint/") {
-					utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains accesspoint resource reference %q which we'll ignore.", policyName, resource))
+					utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains accesspoint resource reference %q which we'll ignore.", policyName, resource))
 					localIncomplete = true
 
 					continue
@@ -321,7 +321,7 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, a
 				fullName = account
 				resourceActions, incompleteResource = mapResourceActions(actions, data_source.Datasource, cfg)
 			} else {
-				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
+				utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown resource reference %q.", policyName, resource))
 				localIncomplete = true
 
 				continue
@@ -336,7 +336,7 @@ func CreateWhatFromPolicyDocument(policy *awspolicy.Policy, policyName string, a
 			permissionSet.Add(resourceActions...)
 
 			if !localIncomplete && incompleteResource {
-				utils.Logger.Warn(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown actions (%v).", policyName, actions))
+				utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains unknown actions (%v).", policyName, actions))
 				localIncomplete = true
 			}
 		}
