@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"testing"
 
-	awspolicy "github.com/n4ch04/aws-policy"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/stretchr/testify/assert"
 )
 

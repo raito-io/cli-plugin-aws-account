@@ -6,8 +6,8 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/golang-set/set"
 

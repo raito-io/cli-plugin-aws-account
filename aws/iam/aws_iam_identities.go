@@ -23,7 +23,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/iam"
 	"github.com/aws/aws-sdk-go-v2/service/iam/types"
-	awspolicy "github.com/n4ch04/aws-policy"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 )
 
 var rolesCache []model.RoleEntity

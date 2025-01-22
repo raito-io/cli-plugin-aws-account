@@ -11,7 +11,7 @@ import (
 	data_source2 "github.com/raito-io/cli-plugin-aws-account/aws/data_source"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 
-	awspolicy "github.com/n4ch04/aws-policy"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/golang-set/set"
@@ -242,7 +242,7 @@ func handleStatements(policy *awspolicy.Policy, name string, handler func(statem
 			continue
 		}
 
-		if len(statement.Condition) > 0 {
+		if statement.HasConditions {
 			utils.Logger.Info(fmt.Sprintf("UNSUPPORTED: Policy document for %q contains conditions.", name))
 			incomplete = true
 
