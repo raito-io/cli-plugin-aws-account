@@ -10,7 +10,7 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-	awspolicy "github.com/n4ch04/aws-policy"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/golang-set/set"
 

@@ -9,10 +9,10 @@ import (
 
 	"github.com/aws/aws-sdk-go-v2/aws/arn"
 	"github.com/aws/smithy-go/ptr"
-	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
 	"github.com/raito-io/cli-plugin-aws-account/aws/data_source/permissions"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/golang-set/set"

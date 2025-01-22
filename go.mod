@@ -19,7 +19,7 @@ require (
 	github.com/gammazero/workerpool v1.1.3
 	github.com/hashicorp/go-hclog v1.6.3
 	github.com/hashicorp/go-multierror v1.1.1
-	github.com/n4ch04/aws-policy v1.0.1
+	github.com/pkg/errors v0.9.1
 	github.com/raito-io/cli v0.68.6
 	github.com/raito-io/enumer v0.1.4
 	github.com/raito-io/golang-set v0.0.4

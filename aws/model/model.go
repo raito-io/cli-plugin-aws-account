@@ -3,8 +3,8 @@ package model
 import (
 	"time"
 
-	awspolicy "github.com/n4ch04/aws-policy"
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	ds "github.com/raito-io/cli/base/data_source"
