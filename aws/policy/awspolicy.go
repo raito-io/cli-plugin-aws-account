@@ -24,6 +24,8 @@ type Statement struct {
 	NotPrincipal map[string][]string `json:"NotPrincipal,omitempty"`
 	NotResource  []string            `json:"NotResource,omitempty"`
 	NotAction    []string            `json:"NotAction,omitempty"`
+
+	Condition []string `json:"Condition,omitempty"`
 }
 
 func (policyJSON *Policy) UnmarshalJSON(policy []byte) error {
