@@ -49,7 +49,7 @@ func (policyJSON *Policy) UnmarshalJSON(policy []byte) error {
 		}
 	}
 
-	return errors.Errorf("unknown policy format")
+	return nil
 }
 
 func parseStatements(obj interface{}) []Statement {
