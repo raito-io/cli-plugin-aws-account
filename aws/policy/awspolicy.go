@@ -19,7 +19,7 @@ type Statement struct {
 
 	Action        []string `json:"Action"`
 	Resource      []string `json:"Resource,omitempty"`
-	HasConditions bool     // This is the only thing we need to know at this moment
+	HasConditions bool     `json:"-"` // This is the only thing we need to know at this moment
 
 	NotPrincipal map[string][]string `json:"NotPrincipal,omitempty"`
 	NotResource  []string            `json:"NotResource,omitempty"`
@@ -28,7 +28,7 @@ type Statement struct {
 	Condition []string `json:"Condition,omitempty"`
 }
 
-func (policyJSON *Policy) UnmarshalJSON(policy []byte) error {
+func (p *Policy) UnmarshalJSON(policy []byte) error {
 	var raw interface{}
 
 	err := json.Unmarshal(policy, &raw)
@@ -40,11 +40,11 @@ func (policyJSON *Policy) UnmarshalJSON(policy []byte) error {
 		for key, value := range topObject {
 			switch key {
 			case "Version":
-				policyJSON.Version = value.(string)
+				p.Version = value.(string)
 			case "ID":
-				policyJSON.Id = value.(string)
+				p.Id = value.(string)
 			case "Statement":
-				policyJSON.Statements = parseStatements(value)
+				p.Statements = parseStatements(value)
 			}
 		}
 	}
