@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/raito-io/cli/base/access_provider/sync_from_target"
+	"github.com/raito-io/cli/base/access_provider/types"
 	"github.com/raito-io/cli/base/wrappers/mocks"
 	"github.com/stretchr/testify/suite"
 
@@ -43,7 +44,7 @@ func (s *DataAccessFromTargetTestSuite) TestAccessSyncer_FetchS3AccessPointAcces
 		s.Equal("operations", aps[i].ApInput.Name)
 		s.Equal("operations", aps[i].ApInput.ActualName)
 		s.Equal(string(model.AccessPoint), *aps[i].ApInput.Type)
-		s.Equal(sync_from_target.Grant, aps[i].ApInput.Action)
+		s.Equal(types.Grant, aps[i].ApInput.Action)
 		s.Len(aps[i].ApInput.Who.Users, 1)
 		s.Equal(aps[i].ApInput.Who.Users[0], "m_carissa")
 		s.Len(aps[i].ApInput.Who.AccessProviders, 1)
