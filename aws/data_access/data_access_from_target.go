@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/raito-io/cli/base/access_provider/types"
 	"github.com/raito-io/cli/base/util/match"
 	"github.com/raito-io/cli/base/util/slice"
 	"github.com/raito-io/golang-set/set"
@@ -192,7 +193,7 @@ func (a *AccessSyncer) fetchRoleAccessProviders(roles []model.RoleEntity, aps []
 				ActualName: role.Name,
 				NamingHint: role.Name,
 				Type:       aws.String(string(model.Role)),
-				Action:     sync_from_target.Grant,
+				Action:     types.Grant,
 				Policy:     "",
 				Who:        whoItem,
 				What:       []sync_from_target.WhatItem{},
@@ -275,7 +276,7 @@ func (a *AccessSyncer) fetchManagedPolicyAccessProviders(ctx context.Context, ap
 			ActualName: policy.Name,
 			Type:       aws.String(string(model.Policy)),
 			NamingHint: policy.Name,
-			Action:     sync_from_target.Grant,
+			Action:     types.Grant,
 			Policy:     policyDocument,
 			Who: &sync_from_target.WhoItem{
 				Groups:          groupBindings,
@@ -409,7 +410,7 @@ func (a *AccessSyncer) fetchInlineUserPolicyAccessProviders(ctx context.Context,
 				Type:       aws.String(string(model.Policy)),
 				NamingHint: "",
 				ActualName: name,
-				Action:     sync_from_target.Grant,
+				Action:     types.Grant,
 				Policy:     policyDocuments,
 				Who: &sync_from_target.WhoItem{
 					Users: []string{user},
@@ -448,7 +449,7 @@ func (a *AccessSyncer) fetchInlineGroupPolicyAccessProviders(ctx context.Context
 				Type:       aws.String(string(model.Policy)),
 				NamingHint: "",
 				ActualName: name,
-				Action:     sync_from_target.Grant,
+				Action:     types.Grant,
 				Policy:     policyDocuments,
 				Who: &sync_from_target.WhoItem{
 					Groups: []string{group},
@@ -535,7 +536,7 @@ func (a *AccessSyncer) fetchS3AccessPointAccessProvidersForRegion(ctx context.Co
 				Type:       aws.String(string(model.AccessPoint)),
 				NamingHint: "",
 				ActualName: accessPoint.Name,
-				Action:     sync_from_target.Grant,
+				Action:     types.Grant,
 				Policy:     *accessPoint.PolicyDocument,
 			}}
 

@@ -12,6 +12,7 @@ import (
 	"github.com/aws/smithy-go/ptr"
 	"github.com/raito-io/cli-plugin-aws-account/aws/model"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	"github.com/raito-io/cli/base/access_provider/types"
 	"github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/wrappers/mocks"
 	"github.com/stretchr/testify/suite"
@@ -68,7 +69,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_CreateAllTogether() {
 				Description: r1Name + " Description",
 				NamingHint:  r1Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"d_hayden"},
 				},
@@ -88,7 +89,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_CreateAllTogether() {
 				Description: r2Name + " Description",
 				NamingHint:  r2Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"m_carissa"},
 				},
@@ -108,7 +109,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_CreateAllTogether() {
 				Description: p1Name + " Description",
 				NamingHint:  p1Name,
 				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"d_hayden"},
 					InheritFrom: []string{"ID:" + r1Name},
@@ -129,7 +130,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_CreateAllTogether() {
 				Description: p2Name + " Description",
 				NamingHint:  p2Name,
 				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"m_carissa"},
 					InheritFrom: []string{"ID:" + r2Name},
@@ -179,7 +180,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate
 				Description: r1Name + " Description",
 				NamingHint:  r1Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"d_hayden"},
 				},
@@ -199,7 +200,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate
 				Description: r2Name + " Description",
 				NamingHint:  r2Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"m_carissa"},
 				},
@@ -235,7 +236,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate
 				Description: p1Name + " Description",
 				NamingHint:  p1Name,
 				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"d_hayden"},
 					InheritFrom: []string{idToExternalIdMap[r1Name]},
@@ -256,7 +257,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_CreateSeparate
 				Description: p2Name + " Description",
 				NamingHint:  p2Name,
 				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"m_carissa"},
 					InheritFrom: []string{idToExternalIdMap[r2Name]},
@@ -298,7 +299,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate()
 				Description: r1Name + " Description",
 				NamingHint:  r1Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"d_hayden"},
 				},
@@ -318,7 +319,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate()
 				Description: r2Name + " Description",
 				NamingHint:  r2Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"m_carissa"},
 				},
@@ -338,7 +339,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate()
 				Description: p1Name + " Description",
 				NamingHint:  p1Name,
 				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"d_hayden"},
 					InheritFrom: []string{"ID:" + r1Name},
@@ -373,7 +374,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyUpdate()
 				NamingHint:  p1Name,
 				Type:        ptr.String(string(model.Policy)),
 				ExternalId:  ptr.String(idToExternalIdMap[p1Name]),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"m_carissa"},
 					InheritFrom: []string{idToExternalIdMap[r2Name]},
@@ -416,7 +417,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAn
 				Description: r1Name + " Description",
 				NamingHint:  r1Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"d_hayden"},
 				},
@@ -436,7 +437,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAn
 				Description: r2Name + " Description",
 				NamingHint:  r2Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"m_carissa"},
 				},
@@ -456,7 +457,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAn
 				Description: p1Name + " Description",
 				NamingHint:  p1Name,
 				Type:        ptr.String(string(model.Policy)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"d_hayden"},
 					InheritFrom: []string{"ID:" + r1Name},
@@ -491,7 +492,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_PolicyRole_PolicyRenameAn
 				NamingHint:  p1Name + " UPDATED",
 				Type:        ptr.String(string(model.Policy)),
 				ExternalId:  ptr.String(idToExternalIdMap[p1Name]),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"m_carissa"},
 					InheritFrom: []string{idToExternalIdMap[r2Name]},
@@ -545,7 +546,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPoi
 				Description: r1Name + " Description",
 				NamingHint:  r1Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"d_hayden"},
 				},
@@ -565,7 +566,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPoi
 				Description: r2Name + " Description",
 				NamingHint:  r2Name,
 				Type:        ptr.String(string(model.Role)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users: []string{"m_carissa"},
 				},
@@ -585,7 +586,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPoi
 				Description: ap1Name + " Description",
 				NamingHint:  ap1Name,
 				Type:        ptr.String(string(model.AccessPoint)),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"d_hayden"},
 					InheritFrom: []string{"ID:" + r1Name},
@@ -623,7 +624,7 @@ func (s *DataAccessToTargetTestSuite) TestAccessSyncer_AccessPointRole_AccessPoi
 				NamingHint:  ap1Name,
 				Type:        ptr.String(string(model.AccessPoint)),
 				ExternalId:  ptr.String(idToExternalIdMap[ap1Name]),
-				Action:      sync_to_target.Grant,
+				Action:      types.Grant,
 				Who: sync_to_target.WhoItem{
 					Users:       []string{"m_carissa"},
 					InheritFrom: []string{idToExternalIdMap[r2Name]},
@@ -668,13 +669,13 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 		names = append(names, fmt.Sprintf(strings.ToLower(string(t))+"-many-%d", i))
 	}
 
-	types := make([]string, len(names))
+	typeNames := make([]string, len(names))
 	for i := 0; i < len(names); i++ {
-		types[i] = string(t)
+		typeNames[i] = string(t)
 	}
 
 	defer func() {
-		s.deleteAps(names, idToExternalIdMap, types, accessSyncer)
+		s.deleteAps(names, idToExternalIdMap, typeNames, accessSyncer)
 	}()
 
 	aps := &sync_to_target.AccessProviderImport{
@@ -694,7 +695,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 			Description: policyName + " Description",
 			NamingHint:  policyName,
 			Type:        ptr.String(string(t)),
-			Action:      sync_to_target.Grant,
+			Action:      types.Grant,
 			Who: sync_to_target.WhoItem{
 				Users: []string{user},
 			},
@@ -749,7 +750,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 //				Description: sso1Name + " Description",
 //				NamingHint:  sso1Name,
 //				Type:        ptr.String(string(model.SSORole)),
-//				Action:      sync_to_target.Grant,
+//				Action:      types.Grant,
 //				Who: sync_to_target.WhoItem{
 //					Users: []string{"dieter@raito.io"},
 //				},
@@ -769,7 +770,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 //				Description: p1Name + " Description",
 //				NamingHint:  p1Name,
 //				Type:        ptr.String(string(model.Policy)),
-//				Action:      sync_to_target.Grant,
+//				Action:      types.Grant,
 //				Who: sync_to_target.WhoItem{
 //					Users:       []string{"d_hayden"},
 //					InheritFrom: []string{"ID:" + sso1Name},
@@ -804,7 +805,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 //				Description: sso2Name + " Description",
 //				NamingHint:  sso2Name,
 //				Type:        ptr.String(string(model.SSORole)),
-//				Action:      sync_to_target.Grant,
+//				Action:      types.Grant,
 //				Who: sync_to_target.WhoItem{
 //					Users: []string{"ruben@raito.io"},
 //				},
@@ -817,7 +818,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 //				NamingHint:  p1Name,
 //				Type:        ptr.String(string(model.Policy)),
 //				ExternalId:  ptr.String(idToExternalIdMap[p1Name]),
-//				Action:      sync_to_target.Grant,
+//				Action:      types.Grant,
 //				Who: sync_to_target.WhoItem{
 //					Users:       []string{"m_carissa"},
 //					InheritFrom: []string{"ID:" + sso2Name}, // Adding it to SSO role 2
@@ -861,7 +862,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 //				NamingHint:  sso2Name,
 //				Type:        ptr.String(string(model.SSORole)),
 //				ExternalId:  ptr.String(idToExternalIdMap[sso2Name]),
-//				Action:      sync_to_target.Grant,
+//				Action:      types.Grant,
 //				Who: sync_to_target.WhoItem{
 //					Users: []string{"dieter@raito.io"},
 //				},
@@ -882,7 +883,7 @@ func (s *DataAccessToTargetTestSuite) manyRunner(t model.AccessProviderType, cou
 //	}
 //}
 
-func (s *DataAccessToTargetTestSuite) deleteAps(ids []string, idToExternalIdMap map[string]string, types []string, accessSyncer *data_access.AccessSyncer) {
+func (s *DataAccessToTargetTestSuite) deleteAps(ids []string, idToExternalIdMap map[string]string, typeNames []string, accessSyncer *data_access.AccessSyncer) {
 	aps := &sync_to_target.AccessProviderImport{
 		AccessProviders: []*sync_to_target.AccessProvider{},
 	}
@@ -892,8 +893,8 @@ func (s *DataAccessToTargetTestSuite) deleteAps(ids []string, idToExternalIdMap 
 			Id:         id,
 			Name:       id,
 			ExternalId: ptr.String(idToExternalIdMap[id]),
-			Type:       ptr.String(types[i]),
-			Action:     sync_to_target.Grant,
+			Type:       ptr.String(typeNames[i]),
+			Action:     types.Grant,
 			Delete:     true,
 		})
 	}

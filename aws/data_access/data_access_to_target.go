@@ -20,6 +20,7 @@ import (
 
 	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
+	"github.com/raito-io/cli/base/access_provider/types"
 	"github.com/raito-io/cli/base/util/config"
 	"github.com/raito-io/cli/base/wrappers"
 	"github.com/raito-io/golang-set/set"
@@ -219,7 +220,7 @@ func resolveApType(ap *sync_to_target.AccessProvider, configmap *config.ConfigMa
 		return model.AccessProviderType(*ap.Type)
 	}
 
-	if ap.Action == sync_to_target.Purpose {
+	if ap.Action == types.Grant {
 		if configmap.GetStringWithDefault(constants.AwsOrganizationProfile, "") != "" {
 			return model.SSORole
 		} else {

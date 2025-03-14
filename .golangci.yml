@@ -23,9 +23,6 @@ linters-settings:
       - commentFormatting
       - paramTypeCombine
 
-  govet:
-    check-shadowing: true
-
   revive:
     rules:
       - name: exported
@@ -49,10 +46,6 @@ linters-settings:
 
   predeclared:
     ignore: "error"
-
-  gomnd:
-    ignored-functions:
-      - 'math.*' # Magic number generation, should be fixed and removed?
 
   cyclop:
     max-complexity: 30
@@ -108,9 +101,6 @@ linters:
 run:
   issues-exit-code: 1
   tests: false
-  skip-files:
-    - ".*mock.*\\.go$"
-    - ".*\\.pb\\.go$"
 
 output:
   path-prefix: ''
@@ -119,4 +109,3 @@ output:
     - format: colored-line-number
   print-issued-lines: true
   print-linter-name: true
-  uniq-by-line: false
