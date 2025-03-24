@@ -77,7 +77,7 @@ func (a *AccessSyncer) SyncAccessProviderToTarget(ctx context.Context, accessPro
 }
 
 func (a *AccessToTargetSyncer) initialize() error {
-	nameGenerator, err := NewNameGenerator(a.accessSyncer.account)
+	nameGenerator, err := NewNameGenerator(a.accessSyncer.account, a.accessSyncer.cfgMap.Parameters)
 	if err != nil {
 		return fmt.Errorf("new name generator: %w", err)
 	}

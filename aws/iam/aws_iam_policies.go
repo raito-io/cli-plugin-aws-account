@@ -284,7 +284,7 @@ func (repo *AwsIamRepository) AddAttachedEntitiesToManagedPolicy(ctx context.Con
 		for _, entity := range attachedEntitiesResp.PolicyRoles {
 			entityType := RoleResourceType
 
-			if strings.HasPrefix(*entity.RoleName, constants.SsoReservedPrefix+constants.SsoRolePrefix) {
+			if strings.HasPrefix(*entity.RoleName, constants.SsoReservedPrefix) {
 				entityType = SsoRoleResourceType
 			}
 
