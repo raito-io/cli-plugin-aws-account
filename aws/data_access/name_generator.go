@@ -85,7 +85,7 @@ func (ng *NameGenerator) GenerateName(ap *sync_to_target.AccessProvider, apType 
 
 	generator := ng.regularNameGenerator
 
-	switch apType { //nolint:exhaustive // Default is already set
+	switch apType {
 	case model.AccessPoint:
 		prefix = ng.accessPointPrefix
 		postfix = ng.accessPointSuffix
