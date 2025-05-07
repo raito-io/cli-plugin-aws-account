@@ -47,6 +47,12 @@ const (
 
 	TagSource = "aws-s3"
 
+	AwsPermissionSetOwnerEmailTag = "aws-permissionset-owner-email-tag"
+	AwsPermissionSetOwnerNameTag  = "aws-permissionset-owner-name-tag"
+	AwsPermissionSetOwnerGroupTag = "aws-permissionset-owner-group-tag"
+	AwsPermissionSetCustomTags    = "aws-permissionset-owner-custom-tags"
+	AwsPermissionSetAccountIdTag  = "aws-permissionset-account-id-tag"
+
 	S3PermissionPrefix = "s3"
 
 	SsoRolePrefix     = "RAITO_"

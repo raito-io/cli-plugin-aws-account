@@ -46,7 +46,7 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_SsoRole_CreateDelete
 	s.T().Run("Create sso role", func(t *testing.T) {
 		var err error
 
-		arn, err = s.repo.CreateSsoRole(context.Background(), name, description)
+		arn, err = s.repo.CreateSsoRole(context.Background(), name, description, map[string]string{})
 
 		require.NoError(t, err)
 		require.NotEmpty(t, arn)
@@ -81,7 +81,7 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_AssignUnassignPermis
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), users)
 
-	arn, err := s.repo.CreateSsoRole(context.Background(), name, description)
+	arn, err := s.repo.CreateSsoRole(context.Background(), name, description, map[string]string{})
 
 	require.NoError(s.T(), err)
 	require.NotEmpty(s.T(), arn)
