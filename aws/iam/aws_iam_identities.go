@@ -393,6 +393,18 @@ func (repo *AwsIamRepository) DeleteRole(ctx context.Context, name string) error
 		return err
 	}
 
+	// First check if the role exists
+	role, err := repo.GetRoleByName(ctx, name)
+	if err != nil {
+		return fmt.Errorf("check role existence: %w", err)
+	}
+
+	if role == nil {
+		// Role doesn't exist, which is fine since we wanted to delete it anyway
+		utils.Logger.Info(fmt.Sprintf("Role %q does not exist, skipping deletion", name))
+		return nil
+	}
+
 	err = repo.detachAllPoliciesFromRole(ctx, client, name)
 	if err != nil {
 		return fmt.Errorf("detach policies from role: %w", err)
