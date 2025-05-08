@@ -79,7 +79,7 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 			return ""
 		}
 	} else {
-		utils.Logger.Info(fmt.Sprintf("Updating permission set %q", name))
+		utils.Logger.Info(fmt.Sprintf("Updating permission set %q with tags %v", name, tags))
 
 		permissionSetArn = existingPermissionSet.arn
 
@@ -113,15 +113,15 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 
 func (a *AccessToTargetSyncer) generateSsoTags(role *sync_to_target.AccessProvider) map[string]string {
 	tags := map[string]string{
-		"creator": "RAITO",
+		"creator": "RAITO", // Always settings this tag to identify Raito created permission sets
 	}
 
 	customTagsString := a.cfgMap.GetString(constants.AwsPermissionSetCustomTags)
 
 	if customTagsString != "" {
-		customerTagsSplit := strings.Split(customTagsString, ",")
-		for _, tag := range customerTagsSplit {
+		for _, tag := range strings.Split(customTagsString, ",") {
 			tagSplit := strings.Split(tag, ":")
+
 			if len(tagSplit) == 2 {
 				tags[strings.TrimSpace(tagSplit[0])] = strings.TrimSpace(tagSplit[1])
 			} else {
@@ -130,46 +130,67 @@ func (a *AccessToTargetSyncer) generateSsoTags(role *sync_to_target.AccessProvid
 		}
 	}
 
-	accountIdTagString := a.cfgMap.GetString(constants.AwsPermissionSetAccountIdTag)
+	accountIdTagString := strings.TrimSpace(a.cfgMap.GetString(constants.AwsPermissionSetAccountIdTag))
 
 	if accountIdTagString != "" {
-		tags[strings.TrimSpace(accountIdTagString)] = a.accessSyncer.account
+		for _, tagKey := range strings.Split(accountIdTagString, ",") {
+			tagKey = strings.TrimSpace(tagKey)
+
+			if tagKey != "" {
+				tags[tagKey] = a.accessSyncer.account
+			}
+		}
+	}
+
+	// Helper function to generate tag values from owners
+	generateOwnerTagValue := func(tagKeyString string, owners []sync_to_target.Owner, getValue func(sync_to_target.Owner) (string, bool)) {
+		tagValues := set.NewSet[string]()
+
+		for _, owner := range owners {
+			if value, ok := getValue(owner); ok {
+				tagValues.Add(value)
+			}
+		}
+
+		tagValueString := strings.Join(tagValues.Slice(), "/") // Using "/" as a separator because many others are not allowed in tags
+
+		for _, tagKey := range strings.Split(tagKeyString, ",") {
+			tagKey = strings.TrimSpace(tagKey)
+
+			if tagKey != "" {
+				tags[tagKey] = tagValueString
+			}
+		}
 	}
 
 	if emailTag, found := a.cfgMap.Parameters[constants.AwsPermissionSetOwnerEmailTag]; found && emailTag != "" {
-		tagValues := make([]string, 0, len(role.Owners))
-
-		for _, owner := range role.Owners {
+		generateOwnerTagValue(emailTag, role.Owners, func(owner sync_to_target.Owner) (string, bool) {
 			if owner.Email != nil && *owner.Email != "" {
-				tagValues = append(tagValues, fmt.Sprintf("email:%s", *owner.Email))
+				return *owner.Email, true
 			}
-		}
 
-		tags[emailTag] = strings.Join(tagValues, "/")
+			return "", false
+		})
 	}
 
 	if nameTag, found := a.cfgMap.Parameters[constants.AwsPermissionSetOwnerNameTag]; found && nameTag != "" {
-		tagValues := make([]string, 0, len(role.Owners))
-
-		for _, owner := range role.Owners {
+		generateOwnerTagValue(nameTag, role.Owners, func(owner sync_to_target.Owner) (string, bool) {
 			if owner.AccountName != nil && *owner.AccountName != "" {
-				tagValues = append(tagValues, *owner.AccountName)
+				return *owner.AccountName, true
 			}
-		}
 
-		tags[nameTag] = strings.Join(tagValues, "/")
+			return "", false
+		})
 	}
 
 	if groupTag, found := a.cfgMap.Parameters[constants.AwsPermissionSetOwnerGroupTag]; found && groupTag != "" {
-		tagValues := make([]string, 0, len(role.Owners))
-
-		for _, owner := range role.Owners {
+		generateOwnerTagValue(groupTag, role.Owners, func(owner sync_to_target.Owner) (string, bool) {
 			if owner.GroupName != nil && *owner.GroupName != "" {
-				tagValues = append(tagValues, *owner.GroupName)
+				return *owner.GroupName, true
 			}
-		}
 
-		tags[groupTag] = strings.Join(tagValues, "/")
+			return "", false
+		})
 	}
 
 	return tags
