@@ -3,6 +3,7 @@ package data_access
 import (
 	"context"
 	"fmt"
+	"strings"
 
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
 	"github.com/aws/smithy-go/ptr"
@@ -17,6 +18,11 @@ import (
 )
 
 func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_target.AccessProvider, name string) string {
+	if a.ssoRepo == nil {
+		logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("SSO repository is not initialized. Make sure to configure the parameters %s and %s.", constants.AwsOrganizationIdentityCenterInstanceArn, constants.AwsOrganizationIdentityStore))
+		return ""
+	}
+
 	if role.ExternalId != nil {
 		origName := getNameFromExternalId(*role.ExternalId) // Parsing the name out of the external ID
 
@@ -52,10 +58,17 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 
 	permissionSetArn := ""
 
+	if len(role.Description) < 1 {
+		logFeedbackError(a.feedbackMap[role.Id], "The description for a Permission Set is mandatory. Please provide a description for the grant.")
+		return ""
+	}
+
+	tags := a.generateSsoTags(role)
+
 	if existingPermissionSet == nil {
 		utils.Logger.Info(fmt.Sprintf("Creating permission set %q", name))
 
-		permissionSetArn, err = a.ssoRepo.CreateSsoRole(ctx, name, role.Description)
+		permissionSetArn, err = a.ssoRepo.CreateSsoRole(ctx, name, role.Description, tags)
 		if err != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to create permission set %q: %s", name, err.Error()))
 			return ""
@@ -66,12 +79,12 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 			return ""
 		}
 	} else {
-		utils.Logger.Info(fmt.Sprintf("Updating permission set %q", name))
+		utils.Logger.Info(fmt.Sprintf("Updating permission set %q with tags %v", name, tags))
 
 		permissionSetArn = existingPermissionSet.arn
 
 		// Update the permission set name
-		err = a.ssoRepo.UpdateSsoRole(ctx, existingPermissionSet.arn, role.Description)
+		err = a.ssoRepo.UpdateSsoRole(ctx, existingPermissionSet.arn, role.Description, tags)
 		if err != nil {
 			logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("Failed to update permission set %q: %s", name, err.Error()))
 			return ""
@@ -96,6 +109,91 @@ func (a *AccessToTargetSyncer) handleSSORole(ctx context.Context, role *sync_to_
 	a.updatePermissionSetWhat(ctx, role, name, permissionSetArn)
 
 	return permissionSetArn
+}
+
+func (a *AccessToTargetSyncer) generateSsoTags(role *sync_to_target.AccessProvider) map[string]string {
+	tags := map[string]string{
+		"creator": "RAITO", // Always settings this tag to identify Raito created permission sets
+	}
+
+	customTagsString := a.cfgMap.GetString(constants.AwsPermissionSetCustomTags)
+
+	if customTagsString != "" {
+		for _, tag := range strings.Split(customTagsString, ",") {
+			tagSplit := strings.Split(tag, ":")
+
+			if len(tagSplit) == 2 {
+				tags[strings.TrimSpace(tagSplit[0])] = strings.TrimSpace(tagSplit[1])
+			} else {
+				utils.Logger.Warn(fmt.Sprintf("Invalid custom tags value %q, ignoring...", tag))
+			}
+		}
+	}
+
+	accountIdTagString := strings.TrimSpace(a.cfgMap.GetString(constants.AwsPermissionSetAccountIdTag))
+
+	if accountIdTagString != "" {
+		for _, tagKey := range strings.Split(accountIdTagString, ",") {
+			tagKey = strings.TrimSpace(tagKey)
+
+			if tagKey != "" {
+				tags[tagKey] = a.accessSyncer.account
+			}
+		}
+	}
+
+	// Helper function to generate tag values from owners
+	generateOwnerTagValue := func(tagKeyString string, owners []sync_to_target.Owner, getValue func(sync_to_target.Owner) (string, bool)) {
+		tagValues := set.NewSet[string]()
+
+		for _, owner := range owners {
+			if value, ok := getValue(owner); ok {
+				tagValues.Add(value)
+			}
+		}
+
+		tagValueString := strings.Join(tagValues.Slice(), "/") // Using "/" as a separator because many others are not allowed in tags
+
+		for _, tagKey := range strings.Split(tagKeyString, ",") {
+			tagKey = strings.TrimSpace(tagKey)
+
+			if tagKey != "" {
+				tags[tagKey] = tagValueString
+			}
+		}
+	}
+
+	if emailTag, found := a.cfgMap.Parameters[constants.AwsPermissionSetOwnerEmailTag]; found && emailTag != "" {
+		generateOwnerTagValue(emailTag, role.Owners, func(owner sync_to_target.Owner) (string, bool) {
+			if owner.Email != nil && *owner.Email != "" {
+				return *owner.Email, true
+			}
+
+			return "", false
+		})
+	}
+
+	if nameTag, found := a.cfgMap.Parameters[constants.AwsPermissionSetOwnerNameTag]; found && nameTag != "" {
+		generateOwnerTagValue(nameTag, role.Owners, func(owner sync_to_target.Owner) (string, bool) {
+			if owner.AccountName != nil && *owner.AccountName != "" {
+				return *owner.AccountName, true
+			}
+
+			return "", false
+		})
+	}
+
+	if groupTag, found := a.cfgMap.Parameters[constants.AwsPermissionSetOwnerGroupTag]; found && groupTag != "" {
+		generateOwnerTagValue(groupTag, role.Owners, func(owner sync_to_target.Owner) (string, bool) {
+			if owner.GroupName != nil && *owner.GroupName != "" {
+				return *owner.GroupName, true
+			}
+
+			return "", false
+		})
+	}
+
+	return tags
 }
 
 func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role *sync_to_target.AccessProvider, existingBindings set.Set[model.PolicyBinding], permissionSetArn string, name string) {
@@ -210,7 +308,7 @@ func (a *AccessToTargetSyncer) fetchExistingPermissionSets(ctx context.Context) 
 		return a.cachedPermissionSets, nil
 	}
 
-	utils.Logger.Info("Loading existing permission sets")
+	utils.Logger.Info("Start loading existing permission sets")
 
 	result := make(map[string]*permissionSetData)
 

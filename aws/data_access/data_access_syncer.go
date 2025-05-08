@@ -55,8 +55,8 @@ type dataAccessRepository interface {
 
 type dataAccessSsoRepository interface {
 	GetSsoRole(ctx context.Context, permissionSetArn string) (*ssoTypes.PermissionSet, error)
-	CreateSsoRole(ctx context.Context, name, description string) (arn string, err error)
-	UpdateSsoRole(ctx context.Context, arn string, description string) error
+	CreateSsoRole(ctx context.Context, name, description string, tags map[string]string) (arn string, err error)
+	UpdateSsoRole(ctx context.Context, arn string, description string, tags map[string]string) error
 	DeleteSsoRole(ctx context.Context, permissionSetArn string) error
 	ListSsoRoles(ctx context.Context) ([]string, error)
 	AssignPermissionSet(ctx context.Context, permissionSetArn string, principalType ssoTypes.PrincipalType, principal string) error

@@ -54,17 +54,23 @@ func NewAwsSsoIamRepository(configMap *config.ConfigMap, account string, client 
 	}, nil
 }
 
-func (repo *AwsSsoIamRepository) CreateSsoRole(ctx context.Context, name, description string) (arn string, err error) {
+func (repo *AwsSsoIamRepository) CreateSsoRole(ctx context.Context, name, description string, tags map[string]string) (arn string, err error) {
+	pmTags := make([]ssoTypes.Tag, 0, len(tags))
+
+	for k, v := range tags {
+		pmTags = append(pmTags, ssoTypes.Tag{
+			Key:   aws.String(k),
+			Value: aws.String(v),
+		})
+	}
+
+	utils.Logger.Info(fmt.Sprintf("Creating permission set with name: %s, description: %s, tags: %+v", name, description, tags))
+
 	permissionSet, err := repo.client.CreatePermissionSet(ctx, &ssoadmin.CreatePermissionSetInput{
 		InstanceArn: &repo.instanceArn,
 		Name:        &name,
 		Description: &description,
-		Tags: []ssoTypes.Tag{
-			{
-				Key:   aws.String("creator"),
-				Value: aws.String("RAITO"),
-			},
-		},
+		Tags:        pmTags,
 	})
 
 	if err != nil {
@@ -74,7 +80,8 @@ func (repo *AwsSsoIamRepository) CreateSsoRole(ctx context.Context, name, descri
 	return *permissionSet.PermissionSet.PermissionSetArn, nil
 }
 
-func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, description string) error {
+func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, description string, tags map[string]string) error {
+	// Update the permission set description
 	_, err := repo.client.UpdatePermissionSet(ctx, &ssoadmin.UpdatePermissionSetInput{
 		InstanceArn:      &repo.instanceArn,
 		PermissionSetArn: &arn,
@@ -83,6 +90,48 @@ func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, 
 
 	if err != nil {
 		return fmt.Errorf("update permission set: %w", err)
+	}
+
+	// Fetch existing tags
+	result, err := repo.client.ListTagsForResource(ctx, &ssoadmin.ListTagsForResourceInput{
+		InstanceArn: &repo.instanceArn,
+		ResourceArn: &arn,
+	})
+	if err != nil {
+		return fmt.Errorf("list tags for resource: %w", err)
+	}
+
+	// Create maps for existing tags
+	existingTags := make(map[string]string)
+
+	for _, tag := range result.Tags {
+		existingTags[*tag.Key] = *tag.Value
+	}
+
+	// Determine tags to add or update
+	tagsToUpsert := make([]ssoTypes.Tag, 0)
+
+	for key, value := range tags {
+		existingValue, exists := existingTags[key]
+
+		if !exists || existingValue != value {
+			tagsToUpsert = append(tagsToUpsert, ssoTypes.Tag{
+				Key:   aws.String(key),
+				Value: aws.String(value),
+			})
+		}
+	}
+
+	// Apply tag changes - only add or update tags, don't remove any
+	if len(tagsToUpsert) > 0 {
+		_, err = repo.client.TagResource(ctx, &ssoadmin.TagResourceInput{
+			InstanceArn: &repo.instanceArn,
+			ResourceArn: &arn,
+			Tags:        tagsToUpsert,
+		})
+		if err != nil {
+			return fmt.Errorf("tag resource: %w", err)
+		}
 	}
 
 	return nil
@@ -154,15 +203,21 @@ func (repo *AwsSsoIamRepository) DeleteSsoRole(ctx context.Context, permissionSe
 func (repo *AwsSsoIamRepository) ListSsoRoles(ctx context.Context) ([]string, error) {
 	result := make([]string, 0)
 
+	utils.Logger.Info("Listing all permission sets")
+
 	iterator := ssoadmin.NewListPermissionSetsPaginator(repo.client, &ssoadmin.ListPermissionSetsInput{
 		InstanceArn: &repo.instanceArn,
 	})
+
+	utils.Logger.Info("Got iterator for permission sets")
 
 	for iterator.HasMorePages() {
 		page, err := iterator.NextPage(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("list permission sets: %w", err)
 		}
+
+		utils.Logger.Info("Got next page for permission sets")
 
 		result = append(result, page.PermissionSets...)
 	}
