@@ -17,9 +17,18 @@ type NameGenerator struct {
 	accessPointNameGenerator naming_hint.UniqueGenerator
 	regularNameGenerator     naming_hint.UniqueGenerator
 	roleNameGenerator        naming_hint.UniqueGenerator
+
+	accessPointPrefix string
+	accessPointSuffix string
+	rolePrefix        string
+	roleSuffix        string
+	policyPrefix      string
+	policySuffix      string
+	ssoRolePrefix     string
+	ssoRoleSuffix     string
 }
 
-func NewNameGenerator(accountId string) (*NameGenerator, error) {
+func NewNameGenerator(accountId string, params map[string]string) (*NameGenerator, error) {
 	accessPointNameGenerator, err := naming_hint.NewUniqueNameGenerator(utils.Logger, "", &naming_hint.NamingConstraints{
 		UpperCaseLetters:  false,
 		LowerCaseLetters:  true,
@@ -58,6 +67,15 @@ func NewNameGenerator(accountId string) (*NameGenerator, error) {
 		accessPointNameGenerator: accessPointNameGenerator,
 		regularNameGenerator:     regularNameGenerator,
 		roleNameGenerator:        roleNameGenerator,
+
+		rolePrefix:        params[constants.AwsAccessRolePrefix],
+		roleSuffix:        params[constants.AwsAccessRoleSuffix],
+		policyPrefix:      params[constants.AwsAccessPolicyPrefix],
+		policySuffix:      params[constants.AwsAccessPolicySuffix],
+		ssoRolePrefix:     params[constants.AwsAccessSsoRolePrefix],
+		ssoRoleSuffix:     params[constants.AwsAccessSsoRoleSuffix],
+		accessPointPrefix: params[constants.AwsAccessPointPrefix],
+		accessPointSuffix: params[constants.AwsAccessPointSuffix],
 	}, nil
 }
 
@@ -67,13 +85,26 @@ func (ng *NameGenerator) GenerateName(ap *sync_to_target.AccessProvider, apType 
 
 	generator := ng.regularNameGenerator
 
-	switch apType { //nolint:exhaustive // Default is already set
+	switch apType {
 	case model.AccessPoint:
+		prefix = ng.accessPointPrefix
+		postfix = ng.accessPointSuffix
 		generator = ng.accessPointNameGenerator
 	case model.SSORole:
-		prefix = constants.SsoRolePrefix
-		postfix = "_" + ng.accountId
+		if ng.ssoRolePrefix != "" {
+			prefix = ng.ssoRolePrefix
+		} else {
+			prefix = constants.SsoRolePrefix
+		}
+
+		postfix = ng.ssoRoleSuffix + "_" + ng.accountId
 		generator = ng.roleNameGenerator
+	case model.Role:
+		prefix = ng.rolePrefix
+		postfix = ng.roleSuffix
+	case model.Policy:
+		prefix = ng.policyPrefix
+		postfix = ng.policySuffix
 	}
 
 	name, err := generator.Generate(ap)

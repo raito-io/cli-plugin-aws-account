@@ -32,6 +32,15 @@ const (
 	AwsAccessSkipS3AccessPoints      = "aws-access-skip-s3-access-points"
 	AwsAccessRoleExcludes            = "aws-access-role-excludes"
 
+	AwsAccessRolePrefix    = "aws-role-prefix"
+	AwsAccessRoleSuffix    = "aws-role-suffix"
+	AwsAccessPolicyPrefix  = "aws-policy-prefix"
+	AwsAccessPolicySuffix  = "aws-policy-suffix"
+	AwsAccessSsoRolePrefix = "aws-sso-role-prefix"
+	AwsAccessSsoRoleSuffix = "aws-sso-role-suffix"
+	AwsAccessPointPrefix   = "aws-access-point-prefix"
+	AwsAccessPointSuffix   = "aws-access-point-suffix"
+
 	AwsUserExcludes = "aws-user-excludes"
 
 	AwsS3CloudTrailBucket = "aws-s3-cloudtrail-bucket"
