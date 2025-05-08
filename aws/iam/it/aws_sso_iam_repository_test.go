@@ -60,7 +60,7 @@ func (s *AwsSsoIAMRepositoryTestSuite) TestSsoIamRepository_SsoRole_CreateDelete
 	})
 
 	s.T().Run("Update sso role", func(t *testing.T) {
-		err := s.repo.UpdateSsoRole(context.Background(), arn, "Updated Role Description")
+		err := s.repo.UpdateSsoRole(context.Background(), arn, "Updated Role Description", map[string]string{})
 
 		assert.NoError(t, err)
 	})
