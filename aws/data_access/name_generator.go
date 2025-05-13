@@ -2,6 +2,7 @@ package data_access
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/raito-io/cli/base/access_provider/sync_to_target"
 	"github.com/raito-io/cli/base/access_provider/sync_to_target/naming_hint"
@@ -91,13 +92,8 @@ func (ng *NameGenerator) GenerateName(ap *sync_to_target.AccessProvider, apType 
 		postfix = ng.accessPointSuffix
 		generator = ng.accessPointNameGenerator
 	case model.SSORole:
-		if ng.ssoRolePrefix != "" {
-			prefix = ng.ssoRolePrefix
-		} else {
-			prefix = constants.SsoRolePrefix
-		}
-
-		postfix = ng.ssoRoleSuffix + "_" + ng.accountId
+		prefix = strings.ReplaceAll(ng.ssoRolePrefix, "#account#", ng.accountId)
+		postfix = strings.ReplaceAll(ng.ssoRoleSuffix, "#account#", ng.accountId)
 		generator = ng.roleNameGenerator
 	case model.Role:
 		prefix = ng.rolePrefix
