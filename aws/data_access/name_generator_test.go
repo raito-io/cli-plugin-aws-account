@@ -55,7 +55,7 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 				ap:     &testAp,
 				apType: model.SSORole,
 			},
-			want:    constants.SsoRolePrefix + "regular-name_123456789012",
+			want:    "regular-name",
 			wantErr: false,
 		},
 		{
@@ -139,7 +139,7 @@ func TestNameGenerator_GenerateActualName_PrefixSuffix(t *testing.T) {
 		constants.AwsAccessPointPrefix:   "ap_",
 		constants.AwsAccessPointSuffix:   "_apraito",
 		constants.AwsAccessSsoRolePrefix: "sso_",
-		constants.AwsAccessSsoRoleSuffix: "_sr",
+		constants.AwsAccessSsoRoleSuffix: "_sr_#account#",
 	})
 	require.NoError(t, err)
 
