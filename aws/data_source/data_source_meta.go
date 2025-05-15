@@ -3,6 +3,7 @@ package data_source
 import (
 	"sync"
 
+	"github.com/aws/smithy-go/ptr"
 	ds "github.com/raito-io/cli/base/data_source"
 	"github.com/raito-io/cli/base/util/config"
 
@@ -66,6 +67,7 @@ func GetS3MetaData(cfg *config.ConfigMap) *ds.MetaData {
 				CanBeAssumed:                  false,
 				CanAssumeMultiple:             false,
 				AllowedWhoAccessProviderTypes: []string{string(model.Role)},
+				CommonParentType:              ptr.String(ds.Bucket),
 			},
 		}
 		accessProviderTypes = append(accessProviderTypes, metaDataProvider.AccessProviderTypes()...)
