@@ -55,7 +55,7 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 				ap:     &testAp,
 				apType: model.SSORole,
 			},
-			want:    constants.SsoRolePrefix + "regular-name_123456789012",
+			want:    "regular-name",
 			wantErr: false,
 		},
 		{
@@ -122,10 +122,64 @@ func TestNameGenerator_GenerateName(t *testing.T) {
 }
 
 func TestNameGenerator_GenerateActualName(t *testing.T) {
-	nameGenerator, err := NewNameGenerator("1234")
+	nameGenerator, err := NewNameGenerator("1234", map[string]string{})
 	require.NoError(t, err)
 
 	name, err := nameGenerator.GenerateName(&sync_to_target.AccessProvider{Name: "someAp", NamingHint: "policy/CustomAccess"}, model.Policy)
 	require.NoError(t, err)
 	require.Equal(t, "policy_CustomAccess", name)
+}
+
+func TestNameGenerator_GenerateActualName_PrefixSuffix(t *testing.T) {
+	nameGenerator, err := NewNameGenerator("1234", map[string]string{
+		constants.AwsAccessRolePrefix:    "role_",
+		constants.AwsAccessRoleSuffix:    "_rraito",
+		constants.AwsAccessPolicyPrefix:  "policy_",
+		constants.AwsAccessPolicySuffix:  "_praito",
+		constants.AwsAccessPointPrefix:   "ap_",
+		constants.AwsAccessPointSuffix:   "_apraito",
+		constants.AwsAccessSsoRolePrefix: "sso_",
+		constants.AwsAccessSsoRoleSuffix: "_sr_#account#",
+	})
+	require.NoError(t, err)
+
+	tests := []struct {
+		name   string
+		ap     *sync_to_target.AccessProvider
+		apType model.AccessProviderType
+		want   string
+	}{
+		{
+			name:   "Role",
+			ap:     &sync_to_target.AccessProvider{Name: "My Role", NamingHint: "myrole"},
+			apType: model.Role,
+			want:   "role_myrole_rraito",
+		},
+		{
+			name:   "Policy",
+			ap:     &sync_to_target.AccessProvider{Name: "My Policy", NamingHint: "apolicy"},
+			apType: model.Policy,
+			want:   "policy_apolicy_praito",
+		},
+		{
+			name:   "SSO Role",
+			ap:     &sync_to_target.AccessProvider{Name: "An SSO Role", NamingHint: "permset"},
+			apType: model.SSORole,
+			want:   "sso_permset_sr_1234",
+		},
+		{
+			name:   "Access Point",
+			ap:     &sync_to_target.AccessProvider{Name: "An Access Point", NamingHint: "apke"},
+			apType: model.AccessPoint,
+			want:   "ap_apke_apraito",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			name, err := nameGenerator.GenerateName(tt.ap, tt.apType)
+			require.NoError(t, err)
+			require.Equal(t, tt.want, name)
+		})
+	}
 }

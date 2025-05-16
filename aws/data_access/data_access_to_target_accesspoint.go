@@ -155,7 +155,7 @@ func (a *AccessToTargetSyncer) handleAccessPoints(ctx context.Context) {
 		var s3ApArn string
 
 		if existingAccessPoint == nil {
-			utils.Logger.Info(fmt.Sprintf("Creating access point %s", newName))
+			utils.Logger.Info(fmt.Sprintf("Creating access point %s for bucket %s in region %s", newName, bucketName, region))
 
 			// Create the new access point with the who
 			s3ApArn, err = a.repo.CreateAccessPoint(ctx, newName, bucketName, region, statements)
