@@ -21,7 +21,9 @@ const (
 	AwsS3IncludeBuckets = "aws-s3-include-buckets"
 	AwsS3ExcludeBuckets = "aws-s3-exclude-buckets"
 
-	AwsGlueEnabled = "aws-glue-enabled"
+	AwsGlueEnabled          = "aws-glue-enabled"
+	AwsGlueExcludeDatabases = "aws-glue-exclude-databases"
+	AwsGlueExcludeTables    = "aws-glue-exclude-tables"
 
 	AwsAccessSkipIAM                 = "aws-access-skip-iam"
 	AwsAccessSkipUserInlinePolicies  = "aws-access-skip-user-inline-policies"

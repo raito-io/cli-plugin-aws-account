@@ -131,16 +131,40 @@ func (s *DataSourceSyncer) FetchGlueDataObjects(ctx context.Context, dataSourceH
 		return fmt.Errorf("listing glue databases: %w", err)
 	}
 
+	excludedDatabases, err := getRegExList(s.config.GetString(constants.AwsGlueExcludeDatabases))
+	if err != nil {
+		return fmt.Errorf("getting excluded databases: %w", err)
+	}
+
+	excludedTables, err := getRegExList(s.config.GetString(constants.AwsGlueExcludeTables))
+	if err != nil {
+		return fmt.Errorf("getting excluded tables: %w", err)
+	}
+
 	pathsHandled := set.NewSet[string]()
 
-	for _, db := range dbs {
-		tables, err2 := glueRepo.ListTablesForDatabase(ctx, s.account, db, region)
+	for _, dbName := range dbs {
+		// Check if database should be excluded
+		dbFullName := fmt.Sprintf("%s:%s:%s", s.account, region, dbName)
+		if isExcluded(dbName, excludedDatabases) {
+			utils.Logger.Info(fmt.Sprintf("Excluding database %s based on exclude list", dbFullName))
+			continue
+		}
+
+		tables, err2 := glueRepo.ListTablesForDatabase(ctx, s.account, dbName, region)
 		if err2 != nil {
 			return fmt.Errorf("listing glue tables: %w", err2)
 		}
 
 		for i := range tables {
 			table := tables[i]
+
+			// Check if table should be excluded
+			tableFullName := fmt.Sprintf("%s:%s:%s/%s", s.account, region, dbName, table.Name)
+			if isExcluded(table.Name, excludedTables) {
+				utils.Logger.Info(fmt.Sprintf("Excluding table %s based on exclude list", tableFullName))
+				continue
+			}
 
 			if !strings.HasPrefix(table.Location, "s3://") {
 				continue
@@ -542,10 +566,6 @@ func getRegExList(input string) ([]*regexp.Regexp, error) {
 			continue
 		}
 
-		if strings.Contains(item, "*") {
-			item = strings.ReplaceAll(item, "*", ".*")
-		}
-
 		item = "^" + item + "$"
 
 		re, err := regexp.Compile(item)
@@ -614,6 +634,17 @@ func filterBuckets(configMap *config.ConfigMap, buckets []model.AwsS3Entity) ([]
 	}
 
 	return filteredBuckets, nil
+}
+
+// isExcluded checks if a name matches any of the exclusion patterns.
+func isExcluded(name string, exclusionPatterns []*regexp.Regexp) bool {
+	for _, pattern := range exclusionPatterns {
+		if pattern.MatchString(name) {
+			return true
+		}
+	}
+
+	return false
 }
 
 func newMapDataSourceHandler() *mapDataSourceHandler {
