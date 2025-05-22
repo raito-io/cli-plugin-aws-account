@@ -82,7 +82,7 @@ func (s *GlueRepositoryTestSuite) TestGlueRepository_FetchTest_WithExclusions() 
 	config.Parameters[constants.AwsS3Enabled] = "false"
 	config.Parameters[constants.AwsRegions] = "eu-central-1,eu-west-1"
 	config.Parameters[constants.AwsGlueExcludeDatabases] = "raito-data-corporate"
-	config.Parameters[constants.AwsGlueExcludeTables] = "car.*" // Changed to wildcard
+	config.Parameters[constants.AwsGlueExcludeTables] = "car.*"
 
 	err := syncer.SyncDataSource(context.Background(), &dsHandler, &ds2.DataSourceSyncConfig{ConfigMap: config})
 
