@@ -118,14 +118,20 @@ func (a *AccessToTargetSyncer) handleAccessPoints(ctx context.Context) {
 			}
 		}
 
+		principals := targetPrincipals.Slice()
+
+		if len(principals) == 0 {
+			logFeedbackError(a.feedbackMap[accessPoint.Id], fmt.Sprintf("No principals found for access point %q", newName))
+			continue
+		}
+
+		sort.Strings(principals)
+
 		// For some reason, new roles are not immediately available to link to and cause an error when creating/updating the access point.
 		// So when linking to a new role, we'll sleep for a bit to make sure it's available.
 		if shouldSleep {
 			time.Sleep(roleDelay * time.Second)
 		}
-
-		principals := targetPrincipals.Slice()
-		sort.Strings(principals)
 
 		// Getting the what
 		statements := createPolicyStatementsFromWhat(accessPoint.What, a.cfgMap)
