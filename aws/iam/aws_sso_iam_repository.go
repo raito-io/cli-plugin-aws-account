@@ -4,19 +4,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/service/identitystore"
 	"github.com/aws/aws-sdk-go-v2/service/ssoadmin"
 	ssoTypes "github.com/aws/aws-sdk-go-v2/service/ssoadmin/types"
-	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
-	"github.com/raito-io/cli/base/util/config"
-	"github.com/raito-io/golang-set/set"
-
 	"github.com/raito-io/cli-plugin-aws-account/aws/constants"
+	awspolicy "github.com/raito-io/cli-plugin-aws-account/aws/policy"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils"
 	"github.com/raito-io/cli-plugin-aws-account/aws/utils/bimap"
+	"github.com/raito-io/cli/base/util/config"
+	"github.com/raito-io/golang-set/set"
+	"go.uber.org/ratelimit"
 )
 
 type AwsSsoIamRepository struct {
@@ -29,8 +30,12 @@ type AwsSsoIamRepository struct {
 	identityClient *identitystore.Client
 
 	// Cache
-	users  bimap.Bimap[string, string]
-	groups bimap.Bimap[string, string]
+	users     bimap.Bimap[string, string]
+	groups    bimap.Bimap[string, string]
+	tagsCache map[string][]ssoTypes.Tag
+
+	listTagsLimiter ratelimit.Limiter
+	tagsCacheLock   sync.RWMutex
 }
 
 func NewAwsSsoIamRepository(configMap *config.ConfigMap, account string, client *ssoadmin.Client, identityStoreClient *identitystore.Client) (*AwsSsoIamRepository, error) {
@@ -51,6 +56,8 @@ func NewAwsSsoIamRepository(configMap *config.ConfigMap, account string, client 
 		identityStoreId: identityStoreId,
 		client:          client,
 		identityClient:  identityStoreClient,
+		tagsCache:       make(map[string][]ssoTypes.Tag),
+		listTagsLimiter: ratelimit.New(15),
 	}, nil
 }
 
@@ -80,6 +87,38 @@ func (repo *AwsSsoIamRepository) CreateSsoRole(ctx context.Context, name, descri
 	return *permissionSet.PermissionSet.PermissionSetArn, nil
 }
 
+// new method with caching
+func (repo *AwsSsoIamRepository) listTagsForResource(ctx context.Context, resourceArn string) ([]ssoTypes.Tag, error) {
+	repo.tagsCacheLock.RLock()
+	tags, found := repo.tagsCache[resourceArn]
+	repo.tagsCacheLock.RUnlock()
+
+	if found {
+		utils.Logger.Debug(fmt.Sprintf("Cache hit for tags on resource %s", resourceArn))
+		return tags, nil
+	}
+
+	utils.Logger.Debug(fmt.Sprintf("Cache miss for tags on resource %s, fetching from AWS", resourceArn))
+
+	repo.listTagsLimiter.Take() // Apply rate limiting before calling the AWS API
+
+	result, err := repo.client.ListTagsForResource(ctx, &ssoadmin.ListTagsForResourceInput{
+		InstanceArn: &repo.instanceArn,
+		ResourceArn: &resourceArn,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("list tags for resource %s: %w", resourceArn, err)
+	}
+
+	repo.tagsCacheLock.Lock()
+	repo.tagsCache[resourceArn] = result.Tags
+	repo.tagsCacheLock.Unlock()
+
+	utils.Logger.Debug(fmt.Sprintf("Cached %d tags for resource %s", len(result.Tags), resourceArn))
+
+	return result.Tags, nil
+}
+
 func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, description string, tags map[string]string) error {
 	// Update the permission set description
 	_, err := repo.client.UpdatePermissionSet(ctx, &ssoadmin.UpdatePermissionSetInput{
@@ -93,10 +132,8 @@ func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, 
 	}
 
 	// Fetch existing tags
-	result, err := repo.client.ListTagsForResource(ctx, &ssoadmin.ListTagsForResourceInput{
-		InstanceArn: &repo.instanceArn,
-		ResourceArn: &arn,
-	})
+	var fetchedTags []ssoTypes.Tag
+	fetchedTags, err = repo.listTagsForResource(ctx, arn) // Use new method, assign to existing err
 	if err != nil {
 		return fmt.Errorf("list tags for resource: %w", err)
 	}
@@ -104,7 +141,7 @@ func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, 
 	// Create maps for existing tags
 	existingTags := make(map[string]string)
 
-	for _, tag := range result.Tags {
+	for _, tag := range fetchedTags {
 		existingTags[*tag.Key] = *tag.Value
 	}
 
@@ -132,21 +169,24 @@ func (repo *AwsSsoIamRepository) UpdateSsoRole(ctx context.Context, arn string, 
 		if err != nil {
 			return fmt.Errorf("tag resource: %w", err)
 		}
+
+		// Invalidate cache for this resource ARN as tags have been updated
+		repo.tagsCacheLock.Lock()
+		delete(repo.tagsCache, arn)
+		repo.tagsCacheLock.Unlock()
+		utils.Logger.Debug(fmt.Sprintf("Invalidated tags cache for resource %s due to update", arn))
 	}
 
 	return nil
 }
 
 func (repo *AwsSsoIamRepository) HasRaitoCreatedTag(ctx context.Context, permissionSetArn string) (bool, error) {
-	result, err := repo.client.ListTagsForResource(ctx, &ssoadmin.ListTagsForResourceInput{
-		InstanceArn: &repo.instanceArn,
-		ResourceArn: &permissionSetArn,
-	})
+	fetchedTags, err := repo.listTagsForResource(ctx, permissionSetArn) // Use new method, new err declaration
 	if err != nil {
 		return false, fmt.Errorf("list tags for resource: %w", err)
 	}
 
-	for _, tag := range result.Tags {
+	for _, tag := range fetchedTags {
 		if *tag.Key == "creator" && *tag.Value == "RAITO" {
 			return true, nil
 		}
