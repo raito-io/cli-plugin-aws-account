@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sync" // Added sync package
+	"sync"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
@@ -32,10 +32,10 @@ type AwsSsoIamRepository struct {
 	// Cache
 	users     bimap.Bimap[string, string]
 	groups    bimap.Bimap[string, string]
-	tagsCache map[string][]ssoTypes.Tag // Added tagsCache
+	tagsCache map[string][]ssoTypes.Tag
 
-	listTagsLimiter ratelimit.Limiter // Added rate limiter
-	tagsCacheLock   sync.RWMutex      // Added RWMutex for tagsCache
+	listTagsLimiter ratelimit.Limiter
+	tagsCacheLock   sync.RWMutex
 }
 
 func NewAwsSsoIamRepository(configMap *config.ConfigMap, account string, client *ssoadmin.Client, identityStoreClient *identitystore.Client) (*AwsSsoIamRepository, error) {
@@ -56,8 +56,8 @@ func NewAwsSsoIamRepository(configMap *config.ConfigMap, account string, client 
 		identityStoreId: identityStoreId,
 		client:          client,
 		identityClient:  identityStoreClient,
-		tagsCache:       make(map[string][]ssoTypes.Tag), // Initialized tagsCache
-		listTagsLimiter: ratelimit.New(15),               // Initialize rate limiter to 15 requests per second
+		tagsCache:       make(map[string][]ssoTypes.Tag),
+		listTagsLimiter: ratelimit.New(15),
 	}, nil
 }
 
