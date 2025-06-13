@@ -64,6 +64,8 @@ const (
 	AwsPermissionSetCustomTags    = "aws-permissionset-owner-custom-tags"
 	AwsPermissionSetAccountIdTag  = "aws-permissionset-account-id-tag"
 
+	AwsPermissionSetDummyUser = "aws-permissionset-dummy-user"
+
 	S3PermissionPrefix = "s3"
 
 	SsoRolePrefix     = "RAITO_"

@@ -213,6 +213,20 @@ func (a *AccessToTargetSyncer) updatePermissionSetWho(ctx context.Context, role 
 		})
 	}
 
+	// If no users or groups, add dummy user if configured
+	if len(targetBindings.Slice()) == 0 {
+		dummyUser := strings.TrimSpace(a.cfgMap.GetString(constants.AwsPermissionSetDummyUser))
+
+		if dummyUser != "" {
+			targetBindings.Add(model.PolicyBinding{
+				Type:         iam.UserResourceType,
+				ResourceName: dummyUser,
+			})
+
+			utils.Logger.Info(fmt.Sprintf("No users/groups assigned to permission set %q, assigning dummy user %q as required by AWS.", name, dummyUser))
+		}
+	}
+
 	users, err := a.ssoRepo.GetUsers(ctx)
 	if err != nil {
 		logFeedbackError(a.feedbackMap[role.Id], fmt.Sprintf("failed to get users: %s", err.Error()))
