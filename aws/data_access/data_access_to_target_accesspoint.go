@@ -172,6 +172,8 @@ func (a *AccessToTargetSyncer) handleAccessPoints(ctx context.Context) {
 		} else {
 			utils.Logger.Info(fmt.Sprintf("Updating access point %s", newName))
 
+			s3ApArn = existingAccessPoint.Arn
+
 			// Handle the who
 			err = a.repo.UpdateAccessPoint(ctx, newName, region, statements)
 			if err != nil {
